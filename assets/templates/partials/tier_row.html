@@ -1,86 +1,34 @@
 {{ define "partials/tier_row.html" }} {{ $view := .View }} {{ $tier := .Tier }}
 <section
-    class="flex items-stretch gap-3 rounded-lg border border-slate-800 bg-slate-900/60"
+  class="flex items-stretch gap-2 rounded-sm border border-slate-800 bg-slate-900/60"
 >
-    <div
-        class="flex w-28 shrink-0 flex-col items-center justify-center gap-1 rounded-l-lg p-3"
-        style="background-color: {{ $tier.Color }}1a"
-    >
-        <form
-            hx-put="/r/{{ $view.Ranking.Slug }}/tiers/{{ $tier.ID }}"
-            hx-target="#board"
-            hx-swap="innerHTML"
-            hx-trigger="change"
-            class="flex flex-col items-center gap-1"
-        >
-            <input
-                type="hidden"
-                name="csrf_token"
-                value="{{ $view.CSRFToken }}"
-            />
-            <input
-                name="label"
-                value="{{ $tier.Label }}"
-                aria-label="Tier label"
-                class="w-20 bg-transparent text-center text-xl font-bold outline-none"
-                style="color: {{ $tier.Color }}"
-            />
-            <input
-                type="color"
-                name="color"
-                value="{{ $tier.Color }}"
-                aria-label="Tier color"
-                class="h-5 w-10 bg-transparent"
-            />
-            <label
-                class="flex items-center gap-1 text-[10px] uppercase tracking-wide text-slate-400"
-            >
-                <input
-                    type="checkbox"
-                    name="allow_multiple"
-                    value="true"
-                    {{
-                    if
-                    $tier.AllowMultiple
-                    }}checked{{
-                    end
-                    }}
-                />
-                multi
-            </label>
-        </form>
-        <form
-            hx-delete="/r/{{ $view.Ranking.Slug }}/tiers/{{ $tier.ID }}"
-            hx-target="#board"
-            hx-swap="innerHTML"
-        >
-            <input
-                type="hidden"
-                name="csrf_token"
-                value="{{ $view.CSRFToken }}"
-            />
-            <button
-                class="text-[10px] uppercase tracking-wide text-slate-500 hover:text-rose-400"
-            >
-                remove
-            </button>
-        </form>
+  <div
+    class="flex w-28 shrink-0 flex-col items-center justify-center gap-1 rounded-l-sm p-2"
+    style="background-color: {{ $tier.Color }}1a"
+  >
+    <div class="flex flex-col items-center gap-1">
+      <div
+        class="w-20 bg-transparent text-center text-xl font-bold outline-none"
+        style="color: {{ $tier.Color }}"
+      >
+        {{ $tier.Label }}
+      </div>
     </div>
-
-    <div
-        class="flex min-h-24 flex-1 flex-wrap content-start gap-2 p-3"
-        hx-put="/r/{{ $view.Ranking.Slug }}/placements"
-        hx-target="#board"
-        hx-swap="innerHTML"
-        hx-trigger="end"
-        hx-ext="sortable"
-        data-sortable-group="board"
-    >
-        <input type="hidden" name="tier_id" value="{{ $tier.ID }}" />
-        {{ range .Items }} {{ template "partials/item_card.html" dict "Item" .
-        "View" $view "TierID" $tier.ID }} {{ else }}
-        <p class="self-center text-xs text-slate-600">Drop items here</p>
-        {{ end }}
-    </div>
+  </div>
+  <div
+    class="flex min-h-24 flex-1 flex-wrap content-start gap-2 p-3"
+    hx-put="/r/{{ $view.Ranking.Slug }}/placements"
+    hx-target="#board"
+    hx-swap="innerHTML"
+    hx-trigger="end"
+    hx-ext="sortable"
+    data-sortable-group="board"
+  >
+    <input type="hidden" name="tier_id" value="{{ $tier.ID }}" />
+    {{ range .Items }} {{ template "partials/item_card.html" dict "Item" .
+    "Ranking" $view.Ranking "TierID" $tier.ID }} {{ else }}
+    <p class="self-center text-xs text-slate-600">Drop items here</p>
+    {{ end }}
+  </div>
 </section>
 {{ end }}

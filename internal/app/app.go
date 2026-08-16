@@ -11,6 +11,7 @@ import (
 	"github.com/ghmeier/rankanything/internal/auth"
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/render"
+	"github.com/ghmeier/rankanything/internal/services"
 )
 
 // App holds everything the handlers need.
@@ -21,6 +22,7 @@ type App struct {
 	Render   *render.Renderer
 	Logger   *slog.Logger
 	Static   fs.FS
+	UserSvc  *services.UserService
 }
 
 // Routes builds the fully wrapped handler for the app.
@@ -39,6 +41,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("DELETE /r/{slug}/items/{itemID}", a.handleDeleteItem)
 	mux.HandleFunc("POST /r/{slug}/tiers", a.handleAddTier)
 	mux.HandleFunc("PUT /r/{slug}/tiers/{tierID}", a.handleUpdateTier)
+	mux.HandleFunc("POST /r/{slug}/tiers/{tierID}/edit", a.handleEditTier)
 	mux.HandleFunc("DELETE /r/{slug}/tiers/{tierID}", a.handleDeleteTier)
 	mux.HandleFunc("PUT /r/{slug}/placements", a.handleSetPlacements)
 
@@ -63,6 +66,7 @@ func (a *App) Routes() http.Handler {
 	return auth.Chain(mux,
 		auth.Recover(a.Logger),
 		auth.RequestLog(a.Logger),
+		http.NewCrossOriginProtection().Handler,
 		a.Sessions.LoadAndSave,
 		auth.CSRF(a.Sessions),
 	)

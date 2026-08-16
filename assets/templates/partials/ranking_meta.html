@@ -1,27 +1,6 @@
 {{ define "partials/ranking_meta.html" }}
 <div id="ranking-meta" class="space-y-2">
-    <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}" />
-    <input
-        name="title"
-        value="{{ .Ranking.Title }}"
-        aria-label="Ranking title"
-        class="w-full bg-transparent text-3xl font-bold tracking-tight text-white outline-none placeholder:text-slate-600 focus:border-b focus:border-amber-400"
-        placeholder="Untitled ranking"
-        hx-post="/r/{{ .Ranking.Slug }}"
-        hx-target="#ranking-meta"
-        hx-swap="outerHTML"
-        hx-trigger="change"
-    />
-    <input
-        name="description"
-        value="{{ .Ranking.Description }}"
-        aria-label="Ranking description"
-        class="w-full bg-transparent text-sm text-slate-400 outline-none placeholder:text-slate-600"
-        placeholder="What are you ranking?"
-        hx-post="/r/{{ .Ranking.Slug }}"
-        hx-target="#ranking-meta"
-        hx-swap="outerHTML"
-        hx-trigger="change"
-    />
+    <input name="title" value="{{ .Ranking.Title }}" aria-label="Ranking title" class="w-full bg-transparent text-3xl font-bold tracking-tight text-white outline-none placeholder:text-slate-600 focus:border-b focus:border-amber-400" placeholder="Untitled ranking" hx-post="/r/{{ .Ranking.Slug }}" hx-target="#ranking-meta" hx-swap="outerHTML" hx-trigger="change" />
+    <input name="description" value="{{ .Ranking.Description }}" aria-label="Ranking description" class="w-full bg-transparent text-sm text-slate-400 outline-none placeholder:text-slate-600" placeholder="What are you ranking?" hx-post="/r/{{ .Ranking.Slug }}" hx-target="#ranking-meta" hx-swap="outerHTML" hx-trigger="change" />
 </div>
 {{ end }}

@@ -1,54 +1,17 @@
 {{ define "partials/item_tray.html" }}
-<section
-    class="rounded-lg border border-dashed border-slate-700 bg-slate-900/40 p-4"
->
+<section class="rounded-lg border border-dashed border-slate-700 bg-slate-900/40 p-4">
     <div class="mb-3 flex items-center justify-between">
-        <h2
-            class="text-sm font-semibold uppercase tracking-wide text-slate-400"
-        >
-            Unranked items
-        </h2>
-        <form
-            class="flex gap-2"
-            hx-post="/r/{{ .Ranking.Slug }}/items"
-            hx-target="#board"
-            hx-swap="innerHTML"
-            hx-on::after-request="this.reset()"
-        >
-            <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}" />
-            <input
-                name="label"
-                required
-                placeholder="Add an item"
-                aria-label="Item label"
-                class="rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm outline-none focus:border-amber-400"
-            />
-            <input
-                name="image_url"
-                placeholder="Image URL (optional)"
-                aria-label="Item image URL"
-                class="w-48 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm outline-none focus:border-amber-400"
-            />
-            <button
-                class="rounded-md border border-amber-400 px-3 py-1.5 text-sm font-medium text-amber-300 hover:bg-amber-400/10"
-            >
-                Add
-            </button>
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400">Unranked items</h2>
+        <form class="flex gap-2" hx-post="/r/{{ .Ranking.Slug }}/items" hx-target="#board" hx-swap="innerHTML" hx-on::after-request="this.reset()">
+            <input name="label" required placeholder="Add an item" aria-label="Item label" class="rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm outline-none focus:border-amber-400" />
+            <input name="image_url" placeholder="Image URL (optional)" aria-label="Item image URL" class="w-48 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm outline-none focus:border-amber-400" />
+            <button class="rounded-md border border-amber-400 px-3 py-1.5 text-sm font-medium text-amber-300 hover:bg-amber-400/10">Add</button>
         </form>
     </div>
 
-    <div
-        class="flex min-h-20 flex-wrap gap-2"
-        hx-put="/r/{{ .Ranking.Slug }}/placements"
-        hx-target="#board"
-        hx-swap="innerHTML"
-        hx-trigger="end"
-        hx-ext="sortable"
-        data-sortable-group="board"
-    >
+    <div class="flex min-h-20 flex-wrap gap-2" hx-put="/r/{{ .Ranking.Slug }}/placements" hx-target="#board" hx-swap="innerHTML" hx-trigger="end" hx-ext="sortable" data-sortable-group="board">
         <input type="hidden" name="tier_id" value="0" />
-        {{ range .Unassigned }} {{ template "partials/item_card.html" dict
-        "Item" . "View" $ "TierID" 0 }} {{ else }}
+        {{ range .Unassigned }} {{ template "partials/item_card.html" dict "Item" . "View" $ "TierID" 0 }} {{ else }}
         <p class="self-center text-xs text-slate-600">Everything is ranked.</p>
         {{ end }}
     </div>

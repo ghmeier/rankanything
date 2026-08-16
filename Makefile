@@ -9,8 +9,10 @@ TEST_DATABASE_URL ?= postgres://postgres:postgres@localhost:5432/postgres?sslmod
 tidy:
 	go mod tidy
 
-dev: css
-	go run main.go
+dev: css watch
+
+watch:
+	air
 
 run:
 	go run main.go
@@ -27,10 +29,10 @@ sqlc:
 	sqlc generate
 
 css:
-	npx @tailwindcss/cli -i static/css/input.css -o static/css/app.css --minify
+	npx @tailwindcss/cli -i assets/static/css/input.css -o assets/static/css/app.css --minify
 
 css-watch:
-	npx @tailwindcss/cli -i static/css/input.css -o static/css/app.css --watch
+	npx @tailwindcss/cli -i assets/static/css/input.css -o assets/static/css/app.css --watch
 
 test:
 	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" go test ./... -race

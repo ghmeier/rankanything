@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -16,6 +17,20 @@ import (
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/testsupport"
 )
+
+// Body wraps an HTTP response body so that testify assertion errors show
+// a truncated version instead of the full HTML.
+type Body string
+
+const truncLen = 500
+
+func (b Body) String() string {
+	s := string(b)
+	if len(s) <= truncLen {
+		return s
+	}
+	return s[:truncLen] + fmt.Sprintf("... (%d more bytes)", len(s)-truncLen)
+}
 
 // startDraft walks the anonymous entry point: GET / creates a draft and
 // redirects into its builder.
@@ -36,10 +51,10 @@ func TestHomeCreatesAnonymousDraft(t *testing.T) {
 
 	page := c.Get("/r/" + slug.String())
 	assert.Equal(t, http.StatusOK, page.Status)
-	assert.Contains(t, page.Body, "Untitled ranking")
-	assert.Contains(t, page.Body, "Unsaved draft")
+	assert.Contains(t, Body(page.Body), "Untitled ranking")
+	assert.Contains(t, Body(page.Body), "Unsaved draft")
 	for _, tier := range app.DefaultTiers {
-		assert.Contains(t, page.Body, ">"+tier.Label+"<", "default tier %s should render", tier.Label)
+		assert.Contains(t, Body(page.Body), ">"+tier.Label+"<", "default tier %s should render", tier.Label)
 	}
 }
 
@@ -81,8 +96,8 @@ func TestAddItemReturnsBoardFragment(t *testing.T) {
 	res := c.HTMX(http.MethodPost, "/r/"+slug.String()+"/items", url.Values{"label": {"Pretzels"}})
 
 	require.Equal(t, http.StatusOK, res.Status)
-	assert.Contains(t, res.Body, "Pretzels")
-	assert.NotContains(t, res.Body, "<html", "htmx swaps must not include the layout")
+	assert.Contains(t, Body(res.Body), "Pretzels")
+	assert.NotContains(t, Body(res.Body), "<html", "htmx swaps must not include the layout")
 }
 
 func TestAddItemRequiresLabel(t *testing.T) {
@@ -93,7 +108,7 @@ func TestAddItemRequiresLabel(t *testing.T) {
 	res := c.HTMX(http.MethodPost, "/r/"+slug.String()+"/items", url.Values{"label": {"   "}})
 
 	assert.Equal(t, http.StatusUnprocessableEntity, res.Status)
-	assert.Contains(t, res.Body, "Give the item a name.")
+	assert.Contains(t, Body(res.Body), "Give the item a name.")
 }
 
 func TestPlacementFlow(t *testing.T) {
@@ -135,7 +150,7 @@ func TestPlacementFlow(t *testing.T) {
 
 		res := c.HTMX(http.MethodPut, "/r/"+slug.String()+"/placements", full)
 		assert.Equal(t, http.StatusUnprocessableEntity, res.Status)
-		assert.Contains(t, res.Body, "holds a single item")
+		assert.Contains(t, Body(res.Body), "holds a single item")
 	})
 
 	t.Run("dropping into the tray unplaces items", func(t *testing.T) {
@@ -160,7 +175,7 @@ func TestCustomTierLifecycle(t *testing.T) {
 
 	res := c.HTMX(http.MethodPost, "/r/"+slug.String()+"/tiers", url.Values{"label": {"F"}, "color": {"#111111"}})
 	require.Equal(t, http.StatusOK, res.Status)
-	assert.Contains(t, res.Body, `value="F"`)
+	assert.Contains(t, Body(res.Body), `value="F"`)
 
 	ranking, err := env.Queries.GetRankingBySlug(ctx, slug)
 	require.NoError(t, err)
@@ -175,11 +190,11 @@ func TestCustomTierLifecycle(t *testing.T) {
 	renamed := c.HTMX(http.MethodPut, "/r/"+slug.String()+"/tiers/"+strconv.FormatInt(last.ID, 10),
 		url.Values{"label": {"Trash"}, "color": {"#222222"}})
 	require.Equal(t, http.StatusOK, renamed.Status)
-	assert.Contains(t, renamed.Body, `value="Trash"`)
+	assert.Contains(t, Body(renamed.Body), `value="Trash"`)
 
 	deleted := c.HTMX(http.MethodDelete, "/r/"+slug.String()+"/tiers/"+strconv.FormatInt(last.ID, 10), nil)
 	require.Equal(t, http.StatusOK, deleted.Status)
-	assert.NotContains(t, deleted.Body, `value="Trash"`)
+	assert.NotContains(t, Body(deleted.Body), `value="Trash"`)
 }
 
 func TestSaveRequiresAccountThenClaimsDraft(t *testing.T) {
@@ -210,11 +225,11 @@ func TestSaveRequiresAccountThenClaimsDraft(t *testing.T) {
 
 	page := c.Get("/r/" + slug.String())
 	assert.Equal(t, http.StatusOK, page.Status)
-	assert.Contains(t, page.Body, "Saved")
+	assert.Contains(t, Body(page.Body), "Saved")
 
 	me := c.Get("/me")
 	assert.Equal(t, http.StatusOK, me.Status)
-	assert.Contains(t, me.Body, "Untitled ranking")
+	assert.Contains(t, Body(me.Body), "Untitled ranking")
 }
 
 func TestRegisterValidation(t *testing.T) {
@@ -223,13 +238,13 @@ func TestRegisterValidation(t *testing.T) {
 	t.Run("rejects a bad email", func(t *testing.T) {
 		res := env.NewClient().Post("/register", url.Values{"email": {"nope"}, "password": {"supersecret"}})
 		assert.Equal(t, http.StatusUnprocessableEntity, res.Status)
-		assert.Contains(t, res.Body, "Enter a valid email address.")
+		assert.Contains(t, Body(res.Body), "Enter a valid email address.")
 	})
 
 	t.Run("rejects a short password", func(t *testing.T) {
 		res := env.NewClient().Post("/register", url.Values{"email": {"ada@example.com"}, "password": {"short"}})
 		assert.Equal(t, http.StatusUnprocessableEntity, res.Status)
-		assert.Contains(t, res.Body, "at least 8 characters")
+		assert.Contains(t, Body(res.Body), "at least 8 characters")
 	})
 
 	t.Run("rejects a duplicate email", func(t *testing.T) {
@@ -239,7 +254,7 @@ func TestRegisterValidation(t *testing.T) {
 
 		res := env.NewClient().Post("/register", url.Values{"email": {"DUP@example.com"}, "password": {"supersecret"}})
 		assert.Equal(t, http.StatusUnprocessableEntity, res.Status)
-		assert.Contains(t, res.Body, "already registered")
+		assert.Contains(t, Body(res.Body), "already registered")
 	})
 }
 
@@ -251,13 +266,13 @@ func TestLogin(t *testing.T) {
 	t.Run("wrong password is rejected", func(t *testing.T) {
 		res := env.NewClient().Post("/login", url.Values{"email": {"ada@example.com"}, "password": {"nope12345"}})
 		assert.Equal(t, http.StatusUnauthorized, res.Status)
-		assert.Contains(t, res.Body, "Email or password is incorrect.")
+		assert.Contains(t, Body(res.Body), "Email or password is incorrect.")
 	})
 
 	t.Run("unknown email gives the same message", func(t *testing.T) {
 		res := env.NewClient().Post("/login", url.Values{"email": {"ghost@example.com"}, "password": {"supersecret"}})
 		assert.Equal(t, http.StatusUnauthorized, res.Status)
-		assert.Contains(t, res.Body, "Email or password is incorrect.")
+		assert.Contains(t, Body(res.Body), "Email or password is incorrect.")
 	})
 
 	t.Run("valid credentials sign in and reach the account page", func(t *testing.T) {
@@ -267,7 +282,7 @@ func TestLogin(t *testing.T) {
 
 		me := c.Get("/me")
 		assert.Equal(t, http.StatusOK, me.Status)
-		assert.Contains(t, me.Body, "Your rankings")
+		assert.Contains(t, Body(me.Body), "Your rankings")
 	})
 
 	t.Run("open redirects are refused", func(t *testing.T) {
@@ -328,7 +343,7 @@ func TestUpdateRankingTitleReturnsMetaPartial(t *testing.T) {
 	res := c.HTMX(http.MethodPost, "/r/"+slug.String(), url.Values{"title": {"Best snacks"}, "description": {"2026 edition"}})
 
 	require.Equal(t, http.StatusOK, res.Status)
-	assert.Contains(t, res.Body, `value="Best snacks"`)
-	assert.Contains(t, res.Body, `value="2026 edition"`)
-	assert.NotContains(t, res.Body, "<html")
+	assert.Contains(t, Body(res.Body), `value="Best snacks"`)
+	assert.Contains(t, Body(res.Body), `value="2026 edition"`)
+	assert.NotContains(t, Body(res.Body), "<html")
 }

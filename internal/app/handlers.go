@@ -10,8 +10,7 @@ import (
 
 	"github.com/ghmeier/rankanything/internal/auth"
 	"github.com/ghmeier/rankanything/internal/db"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/ghmeier/rankanything/internal/services"
 )
 
 // ─── Builder routes ─────────────────────────────────────────────────────────
@@ -126,9 +125,15 @@ func (a *App) handleSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Anonymous draft — redirect to login.
-	next := "/r/" + ranking.Slug.String() + "/save"
-	http.Redirect(w, r, "/login?next="+next, http.StatusSeeOther)
+	// Anonymous draft — redirect to register so the draft can be claimed.
+	user := a.Sessions.UserID(r.Context())
+	if user != 0 {
+		a.Sessions.Flash(r.Context(), "Ranking saved!")
+		http.Redirect(w, r, "/r/"+ranking.Slug.String(), http.StatusSeeOther)
+		return
+	}
+	// Unclaimed draft — redirect to register.
+	http.Redirect(w, r, "/register?next=/r/"+ranking.Slug.String(), http.StatusSeeOther)
 }
 
 // handleAddItem is POST /r/{slug}/items — add a new item to the ranking.
@@ -138,8 +143,11 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	label := r.FormValue("label")
+	label := strings.TrimSpace(r.FormValue("label"))
 	if label == "" {
+		base := a.base(r)
+		view := BuilderView{BaseView: base, Error: "Give the item a name."}
+		a.Render.Partial(w, http.StatusUnprocessableEntity, "partials/board.html", view)
 		return
 	}
 
@@ -249,6 +257,37 @@ func (a *App) handleAddTier(w http.ResponseWriter, r *http.Request) {
 	a.renderBoard(w, r, view)
 }
 
+// handleEdit is POST /r/{slug}/tiers/{tierID}/edit — enable editing a tier
+func (a *App) handleEditTier(w http.ResponseWriter, r *http.Request) {
+	ranking, ok := a.authorize(w, r)
+	if !ok {
+		return
+	}
+
+	tierID := r.PathValue("tierID")
+	id, err := strconv.ParseInt(tierID, 10, 64)
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+
+	ctx := r.Context()
+	tier, err := a.Queries.GetTier(ctx, id)
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+
+	items, err := a.Queries.ListRankingTierItems(ctx, tier.ID)
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+
+	view := TierItemsView{Tier: tier, Items: items, Ranking: ranking}
+	a.Render.Partial(w, http.StatusAccepted, "partials/tier_row_editable.html", view)
+}
+
 // handleUpdateTier is PUT /r/{slug}/tiers/{tierID} — rename, recolor, or toggle.
 func (a *App) handleUpdateTier(w http.ResponseWriter, r *http.Request) {
 	ranking, ok := a.authorize(w, r)
@@ -344,15 +383,11 @@ func (a *App) handleSetPlacements(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Collect item_ids from the form (sortable sends them as repeated params).
-	// Go's FormValue joins repeated params with commas.
-	rawItemIDs := r.FormValue("item_id")
 	var itemIDs []int64
-	if rawItemIDs != "" {
-		for _, part := range commaSplit(rawItemIDs) {
-			id, err := strconv.ParseInt(part, 10, 64)
-			if err == nil {
-				itemIDs = append(itemIDs, id)
-			}
+	for _, raw := range r.Form["item_id"] {
+		id, err := strconv.ParseInt(raw, 10, 64)
+		if err == nil {
+			itemIDs = append(itemIDs, id)
 		}
 	}
 
@@ -451,19 +486,19 @@ func (a *App) handleRegister(w http.ResponseWriter, r *http.Request) {
 		a.renderRegisterError(w, r, email, next, err.Error())
 		return
 	}
-	password := r.FormValue("password")
-	hash, err := auth.HashPassword(password)
+	password, err := auth.HashPassword(r.FormValue("password"))
 	if err != nil {
-		a.renderRegisterError(w, r, email, next, "could not create account")
+		a.renderRegisterError(w, r, email, next, err.Error())
 		return
 	}
 
-	user, err := a.Queries.CreateUser(r.Context(), db.CreateUserParams{
-		Email:        email,
-		PasswordHash: hash,
+	_, err = a.UserSvc.Register(r.Context(), services.RegisterRequest{
+		Email:    email,
+		Password: password,
+		Next:     next,
 	})
 	if err != nil {
-		if isUniqueViolation(err) {
+		if errors.Is(err, services.ErrEmailAlreadyRegistered) {
 			a.renderRegisterError(w, r, email, next, "email already registered")
 			return
 		}
@@ -471,33 +506,8 @@ func (a *App) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := a.Sessions.LogIn(r.Context(), user.ID); err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-	a.Queries.TouchLastLogin(r.Context(), user.ID)
-
-	// Claim any draft.
-	draftKeys := a.Sessions.Drafts(r.Context())
-	if len(draftKeys) > 0 {
-		for _, slug := range draftKeys {
-			_, cerr := a.Queries.ClaimRanking(r.Context(), db.ClaimRankingParams{
-				Slug:   slug,
-				UserID: &user.ID,
-			})
-			if cerr == nil {
-				a.Sessions.ForgetDraft(r.Context(), slug)
-			}
-
-		}
-	}
-
 	a.Sessions.Flash(r.Context(), "Account created! Your draft has been attached.")
-	target := next
-	if target == "" {
-		target = "/me"
-	}
-	http.Redirect(w, r, target, http.StatusSeeOther)
+	http.Redirect(w, r, "/me", http.StatusSeeOther)
 }
 
 func (a *App) renderRegisterError(w http.ResponseWriter, r *http.Request, email, next, errMsg string) {
@@ -522,59 +532,34 @@ func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 		a.renderLoginError(w, r, email, next, err.Error())
 		return
 	}
-	password := r.FormValue("password")
 
-	user, err := a.Queries.GetUserByEmail(r.Context(), email)
+	_, err = a.UserSvc.Login(r.Context(), services.LoginRequest{
+		Email:    email,
+		Password: r.FormValue("password"),
+		Next:     next,
+	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, auth.ErrInvalidCredentials) {
 			a.renderLoginError(w, r, email, next, auth.ErrInvalidCredentials.Error())
 			return
 		}
 		a.serverError(w, r, err)
 		return
 	}
-	if !auth.CheckPassword(user.PasswordHash, password) {
-		a.renderLoginError(w, r, email, next, auth.ErrInvalidCredentials.Error())
-		return
-	}
-
-	if err := a.Sessions.LogIn(r.Context(), user.ID); err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-	a.Queries.TouchLastLogin(r.Context(), user.ID)
-
-	// Claim any draft.
-	draftKeys := a.Sessions.Drafts(r.Context())
-	if len(draftKeys) > 0 {
-		for _, slug := range draftKeys {
-			_, cerr := a.Queries.ClaimRanking(r.Context(), db.ClaimRankingParams{
-				Slug:   slug,
-				UserID: &user.ID,
-			})
-			if cerr == nil {
-				a.Sessions.ForgetDraft(r.Context(), slug)
-			}
-		}
-	}
 
 	a.Sessions.Flash(r.Context(), "Welcome back!")
-	target := next
-	if target == "" {
-		target = "/me"
-	}
-	http.Redirect(w, r, target, http.StatusSeeOther)
+	http.Redirect(w, r, "/me", http.StatusSeeOther)
 }
 
 func (a *App) renderLoginError(w http.ResponseWriter, r *http.Request, email, next, errMsg string) {
 	base := a.base(r)
 	view := AuthView{BaseView: base, Email: email, Next: next, Error: errMsg}
-	a.Render.Page(w, http.StatusUnprocessableEntity, "pages/login.html", view)
+	a.Render.Page(w, http.StatusUnauthorized, "pages/login.html", view)
 }
 
 // handleLogout is POST /logout.
 func (a *App) handleLogout(w http.ResponseWriter, r *http.Request) {
-	_ = a.Sessions.LogOut(r.Context())
+	_ = a.UserSvc.Logout(r.Context())
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
@@ -604,15 +589,6 @@ func (a *App) handleMe(w http.ResponseWriter, r *http.Request) {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-// isUniqueViolation reports whether an error is a PostgreSQL unique constraint violation.
-func isUniqueViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "23505"
-}
 
 // defaultTiers defines the S/A/B/C/D palette.
 var DefaultTiers = []struct {

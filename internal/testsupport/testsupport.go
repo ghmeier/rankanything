@@ -33,6 +33,7 @@ import (
 	"github.com/ghmeier/rankanything/internal/auth"
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/render"
+	"github.com/ghmeier/rankanything/internal/services"
 )
 
 // Pool returns a migrated pool with every table truncated, so each test starts
@@ -109,13 +110,15 @@ func NewEnv(t *testing.T) *Env {
 	renderer, err := render.New(assets.Templates())
 	require.NoError(t, err)
 
+	queries := db.New(pool)
 	application := &app.App{
 		Pool:     pool,
-		Queries:  db.New(pool),
+		Queries:  queries,
 		Sessions: auth.NewSessions(sm),
 		Render:   renderer,
 		Logger:   slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
 		Static:   assets.Static(),
+		UserSvc:  &services.UserService{Queries: queries, Sessions: auth.NewSessions(sm)},
 	}
 
 	srv := httptest.NewServer(application.Routes())
@@ -178,15 +181,10 @@ func (c *Client) Delete(path string, form url.Values) *Response {
 
 func (c *Client) form(method, path string, form url.Values) *Response {
 	c.t.Helper()
-	if form == nil {
-		form = url.Values{}
-	}
-	if form.Get("csrf_token") == "" {
-		form.Set("csrf_token", c.CSRF())
-	}
 	req, err := http.NewRequest(method, c.env.Server.URL+path, strings.NewReader(form.Encode()))
 	require.NoError(c.t, err)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("X-CSRF-Token", c.CSRF())
 	return c.do(req)
 }
 
@@ -250,7 +248,7 @@ func (r *Response) Slug() uuid.UUID {
 }
 
 func extractCSRF(body string) string {
-	const marker = `name="csrf_token" value="`
+	const marker = `"X-CSRF-Token": "`
 	_, after, found := strings.Cut(body, marker)
 	if !found {
 		return ""

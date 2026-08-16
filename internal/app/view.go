@@ -37,6 +37,12 @@ type TierView struct {
 	Items []db.RankedItem
 }
 
+type TierItemsView struct {
+	Tier    db.RankingTier
+	Items   []db.RankedItem
+	Ranking db.Ranking
+}
+
 // AuthView backs the login and register pages.
 type AuthView struct {
 	BaseView

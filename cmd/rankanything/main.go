@@ -18,6 +18,7 @@ import (
 	"github.com/ghmeier/rankanything/internal/config"
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/render"
+	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -58,18 +59,22 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 
+	q := db.New(pool)
+	s := auth.NewSessions(sm)
+
 	application := &app.App{
 		Pool:     pool,
-		Queries:  db.New(pool),
-		Sessions: auth.NewSessions(sm),
+		Queries:  q,
+		Sessions: s,
 		Render:   renderer,
 		Logger:   logger,
 		Static:   assets.Static(),
+		UserSvc:  &services.UserService{Queries: q, Sessions: s},
 	}
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           application.Routes(),
+		Handler:           http.NewCrossOriginProtection().Handler(application.Routes()),
 		ReadHeaderTimeout: 10 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       2 * time.Minute,

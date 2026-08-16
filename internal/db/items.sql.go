@@ -167,6 +167,42 @@ func (q *Queries) ListRankingItems(ctx context.Context, rankingID int64) ([]Rank
 	return items, nil
 }
 
+const listRankingTierItems = `-- name: ListRankingTierItems :many
+SELECT i.id, i.label, i.sublabel, i.source_url, i.source_image_url, i.image_url, i.created_at, i.updated_at FROM ranked_items i
+JOIN ranking_tier_items rti ON rti.ranked_item_id = i.id
+WHERE rti.ranking_tier_id = $1
+ORDER BY rti.created_at, i.id
+`
+
+func (q *Queries) ListRankingTierItems(ctx context.Context, rankingTierID int64) ([]RankedItem, error) {
+	rows, err := q.db.Query(ctx, listRankingTierItems, rankingTierID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RankedItem
+	for rows.Next() {
+		var i RankedItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.Label,
+			&i.Sublabel,
+			&i.SourceUrl,
+			&i.SourceImageUrl,
+			&i.ImageUrl,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const removeItemFromRanking = `-- name: RemoveItemFromRanking :exec
 DELETE FROM ranking_items WHERE ranking_id = $1 AND ranked_item_id = $2
 `
