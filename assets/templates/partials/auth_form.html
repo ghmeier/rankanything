@@ -1,0 +1,49 @@
+{{ define "partials/auth_form.html" }} {{ $view := .View }}
+<form method="post" action="{{ .Action }}" class="space-y-4">
+    <input type="hidden" name="csrf_token" value="{{ $view.CSRFToken }}" />
+    <input type="hidden" name="next" value="{{ $view.Next }}" />
+
+    {{ if $view.Error }}
+    <p
+        role="alert"
+        class="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200"
+    >
+        {{ $view.Error }}
+    </p>
+    {{ end }}
+
+    <label class="block space-y-1">
+        <span class="text-xs uppercase tracking-wide text-slate-400"
+            >Email</span
+        >
+        <input
+            type="email"
+            name="email"
+            required
+            autocomplete="email"
+            value="{{ $view.Email }}"
+            class="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-amber-400"
+        />
+    </label>
+
+    <label class="block space-y-1">
+        <span class="text-xs uppercase tracking-wide text-slate-400"
+            >Password</span
+        >
+        <input
+            type="password"
+            name="password"
+            required
+            minlength="8"
+            autocomplete="current-password"
+            class="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm outline-none focus:border-amber-400"
+        />
+    </label>
+
+    <button
+        class="w-full rounded-md bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-amber-300"
+    >
+        {{ .Submit }}
+    </button>
+</form>
+{{ end }}

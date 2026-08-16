@@ -1,0 +1,34 @@
+{{ define "partials/item_card.html" }} {{ $view := .View }} {{ $item := .Item }}
+<article
+    class="group flex w-40 items-center gap-2 rounded-md border border-slate-700 bg-slate-800 p-2 text-sm shadow-sm"
+>
+    <input type="hidden" name="item_id" value="{{ $item.ID }}" />
+    {{ if $item.ImageUrl }}
+    <img
+        src="{{ $item.ImageUrl }}"
+        alt="{{ $item.Label }}"
+        loading="lazy"
+        class="h-10 w-10 rounded object-cover"
+    />
+    {{ end }}
+    <div class="min-w-0 flex-1">
+        <p class="truncate font-medium text-slate-100">{{ $item.Label }}</p>
+        {{ if $item.Sublabel }}
+        <p class="truncate text-xs text-slate-400">{{ $item.Sublabel }}</p>
+        {{ end }}
+    </div>
+    <form
+        hx-delete="/r/{{ $view.Ranking.Slug }}/items/{{ $item.ID }}"
+        hx-target="#board"
+        hx-swap="innerHTML"
+    >
+        <input type="hidden" name="csrf_token" value="{{ $view.CSRFToken }}" />
+        <button
+            aria-label="Remove {{ $item.Label }}"
+            class="opacity-0 transition group-hover:opacity-100 text-slate-500 hover:text-rose-400"
+        >
+            &times;
+        </button>
+    </form>
+</article>
+{{ end }}

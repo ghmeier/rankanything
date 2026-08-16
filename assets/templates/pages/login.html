@@ -1,0 +1,10 @@
+{{ define "pages/login.html" }}
+<div class="mx-auto max-w-sm space-y-6">
+    <h1 class="text-2xl font-bold tracking-tight">Sign in</h1>
+    {{ template "partials/auth_form.html" dict "Action" "/login" "Submit" "Sign in" "View" . }}
+    <p class="text-sm text-slate-400">
+        No account?
+        <a href="/register" class="text-amber-300 hover:underline">Create one</a>.
+    </p>
+</div>
+{{ end }}
