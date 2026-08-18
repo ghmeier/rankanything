@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"slices"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -102,9 +103,12 @@ func (a *App) RequireRankingAccess(next http.Handler) http.Handler {
 		userID := a.Sessions.UserID(ctx)
 		draftKeys := a.Sessions.Drafts(ctx)
 
-		if userId != 0 {
-
+		if userID == 0 && !slices.Contains(draftKeys, slug) {
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
 		}
+
+		// TODO: Check if the user has access to the ranking by slug
 
 		ctx = context.WithValue(ctx, constants.SlugKey, slug)
 

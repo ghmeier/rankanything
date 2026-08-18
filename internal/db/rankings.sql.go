@@ -132,36 +132,43 @@ func (q *Queries) DeleteTier(ctx context.Context, id int64) error {
 	return err
 }
 
-const getDraftBySlug = `-- name: GetDraftBySlug :one
-SELECT id, slug, user_id, title, description, created_at, updated_at FROM rankings WHERE slug = $1 AND user_id IS NULL
+const ensureDraftRankingForSlug = `-- name: EnsureDraftRankingForSlug :one
+SELECT EXISTS (
+    SELECT 1  FROM rankings WHERE slug = $1 AND user_id IS NULL
+)
 `
 
-func (q *Queries) GetDraftBySlug(ctx context.Context, slug uuid.UUID) (Ranking, error) {
-	row := q.db.QueryRow(ctx, getDraftBySlug, slug)
-	var i Ranking
-	err := row.Scan(
-		&i.ID,
-		&i.Slug,
-		&i.UserID,
-		&i.Title,
-		&i.Description,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+func (q *Queries) EnsureDraftRankingForSlug(ctx context.Context, slug uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, ensureDraftRankingForSlug, slug)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
-const getRankingBySlug = `-- name: GetRankingBySlug :one
-SELECT id, slug, user_id, title, description, created_at, updated_at FROM rankings WHERE slug = $1 AND user_id = $2
+const ensureUserRankingForSlug = `-- name: EnsureUserRankingForSlug :one
+SELECT EXISTS (
+    SELECT 1  FROM rankings WHERE slug = $1 AND user_id = $2
+)
 `
 
-type GetRankingBySlugParams struct {
+type EnsureUserRankingForSlugParams struct {
 	Slug   uuid.UUID
 	UserID *int64
 }
 
-func (q *Queries) GetRankingBySlug(ctx context.Context, arg GetRankingBySlugParams) (Ranking, error) {
-	row := q.db.QueryRow(ctx, getRankingBySlug, arg.Slug, arg.UserID)
+func (q *Queries) EnsureUserRankingForSlug(ctx context.Context, arg EnsureUserRankingForSlugParams) (bool, error) {
+	row := q.db.QueryRow(ctx, ensureUserRankingForSlug, arg.Slug, arg.UserID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const getRankingBySlug = `-- name: GetRankingBySlug :one
+SELECT id, slug, user_id, title, description, created_at, updated_at FROM rankings WHERE slug = $1
+`
+
+func (q *Queries) GetRankingBySlug(ctx context.Context, slug uuid.UUID) (Ranking, error) {
+	row := q.db.QueryRow(ctx, getRankingBySlug, slug)
 	var i Ranking
 	err := row.Scan(
 		&i.ID,

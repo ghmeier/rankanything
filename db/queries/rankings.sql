@@ -4,10 +4,17 @@ VALUES ($1, $2)
 RETURNING *;
 
 -- name: GetRankingBySlug :one
-SELECT * FROM rankings WHERE slug = $1 AND user_id = $2;
+SELECT * FROM rankings WHERE slug = $1;
 
--- name: GetDraftBySlug :one
-SELECT * FROM rankings WHERE slug = $1 AND user_id IS NULL;
+-- name: EnsureDraftRankingForSlug :one
+SELECT EXISTS (
+    SELECT 1  FROM rankings WHERE slug = $1 AND user_id IS NULL
+);
+
+-- name: EnsureUserRankingForSlug :one
+SELECT EXISTS (
+    SELECT 1  FROM rankings WHERE slug = $1 AND user_id = $2
+);
 
 -- name: UpdateRanking :one
 UPDATE rankings

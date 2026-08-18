@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/google/uuid"
@@ -38,12 +37,12 @@ type GetRankingForSlugRequest struct {
 // tier palette.
 func (s *RankingsService) EnsureDraft(ctx context.Context, req EnsureDraftRequest) (Ranking, error) {
 	if len(req.DraftKeys) > 0 {
-		ranking, err := s.GetRankingForSlug(ctx, GetRankingForSlugRequest{EnsureDraftRequest: req, Slug: req.DraftKeys[0]})
+		ranking, err := s.Queries.GetRankingBySlug(ctx, req.DraftKeys[0])
 		if err != nil {
 			return Ranking{}, err
 		}
 
-		return ranking, nil
+		return Ranking{Ranking: ranking, IsDraft: true}, nil
 	}
 
 	ranking, err := s.Queries.CreateRanking(ctx, db.CreateRankingParams{
@@ -92,22 +91,7 @@ type Ranking struct {
 // only access rankings they own.  Returns ErrRankingNotFound when access is
 // denied or the ranking doesn't exist.
 func (s *RankingsService) GetRankingForSlug(ctx context.Context, slug uuid.UUID) (Ranking, error) {
-
-	if req.UserId == nil {
-		if !slices.Contains(req.DraftKeys, req.Slug) {
-			return Ranking{}, ErrRankingNotFound
-		}
-		ranking, err := s.Queries.GetDraftBySlug(ctx, req.Slug)
-		if err != nil {
-			return Ranking{}, err
-		}
-		return Ranking{
-			Ranking: ranking,
-			IsDraft: true,
-		}, nil
-	}
-
-	ranking, err := s.Queries.GetRankingBySlug(ctx, db.GetRankingBySlugParams{Slug: req.Slug, UserID: req.UserId})
+	ranking, err := s.Queries.GetRankingBySlug(ctx, slug)
 	if err != nil {
 		return Ranking{}, err
 	}
@@ -116,10 +100,6 @@ func (s *RankingsService) GetRankingForSlug(ctx context.Context, slug uuid.UUID)
 		Ranking: ranking,
 		IsDraft: false,
 	}, nil
-}
-
-func (s *RankingsService) GetLatestDraft() {
-
 }
 
 // UpdateRankingRequest is the input for modifying a ranking's metadata.
