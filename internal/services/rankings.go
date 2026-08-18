@@ -269,13 +269,15 @@ func (s *RankingsService) UpdateTier(ctx context.Context, req UpdateTierRequest)
 		color = tier.Color
 	}
 
-	return s.Queries.UpdateTier(ctx, db.UpdateTierParams{
+	tier, err = s.Queries.UpdateTier(ctx, db.UpdateTierParams{
 		ID:            tier.ID,
 		Label:         label,
 		Color:         color,
 		Position:      tier.Position,
 		AllowMultiple: req.AllowMultiple,
 	})
+
+	return tier, err
 }
 
 // GetTierRequest is the input for viewing a tier's editable contents.

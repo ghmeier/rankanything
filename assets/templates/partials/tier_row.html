@@ -4,7 +4,7 @@
   class="flex items-stretch gap-2 rounded-sm border border-slate-800 bg-slate-900/60 tier-row"
 >
   {{ template "partials/tier_row_label.html" dict "Tier" $tier "RankingSlug"
-  $ranking.slug }}
+  $ranking.Slug }}
   <div
     class="flex min-h-24 flex-1 flex-wrap content-start gap-2 p-3"
     hx-put="/r/{{ $ranking.Slug }}/placements"

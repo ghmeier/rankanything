@@ -34,7 +34,7 @@ func (a *App) Routes() http.Handler {
 	// Builder — the landing page is the product.
 	auth.HandleRoute(mux, "GET /{$}", a.handleHome)
 	auth.HandleRoute(mux, "GET /new", a.handleNew)
-	auth.HandleRoute(mux, "GET /r/{slug}", a.handleBuilder)
+	auth.HandleRoute(mux, "GET /r/{slug}", a.handleViewRanking)
 	auth.HandleRoute(mux, "POST /r/{slug}", a.handleUpdateRanking)
 	auth.HandleRoute(mux, "POST /r/{slug}/save", a.handleSave)
 	auth.HandleRoute(mux, "POST /r/{slug}/items", a.handleAddItem)

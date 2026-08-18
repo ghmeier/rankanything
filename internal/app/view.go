@@ -5,6 +5,7 @@ import (
 
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/render"
+	"github.com/google/uuid"
 )
 
 // BaseView carries what the layout needs on every page.
@@ -34,7 +35,7 @@ type TierView struct {
 
 type TierRowLabelView struct {
 	Tier        db.RankingTier
-	RankingSlug string
+	RankingSlug uuid.UUID
 }
 
 // AuthView backs the login and register pages.

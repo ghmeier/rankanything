@@ -47,8 +47,8 @@ func (a *App) handleNew(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/r/"+ranking.Slug.String(), http.StatusSeeOther)
 }
 
-// handleBuilder is GET /r/{slug} — render the board for a ranking.
-func (a *App) handleBuilder(w http.ResponseWriter, r *http.Request) {
+// handleViewRanking is GET /r/{slug} — render the board for a ranking.
+func (a *App) handleViewRanking(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
 
@@ -70,7 +70,7 @@ func (a *App) handleBuilder(w http.ResponseWriter, r *http.Request) {
 // handleUpdateRanking is POST /r/{slug} — update title or description.
 func (a *App) handleUpdateRanking(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value("slug").(uuid.UUID)
+	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
 	title := r.FormValue("title")
 	desc := r.FormValue("description")
 
@@ -97,7 +97,7 @@ func (a *App) handleUpdateRanking(w http.ResponseWriter, r *http.Request) {
 // handleSave is POST /r/{slug}/save — claim an anonymous draft or confirm save.
 func (a *App) handleSave(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value("slug").(uuid.UUID)
+	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
 	userID := a.Sessions.UserID(ctx)
 
 	result, err := a.RankingSvc.SaveDraft(ctx, services.SaveDraftRequest{
@@ -118,7 +118,7 @@ func (a *App) handleSave(w http.ResponseWriter, r *http.Request) {
 // handleAddItem is POST /r/{slug}/items — add a new item to the ranking.
 func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value("slug").(uuid.UUID)
+	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
 	label := strings.TrimSpace(r.FormValue("label"))
 
 	if label == "" {
@@ -153,7 +153,7 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 // handleDeleteItem is DELETE /r/{slug}/items/{itemID} — remove an item.
 func (a *App) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value("slug").(uuid.UUID)
+	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
 	itemID := r.PathValue("itemID")
 	id, err := strconv.ParseInt(itemID, 10, 64)
 	if err != nil {
@@ -186,7 +186,7 @@ func (a *App) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 // handleAddTier is POST /r/{slug}/tiers — add a new tier.
 func (a *App) handleAddTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value("slug").(uuid.UUID)
+	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
 
 	_, err := a.RankingSvc.AddTier(ctx, services.AddTierRequest{
 		Slug:  slug,
@@ -212,7 +212,7 @@ func (a *App) handleAddTier(w http.ResponseWriter, r *http.Request) {
 // handleEdit is POST /r/{slug}/tiers/{tierID}/edit — enable editing a tier
 func (a *App) handleEditTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value("slug").(uuid.UUID)
+	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
 	tierID := r.PathValue("tierID")
 	id, err := strconv.ParseInt(tierID, 10, 64)
 	if err != nil {
@@ -229,14 +229,14 @@ func (a *App) handleEditTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view := TierRowLabelView{Tier: tier, RankingSlug: slug.String()}
-	a.Render.Partial(w, http.StatusAccepted, "partials/tier_row_editable.html", view)
+	view := TierRowLabelView{Tier: tier, RankingSlug: slug}
+	a.Render.Partial(w, http.StatusAccepted, "partials/tier_row_label_editable.html", view)
 }
 
 // handleUpdateTier is PUT /r/{slug}/tiers/{tierID} — rename, recolor, or toggle.
 func (a *App) handleUpdateTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value("slug").(uuid.UUID)
+	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
 	tierID := r.PathValue("tierID")
 	id, err := strconv.ParseInt(tierID, 10, 64)
 	if err != nil {
@@ -246,7 +246,7 @@ func (a *App) handleUpdateTier(w http.ResponseWriter, r *http.Request) {
 
 	allowMultiple := r.FormValue("allow_multiple") == "true"
 
-	_, err = a.RankingSvc.UpdateTier(ctx, services.UpdateTierRequest{
+	tier, err := a.RankingSvc.UpdateTier(ctx, services.UpdateTierRequest{
 		Slug:          slug,
 		TierID:        id,
 		Label:         r.FormValue("label"),
@@ -258,21 +258,14 @@ func (a *App) handleUpdateTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ranking, err := a.RankingSvc.GetRankingForSlug(ctx, slug)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-
-	base := a.base(r)
-	view := a.assembleBuilderView(base, services.BoardData{Ranking: ranking.Ranking})
-	a.renderBoard(w, r, view)
+	view := TierRowLabelView{Tier: tier, RankingSlug: slug}
+	a.Render.Partial(w, http.StatusAccepted, "partials/tier_row_label.html", view)
 }
 
 // handleDeleteTier is DELETE /r/{slug}/tiers/{tierID} — remove a tier.
 func (a *App) handleDeleteTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value("slug").(uuid.UUID)
+	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
 	tierID := r.PathValue("tierID")
 	id, err := strconv.ParseInt(tierID, 10, 64)
 	if err != nil {
@@ -303,7 +296,7 @@ func (a *App) handleDeleteTier(w http.ResponseWriter, r *http.Request) {
 // handleSetPlacements is PUT /r/{slug}/placements — reorder items via drag-and-drop.
 func (a *App) handleSetPlacements(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value("slug").(uuid.UUID)
+	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
 	tierIDStr := r.FormValue("tier_id")
 	tierID, err := strconv.ParseInt(tierIDStr, 10, 64)
 	if err != nil {
