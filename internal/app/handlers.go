@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/ghmeier/rankanything/internal/auth"
+	"github.com/ghmeier/rankanything/internal/constants"
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/google/uuid"
@@ -21,11 +22,13 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ranking, err := a.RankingSvc.EnsureDraft(r.Context())
+	ctx := r.Context()
+	ranking, err := a.RankingSvc.EnsureDraft(r.Context(), services.EnsureDraftRequest{DraftKeys: a.Sessions.Drafts(ctx)})
 	if err != nil {
 		a.serverError(w, r, err)
 		return
 	}
+	a.Sessions.RememberDraft(r.Context(), ranking.Slug)
 
 	http.Redirect(w, r, "/r/"+ranking.Slug.String(), http.StatusSeeOther)
 }
@@ -50,7 +53,7 @@ func (a *App) handleNew(w http.ResponseWriter, r *http.Request) {
 // handleViewRanking is GET /r/{slug} — render the board for a ranking.
 func (a *App) handleViewRanking(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
+	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
 
 	boardData, err := a.RankingSvc.BuildBoardData(ctx, slug)
 	if err != nil {
@@ -70,7 +73,7 @@ func (a *App) handleViewRanking(w http.ResponseWriter, r *http.Request) {
 // handleUpdateRanking is POST /r/{slug} — update title or description.
 func (a *App) handleUpdateRanking(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
+	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
 	title := r.FormValue("title")
 	desc := r.FormValue("description")
 
@@ -97,7 +100,7 @@ func (a *App) handleUpdateRanking(w http.ResponseWriter, r *http.Request) {
 // handleSave is POST /r/{slug}/save — claim an anonymous draft or confirm save.
 func (a *App) handleSave(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
+	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
 	userID := a.Sessions.UserID(ctx)
 
 	result, err := a.RankingSvc.SaveDraft(ctx, services.SaveDraftRequest{
@@ -118,7 +121,7 @@ func (a *App) handleSave(w http.ResponseWriter, r *http.Request) {
 // handleAddItem is POST /r/{slug}/items — add a new item to the ranking.
 func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
+	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
 	label := strings.TrimSpace(r.FormValue("label"))
 
 	if label == "" {
@@ -153,7 +156,7 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 // handleDeleteItem is DELETE /r/{slug}/items/{itemID} — remove an item.
 func (a *App) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
+	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
 	itemID := r.PathValue("itemID")
 	id, err := strconv.ParseInt(itemID, 10, 64)
 	if err != nil {
@@ -186,7 +189,7 @@ func (a *App) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 // handleAddTier is POST /r/{slug}/tiers — add a new tier.
 func (a *App) handleAddTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
+	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
 
 	_, err := a.RankingSvc.AddTier(ctx, services.AddTierRequest{
 		Slug:  slug,
@@ -212,7 +215,7 @@ func (a *App) handleAddTier(w http.ResponseWriter, r *http.Request) {
 // handleEdit is POST /r/{slug}/tiers/{tierID}/edit — enable editing a tier
 func (a *App) handleEditTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
+	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
 	tierID := r.PathValue("tierID")
 	id, err := strconv.ParseInt(tierID, 10, 64)
 	if err != nil {
@@ -236,7 +239,7 @@ func (a *App) handleEditTier(w http.ResponseWriter, r *http.Request) {
 // handleUpdateTier is PUT /r/{slug}/tiers/{tierID} — rename, recolor, or toggle.
 func (a *App) handleUpdateTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
+	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
 	tierID := r.PathValue("tierID")
 	id, err := strconv.ParseInt(tierID, 10, 64)
 	if err != nil {
@@ -265,7 +268,7 @@ func (a *App) handleUpdateTier(w http.ResponseWriter, r *http.Request) {
 // handleDeleteTier is DELETE /r/{slug}/tiers/{tierID} — remove a tier.
 func (a *App) handleDeleteTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
+	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
 	tierID := r.PathValue("tierID")
 	id, err := strconv.ParseInt(tierID, 10, 64)
 	if err != nil {
@@ -296,7 +299,7 @@ func (a *App) handleDeleteTier(w http.ResponseWriter, r *http.Request) {
 // handleSetPlacements is PUT /r/{slug}/placements — reorder items via drag-and-drop.
 func (a *App) handleSetPlacements(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(auth.SlugKey).(uuid.UUID)
+	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
 	tierIDStr := r.FormValue("tier_id")
 	tierID, err := strconv.ParseInt(tierIDStr, 10, 64)
 	if err != nil {

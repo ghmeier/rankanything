@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/ghmeier/rankanything/internal/auth"
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -22,16 +21,24 @@ var (
 // RankingsService owns all business logic for rankings, tiers, and their items.
 // It speaks in contexts, database models, and errors — never HTTP.
 type RankingsService struct {
-	Queries  *db.Queries
-	Pool     *pgxpool.Pool
-	Sessions *auth.Sessions
+	Queries *db.Queries
+	Pool    *pgxpool.Pool
+}
+
+type EnsureDraftRequest struct {
+	DraftKeys []uuid.UUID
+}
+
+type GetRankingForSlugRequest struct {
+	EnsureDraftRequest
+	Slug uuid.UUID
 }
 
 // CreateDraft creates an anonymous ranking seeded with the default S/A/B/C/D
 // tier palette.
-func (s *RankingsService) EnsureDraft(ctx context.Context) (Ranking, error) {
-	if draftKeys := s.Sessions.Drafts(ctx); len(draftKeys) > 0 {
-		ranking, err := s.GetRankingForSlug(ctx, draftKeys[0])
+func (s *RankingsService) EnsureDraft(ctx context.Context, req EnsureDraftRequest) (Ranking, error) {
+	if len(req.DraftKeys) > 0 {
+		ranking, err := s.GetRankingForSlug(ctx, GetRankingForSlugRequest{EnsureDraftRequest: req, Slug: req.DraftKeys[0]})
 		if err != nil {
 			return Ranking{}, err
 		}
@@ -49,7 +56,6 @@ func (s *RankingsService) EnsureDraft(ctx context.Context) (Ranking, error) {
 	if err := seedDefaultTiers(ctx, s.Queries, ranking.ID); err != nil {
 		return Ranking{}, fmt.Errorf("seed tiers: %w", err)
 	}
-	s.Sessions.RememberDraft(ctx, ranking.Slug)
 
 	return Ranking{Ranking: ranking, IsDraft: true}, nil
 }
@@ -75,10 +81,6 @@ func (s *RankingsService) CreateForUser(ctx context.Context, req CreateForUserRe
 	return ranking, nil
 }
 
-type GetBySlugRequest struct {
-	Slug string
-}
-
 // Ranking bundles the ranking with metadata the handler needs.
 type Ranking struct {
 	db.Ranking
@@ -90,14 +92,12 @@ type Ranking struct {
 // only access rankings they own.  Returns ErrRankingNotFound when access is
 // denied or the ranking doesn't exist.
 func (s *RankingsService) GetRankingForSlug(ctx context.Context, slug uuid.UUID) (Ranking, error) {
-	userId := s.Sessions.UserID(ctx)
 
-	if userId == 0 {
-		draftKeys := s.Sessions.Drafts(ctx)
-		if !slices.Contains(draftKeys, slug) {
+	if req.UserId == nil {
+		if !slices.Contains(req.DraftKeys, req.Slug) {
 			return Ranking{}, ErrRankingNotFound
 		}
-		ranking, err := s.Queries.GetDraftBySlug(ctx, slug)
+		ranking, err := s.Queries.GetDraftBySlug(ctx, req.Slug)
 		if err != nil {
 			return Ranking{}, err
 		}
@@ -107,7 +107,7 @@ func (s *RankingsService) GetRankingForSlug(ctx context.Context, slug uuid.UUID)
 		}, nil
 	}
 
-	ranking, err := s.Queries.GetRankingBySlug(ctx, db.GetRankingBySlugParams{Slug: slug, UserID: &userId})
+	ranking, err := s.Queries.GetRankingBySlug(ctx, db.GetRankingBySlugParams{Slug: req.Slug, UserID: req.UserId})
 	if err != nil {
 		return Ranking{}, err
 	}

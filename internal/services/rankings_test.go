@@ -3,6 +3,7 @@ package services_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/ghmeier/rankanything/internal/testsupport"
@@ -25,7 +26,7 @@ func svcWithCtx(t *testing.T) (*services.RankingsService, context.Context) {
 	}
 
 	// Start an empty session so Drafts() / UserID() work without panicking.
-	ctx = svc.Sessions.Start(ctx)
+	ctx := t.Context()
 
 	return svc, ctx
 }
