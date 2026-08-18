@@ -11,31 +11,44 @@ import (
 	"github.com/google/uuid"
 )
 
-const claimRanking = `-- name: ClaimRanking :one
+const claimRankings = `-- name: ClaimRankings :many
 UPDATE rankings
-SET user_id = $2, updated_at = now()
-WHERE slug = $1 AND user_id IS NULL
+SET user_id = $1, updated_at = now()
+WHERE slug = ANY($2::uuid[]) AND user_id IS NULL
 RETURNING id, slug, user_id, title, description, created_at, updated_at
 `
 
-type ClaimRankingParams struct {
-	Slug   uuid.UUID
+type ClaimRankingsParams struct {
 	UserID *int64
+	Slugs  []uuid.UUID
 }
 
-func (q *Queries) ClaimRanking(ctx context.Context, arg ClaimRankingParams) (Ranking, error) {
-	row := q.db.QueryRow(ctx, claimRanking, arg.Slug, arg.UserID)
-	var i Ranking
-	err := row.Scan(
-		&i.ID,
-		&i.Slug,
-		&i.UserID,
-		&i.Title,
-		&i.Description,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+func (q *Queries) ClaimRankings(ctx context.Context, arg ClaimRankingsParams) ([]Ranking, error) {
+	rows, err := q.db.Query(ctx, claimRankings, arg.UserID, arg.Slugs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Ranking
+	for rows.Next() {
+		var i Ranking
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.UserID,
+			&i.Title,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const createRanking = `-- name: CreateRanking :one
@@ -119,12 +132,36 @@ func (q *Queries) DeleteTier(ctx context.Context, id int64) error {
 	return err
 }
 
-const getRankingBySlug = `-- name: GetRankingBySlug :one
-SELECT id, slug, user_id, title, description, created_at, updated_at FROM rankings WHERE slug = $1
+const getDraftBySlug = `-- name: GetDraftBySlug :one
+SELECT id, slug, user_id, title, description, created_at, updated_at FROM rankings WHERE slug = $1 AND user_id IS NULL
 `
 
-func (q *Queries) GetRankingBySlug(ctx context.Context, slug uuid.UUID) (Ranking, error) {
-	row := q.db.QueryRow(ctx, getRankingBySlug, slug)
+func (q *Queries) GetDraftBySlug(ctx context.Context, slug uuid.UUID) (Ranking, error) {
+	row := q.db.QueryRow(ctx, getDraftBySlug, slug)
+	var i Ranking
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.UserID,
+		&i.Title,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getRankingBySlug = `-- name: GetRankingBySlug :one
+SELECT id, slug, user_id, title, description, created_at, updated_at FROM rankings WHERE slug = $1 AND user_id = $2
+`
+
+type GetRankingBySlugParams struct {
+	Slug   uuid.UUID
+	UserID *int64
+}
+
+func (q *Queries) GetRankingBySlug(ctx context.Context, arg GetRankingBySlugParams) (Ranking, error) {
+	row := q.db.QueryRow(ctx, getRankingBySlug, arg.Slug, arg.UserID)
 	var i Ranking
 	err := row.Scan(
 		&i.ID,

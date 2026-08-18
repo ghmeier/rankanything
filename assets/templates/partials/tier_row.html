@@ -1,23 +1,13 @@
-{{ define "partials/tier_row.html" }} {{ $view := .View }} {{ $tier := .Tier }}
+{{ define "partials/tier_row.html" }} {{ $ranking := .Ranking }} {{ $tier :=
+.Tier }}
 <section
-  class="flex items-stretch gap-2 rounded-sm border border-slate-800 bg-slate-900/60"
+  class="flex items-stretch gap-2 rounded-sm border border-slate-800 bg-slate-900/60 tier-row"
 >
-  <div
-    class="flex w-28 shrink-0 flex-col items-center justify-center gap-1 rounded-l-sm p-2"
-    style="background-color: {{ $tier.Color }}1a"
-  >
-    <div class="flex flex-col items-center gap-1">
-      <div
-        class="w-20 bg-transparent text-center text-xl font-bold outline-none"
-        style="color: {{ $tier.Color }}"
-      >
-        {{ $tier.Label }}
-      </div>
-    </div>
-  </div>
+  {{ template "partials/tier_row_label.html" dict "Tier" $tier "RankingSlug"
+  $ranking.slug }}
   <div
     class="flex min-h-24 flex-1 flex-wrap content-start gap-2 p-3"
-    hx-put="/r/{{ $view.Ranking.Slug }}/placements"
+    hx-put="/r/{{ $ranking.Slug }}/placements"
     hx-target="#board"
     hx-swap="innerHTML"
     hx-trigger="end"
@@ -26,7 +16,7 @@
   >
     <input type="hidden" name="tier_id" value="{{ $tier.ID }}" />
     {{ range .Items }} {{ template "partials/item_card.html" dict "Item" .
-    "Ranking" $view.Ranking "TierID" $tier.ID }} {{ else }}
+    "Ranking" $ranking "TierID" $tier.ID }} {{ else }}
     <p class="self-center text-xs text-slate-600">Drop items here</p>
     {{ end }}
   </div>

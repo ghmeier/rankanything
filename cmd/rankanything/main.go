@@ -40,17 +40,17 @@ func run(logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	p, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
 	}
-	defer pool.Close()
-	if err := pool.Ping(ctx); err != nil {
+	defer p.Close()
+	if err := p.Ping(ctx); err != nil {
 		return err
 	}
 
 	sm := scs.New()
-	sm.Store = pgxstore.New(pool)
+	sm.Store = pgxstore.New(p)
 	sm.Lifetime = cfg.SessionTimeout
 	auth.CookieDefaults(sm, cfg.IsProduction())
 
@@ -59,17 +59,18 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 
-	q := db.New(pool)
+	q := db.New(p)
 	s := auth.NewSessions(sm)
 
 	application := &app.App{
-		Pool:     pool,
-		Queries:  q,
-		Sessions: s,
-		Render:   renderer,
-		Logger:   logger,
-		Static:   assets.Static(),
-		UserSvc:  &services.UserService{Queries: q, Sessions: s},
+		Pool:       p,
+		Queries:    q,
+		Sessions:   s,
+		Render:     renderer,
+		Logger:     logger,
+		Static:     assets.Static(),
+		UserSvc:    &services.UserService{Queries: q, Sessions: s},
+		RankingSvc: &services.RankingsService{Queries: q, Pool: p, Sessions: s},
 	}
 
 	srv := &http.Server{

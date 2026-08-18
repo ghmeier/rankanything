@@ -23,8 +23,8 @@ JOIN ranking_tier_items rti ON rti.ranked_item_id = i.id
 WHERE rti.ranking_tier_id = $1
 ORDER BY rti.created_at, i.id;
 
--- name: ListPlacements :many
-SELECT ti.ranking_tier_id, ti.ranked_item_id, ti.position
+-- name: ListRankingItemsByPosition :many
+SELECT ti.*
 FROM ranking_tier_items ti
 JOIN ranking_tiers t ON t.id = ti.ranking_tier_id
 WHERE t.ranking_id = $1
@@ -32,8 +32,6 @@ ORDER BY t.position, ti.position;
 
 -- name: CountTierItems :one
 SELECT count(*)::int FROM ranking_tier_items WHERE ranking_tier_id = $1;
-
-
 
 -- name: ClearTierPlacements :exec
 DELETE FROM ranking_tier_items WHERE ranking_tier_id = $1;

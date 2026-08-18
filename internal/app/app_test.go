@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ghmeier/rankanything/internal/app"
 	"github.com/ghmeier/rankanything/internal/db"
+	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/ghmeier/rankanything/internal/testsupport"
 )
 
@@ -53,7 +53,7 @@ func TestHomeCreatesAnonymousDraft(t *testing.T) {
 	assert.Equal(t, http.StatusOK, page.Status)
 	assert.Contains(t, Body(page.Body), "Untitled ranking")
 	assert.Contains(t, Body(page.Body), "Unsaved draft")
-	for _, tier := range app.DefaultTiers {
+	for _, tier := range services.DefaultTiers {
 		assert.Contains(t, Body(page.Body), ">"+tier.Label+"<", "default tier %s should render", tier.Label)
 	}
 }
@@ -120,7 +120,7 @@ func TestPlacementFlow(t *testing.T) {
 	c.HTMX(http.MethodPost, "/r/"+slug.String()+"/items", url.Values{"label": {"Pretzels"}})
 	c.HTMX(http.MethodPost, "/r/"+slug.String()+"/items", url.Values{"label": {"Olives"}})
 
-	ranking, err := env.Queries.GetRankingBySlug(ctx, slug)
+	ranking, err := env.Queries.GetDraftBySlug(ctx, slug)
 	require.NoError(t, err)
 	tiers, err := env.Queries.ListTiers(ctx, ranking.ID)
 	require.NoError(t, err)
@@ -135,7 +135,7 @@ func TestPlacementFlow(t *testing.T) {
 	res := c.HTMX(http.MethodPut, "/r/"+slug.String()+"/placements", form)
 	require.Equal(t, http.StatusOK, res.Status)
 
-	placements, err := env.Queries.ListPlacements(ctx, ranking.ID)
+	placements, err := env.Queries.ListRankingItemsByPosition(ctx, ranking.ID)
 	require.NoError(t, err)
 	require.Len(t, placements, 2)
 	assert.Equal(t, items[1].ID, placements[0].RankedItemID)
@@ -161,7 +161,7 @@ func TestPlacementFlow(t *testing.T) {
 		res := c.HTMX(http.MethodPut, "/r/"+slug.String()+"/placements", tray)
 		require.Equal(t, http.StatusOK, res.Status)
 
-		placements, err := env.Queries.ListPlacements(ctx, ranking.ID)
+		placements, err := env.Queries.ListRankingItemsByPosition(ctx, ranking.ID)
 		require.NoError(t, err)
 		assert.Empty(t, placements)
 	})
@@ -177,11 +177,11 @@ func TestCustomTierLifecycle(t *testing.T) {
 	require.Equal(t, http.StatusOK, res.Status)
 	assert.Contains(t, Body(res.Body), `value="F"`)
 
-	ranking, err := env.Queries.GetRankingBySlug(ctx, slug)
+	ranking, err := env.Queries.GetDraftBySlug(ctx, slug)
 	require.NoError(t, err)
 	tiers, err := env.Queries.ListTiers(ctx, ranking.ID)
 	require.NoError(t, err)
-	require.Len(t, tiers, len(app.DefaultTiers)+1)
+	require.Len(t, tiers, len(services.DefaultTiers)+1)
 
 	last := tiers[len(tiers)-1]
 	assert.Equal(t, "F", last.Label)
@@ -207,7 +207,7 @@ func TestSaveRequiresAccountThenClaimsDraft(t *testing.T) {
 	require.Equal(t, http.StatusSeeOther, save.Status)
 	assert.Equal(t, "/register?next=/r/"+slug.String(), save.Location())
 
-	ranking, err := env.Queries.GetRankingBySlug(ctx, slug)
+	ranking, err := env.Queries.GetDraftBySlug(ctx, slug)
 	require.NoError(t, err)
 	assert.True(t, ranking.UserID == nil, "the draft stays unclaimed until sign-up")
 
@@ -219,7 +219,7 @@ func TestSaveRequiresAccountThenClaimsDraft(t *testing.T) {
 	require.Equal(t, http.StatusSeeOther, reg.Status)
 	assert.Equal(t, "/r/"+slug.String(), reg.Location())
 
-	claimed, err := env.Queries.GetRankingBySlug(ctx, slug)
+	claimed, err := env.Queries.GetDraftBySlug(ctx, slug)
 	require.NoError(t, err)
 	require.NotNil(t, claimed.UserID, "signing up claims the draft")
 

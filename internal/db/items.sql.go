@@ -97,40 +97,6 @@ func (q *Queries) InsertPlacement(ctx context.Context, arg InsertPlacementParams
 	return err
 }
 
-const listPlacements = `-- name: ListPlacements :many
-SELECT ti.ranking_tier_id, ti.ranked_item_id, ti.position
-FROM ranking_tier_items ti
-JOIN ranking_tiers t ON t.id = ti.ranking_tier_id
-WHERE t.ranking_id = $1
-ORDER BY t.position, ti.position
-`
-
-type ListPlacementsRow struct {
-	RankingTierID int64
-	RankedItemID  int64
-	Position      int32
-}
-
-func (q *Queries) ListPlacements(ctx context.Context, rankingID int64) ([]ListPlacementsRow, error) {
-	rows, err := q.db.Query(ctx, listPlacements, rankingID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListPlacementsRow
-	for rows.Next() {
-		var i ListPlacementsRow
-		if err := rows.Scan(&i.RankingTierID, &i.RankedItemID, &i.Position); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listRankingItems = `-- name: ListRankingItems :many
 SELECT i.id, i.label, i.sublabel, i.source_url, i.source_image_url, i.image_url, i.created_at, i.updated_at FROM ranked_items i
 JOIN ranking_items ri ON ri.ranked_item_id = i.id
@@ -156,6 +122,39 @@ func (q *Queries) ListRankingItems(ctx context.Context, rankingID int64) ([]Rank
 			&i.ImageUrl,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRankingItemsByPosition = `-- name: ListRankingItemsByPosition :many
+SELECT ti.ranking_tier_id, ti.ranked_item_id, ti.position, ti.created_at
+FROM ranking_tier_items ti
+JOIN ranking_tiers t ON t.id = ti.ranking_tier_id
+WHERE t.ranking_id = $1
+ORDER BY t.position, ti.position
+`
+
+func (q *Queries) ListRankingItemsByPosition(ctx context.Context, rankingID int64) ([]RankingTierItem, error) {
+	rows, err := q.db.Query(ctx, listRankingItemsByPosition, rankingID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RankingTierItem
+	for rows.Next() {
+		var i RankingTierItem
+		if err := rows.Scan(
+			&i.RankingTierID,
+			&i.RankedItemID,
+			&i.Position,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

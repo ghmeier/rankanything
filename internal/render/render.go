@@ -76,6 +76,10 @@ func (r *Renderer) Partial(w http.ResponseWriter, status int, name string, data 
 	return r.exec(w, status, name, data)
 }
 
+func (r *Renderer) Empty(w http.ResponseWriter, status int) {
+	w.WriteHeader(status)
+}
+
 type pageData struct {
 	Page string
 	Data any

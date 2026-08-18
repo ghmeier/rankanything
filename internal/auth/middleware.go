@@ -1,10 +1,14 @@
 package auth
 
 import (
+	"context"
 	"crypto/subtle"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+	"slices"
+
+	"github.com/google/uuid"
 )
 
 // CSRF rejects mutating requests whose token does not match the session's.
@@ -40,6 +44,26 @@ func RequireUser(s *Sessions) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+type contextKey string
+
+const (
+	SlugKey contextKey = "slug"
+)
+
+func ParsePathValues(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
+		// 1. Extract the slug if present in the matched route
+		if slugStr := r.PathValue("slug"); slugStr != "" {
+			if slug, err := uuid.Parse(slugStr); err == nil {
+				ctx = context.WithValue(ctx, SlugKey, slug)
+			}
+		}
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // Recover turns a panic into a 500 plus a logged stack trace.
@@ -81,8 +105,12 @@ func (w *statusWriter) WriteHeader(code int) {
 
 // Chain applies middlewares outermost-first.
 func Chain(h http.Handler, mw ...func(http.Handler) http.Handler) http.Handler {
-	for i := len(mw) - 1; i >= 0; i-- {
-		h = mw[i](h)
+	for _, middleware := range slices.Backward(mw) {
+		h = middleware(h)
 	}
 	return h
+}
+
+func HandleRoute(mux *http.ServeMux, pattern string, handler http.HandlerFunc) {
+	mux.Handle(pattern, ParsePathValues(handler))
 }

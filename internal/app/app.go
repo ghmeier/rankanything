@@ -16,44 +16,42 @@ import (
 
 // App holds everything the handlers need.
 type App struct {
-	Pool     *pgxpool.Pool
-	Queries  *db.Queries
-	Sessions *auth.Sessions
-	Render   *render.Renderer
-	Logger   *slog.Logger
-	Static   fs.FS
-	UserSvc  *services.UserService
+	Pool       *pgxpool.Pool
+	Queries    *db.Queries
+	Sessions   *auth.Sessions
+	Render     *render.Renderer
+	Logger     *slog.Logger
+	Static     fs.FS
+	UserSvc    *services.UserService
+	RankingSvc *services.RankingsService
 }
 
 // Routes builds the fully wrapped handler for the app.
 func (a *App) Routes() http.Handler {
 	mux := http.NewServeMux()
-
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(a.Static))))
 
 	// Builder — the landing page is the product.
-	mux.HandleFunc("GET /{$}", a.handleHome)
-	mux.HandleFunc("GET /new", a.handleNew)
-	mux.HandleFunc("GET /r/{slug}", a.handleBuilder)
-	mux.HandleFunc("POST /r/{slug}", a.handleUpdateRanking)
-	mux.HandleFunc("POST /r/{slug}/save", a.handleSave)
-	mux.HandleFunc("POST /r/{slug}/items", a.handleAddItem)
-	mux.HandleFunc("DELETE /r/{slug}/items/{itemID}", a.handleDeleteItem)
-	mux.HandleFunc("POST /r/{slug}/tiers", a.handleAddTier)
-	mux.HandleFunc("PUT /r/{slug}/tiers/{tierID}", a.handleUpdateTier)
-	mux.HandleFunc("POST /r/{slug}/tiers/{tierID}/edit", a.handleEditTier)
-	mux.HandleFunc("DELETE /r/{slug}/tiers/{tierID}", a.handleDeleteTier)
-	mux.HandleFunc("PUT /r/{slug}/placements", a.handleSetPlacements)
+	auth.HandleRoute(mux, "GET /{$}", a.handleHome)
+	auth.HandleRoute(mux, "GET /new", a.handleNew)
+	auth.HandleRoute(mux, "GET /r/{slug}", a.handleBuilder)
+	auth.HandleRoute(mux, "POST /r/{slug}", a.handleUpdateRanking)
+	auth.HandleRoute(mux, "POST /r/{slug}/save", a.handleSave)
+	auth.HandleRoute(mux, "POST /r/{slug}/items", a.handleAddItem)
+	auth.HandleRoute(mux, "DELETE /r/{slug}/items/{itemID}", a.handleDeleteItem)
+	auth.HandleRoute(mux, "POST /r/{slug}/tiers", a.handleAddTier)
+	auth.HandleRoute(mux, "PUT /r/{slug}/tiers/{tierID}", a.handleUpdateTier)
+	auth.HandleRoute(mux, "POST /r/{slug}/tiers/{tierID}/edit", a.handleEditTier)
+	auth.HandleRoute(mux, "DELETE /r/{slug}/tiers/{tierID}", a.handleDeleteTier)
+	auth.HandleRoute(mux, "PUT /r/{slug}/placements", a.handleSetPlacements)
+	mux.Handle("GET /rankings", auth.RequireUser(a.Sessions)(http.HandlerFunc(a.handleRankings)))
 
 	// Auth.
-	mux.HandleFunc("GET /register", a.handleRegisterForm)
-	mux.HandleFunc("POST /register", a.handleRegister)
-	mux.HandleFunc("GET /login", a.handleLoginForm)
-	mux.HandleFunc("POST /login", a.handleLogin)
-	mux.HandleFunc("POST /logout", a.handleLogout)
-
-	// Account.
-	mux.Handle("GET /me", auth.RequireUser(a.Sessions)(http.HandlerFunc(a.handleMe)))
+	auth.HandleRoute(mux, "GET /register", a.handleRegisterForm)
+	auth.HandleRoute(mux, "POST /register", a.handleRegister)
+	auth.HandleRoute(mux, "GET /login", a.handleLoginForm)
+	auth.HandleRoute(mux, "POST /login", a.handleLogin)
+	auth.HandleRoute(mux, "POST /logout", a.handleLogout)
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.Pool.Ping(r.Context()); err != nil {

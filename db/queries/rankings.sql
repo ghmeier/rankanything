@@ -4,7 +4,10 @@ VALUES ($1, $2)
 RETURNING *;
 
 -- name: GetRankingBySlug :one
-SELECT * FROM rankings WHERE slug = $1;
+SELECT * FROM rankings WHERE slug = $1 AND user_id = $2;
+
+-- name: GetDraftBySlug :one
+SELECT * FROM rankings WHERE slug = $1 AND user_id IS NULL;
 
 -- name: UpdateRanking :one
 UPDATE rankings
@@ -12,10 +15,10 @@ SET title = $2, description = $3, updated_at = now()
 WHERE id = $1
 RETURNING *;
 
--- name: ClaimRanking :one
+-- name: ClaimRankings :many
 UPDATE rankings
-SET user_id = $2, updated_at = now()
-WHERE slug = $1 AND user_id IS NULL
+SET user_id = $1, updated_at = now()
+WHERE slug = ANY(@slugs::uuid[]) AND user_id IS NULL
 RETURNING *;
 
 -- name: ListRankingsByUser :many

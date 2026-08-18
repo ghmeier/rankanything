@@ -30,5 +30,4 @@ make test
 
 # Run the server
 make run
-``
 ```

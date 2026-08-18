@@ -110,22 +110,15 @@ func (s *UserService) Logout(ctx context.Context) error {
 // claimDrafts claims any unclaimed rankings belonging to this session and
 // records them under the given user.
 func (s *UserService) claimDrafts(ctx context.Context, userID int64) error {
-	for _, slug := range s.Sessions.Drafts(ctx) {
-		if err := s.claimOne(ctx, slug, userID); err != nil {
-			return err
-		}
-	}
-	return nil
-}
+	drafts := s.Sessions.Drafts(ctx)
+	slugs := make([]uuid.UUID, len(drafts))
 
-func (s *UserService) claimOne(ctx context.Context, slug uuid.UUID, userID int64) error {
-	_, err := s.Queries.ClaimRanking(ctx, db.ClaimRankingParams{
-		Slug:   slug,
-		UserID: &userID,
-	})
-	if err == nil {
-		s.Sessions.ForgetDraft(ctx, slug)
+	for _, slug := range drafts {
+		slugs = append(slugs, slug)
 	}
+
+	s.Queries.ClaimRankings(ctx, db.ClaimRankingsParams{Slugs: slugs, UserID: &userID})
+
 	return nil
 }
 

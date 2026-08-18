@@ -60,6 +60,15 @@ func Pool(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
+func NewSessionManager() *scs.SessionManager {
+	sm := scs.New()
+	sm.Store = memstore.New()
+	sm.Lifetime = time.Hour
+	auth.CookieDefaults(sm, false)
+
+	return sm
+}
+
 func migrate(t *testing.T, dsn string) {
 	t.Helper()
 
@@ -102,23 +111,21 @@ func NewEnv(t *testing.T) *Env {
 
 	pool := Pool(t)
 
-	sm := scs.New()
-	sm.Store = memstore.New()
-	sm.Lifetime = time.Hour
-	auth.CookieDefaults(sm, false)
-
 	renderer, err := render.New(assets.Templates())
 	require.NoError(t, err)
 
 	queries := db.New(pool)
+	sm := NewSessionManager()
+	s := auth.NewSessions(sm)
 	application := &app.App{
-		Pool:     pool,
-		Queries:  queries,
-		Sessions: auth.NewSessions(sm),
-		Render:   renderer,
-		Logger:   slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
-		Static:   assets.Static(),
-		UserSvc:  &services.UserService{Queries: queries, Sessions: auth.NewSessions(sm)},
+		Pool:       pool,
+		Queries:    queries,
+		Sessions:   s,
+		Render:     renderer,
+		Logger:     slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+		Static:     assets.Static(),
+		UserSvc:    &services.UserService{Queries: queries, Sessions: s},
+		RankingSvc: &services.RankingsService{Queries: queries, Sessions: s, Pool: pool},
 	}
 
 	srv := httptest.NewServer(application.Routes())
