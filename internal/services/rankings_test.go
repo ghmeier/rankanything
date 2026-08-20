@@ -330,12 +330,13 @@ func TestUpdateTier(t *testing.T) {
 	tiers, err := svc.Queries.ListTiers(ctx, ranking.ID)
 	require.NoError(t, err)
 
+	allowMultiple := true
 	updated, err := svc.UpdateTier(ctx, services.UpdateTierRequest{
 		Slug:          ranking.Slug,
 		TierID:        tiers[0].ID,
 		Label:         "Top",
 		Color:         "#ff0000",
-		AllowMultiple: true,
+		AllowMultiple: &allowMultiple,
 	})
 	require.NoError(t, err)
 

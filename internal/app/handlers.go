@@ -245,14 +245,18 @@ func (a *App) handleUpdateTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	allowMultiple := r.FormValue("allow_multiple") == "true"
+	var allowMultiplePtr *bool
+	if r.FormValue("allow_multiple") != "" {
+		allowMultiple := r.FormValue("allow_multiple") == "true"
+		allowMultiplePtr = &allowMultiple
+	}
 
 	tier, err := a.RankingSvc.UpdateTier(ctx, services.UpdateTierRequest{
 		Slug:          slug,
 		TierID:        id,
 		Label:         r.FormValue("label"),
 		Color:         r.FormValue("color"),
-		AllowMultiple: allowMultiple,
+		AllowMultiple: allowMultiplePtr,
 	})
 	if err != nil {
 		rankError(a, w, r, err)
