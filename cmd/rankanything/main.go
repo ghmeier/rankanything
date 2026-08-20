@@ -70,7 +70,7 @@ func run(logger *slog.Logger) error {
 		Logger:     logger,
 		Static:     assets.Static(),
 		UserSvc:    &services.UserService{Queries: q, Sessions: s},
-		RankingSvc: &services.RankingsService{Queries: q, Pool: p, Sessions: s},
+		RankingSvc: &services.RankingsService{Queries: q, Pool: p},
 	}
 
 	srv := &http.Server{

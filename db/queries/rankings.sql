@@ -6,16 +6,6 @@ RETURNING *;
 -- name: GetRankingBySlug :one
 SELECT * FROM rankings WHERE slug = $1;
 
--- name: EnsureDraftRankingForSlug :one
-SELECT EXISTS (
-    SELECT 1  FROM rankings WHERE slug = $1 AND user_id IS NULL
-);
-
--- name: EnsureUserRankingForSlug :one
-SELECT EXISTS (
-    SELECT 1  FROM rankings WHERE slug = $1 AND user_id = $2
-);
-
 -- name: UpdateRanking :one
 UPDATE rankings
 SET title = $2, description = $3, updated_at = now()

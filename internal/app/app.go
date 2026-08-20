@@ -48,7 +48,7 @@ func (a *App) Routes() http.Handler {
 	mux.Handle("POST /r/{slug}/tiers/{tierID}/edit", a.RequireRankingAccess(http.HandlerFunc(a.handleEditTier)))
 	mux.Handle("DELETE /r/{slug}/tiers/{tierID}", a.RequireRankingAccess(http.HandlerFunc(a.handleDeleteTier)))
 	mux.Handle("PUT /r/{slug}/placements", a.RequireRankingAccess(http.HandlerFunc(a.handleSetPlacements)))
-	mux.Handle("GET /rankings", a.RequireUser(http.HandlerFunc(a.handleRankings)))
+	mux.Handle("GET /me", a.RequireUser(http.HandlerFunc(a.handleRankings)))
 
 	// Auth.
 	mux.HandleFunc("GET /register", a.handleRegisterForm)
@@ -103,12 +103,31 @@ func (a *App) RequireRankingAccess(next http.Handler) http.Handler {
 		userID := a.Sessions.UserID(ctx)
 		draftKeys := a.Sessions.Drafts(ctx)
 
-		if userID == 0 && !slices.Contains(draftKeys, slug) {
-			http.Redirect(w, r, "/", http.StatusSeeOther)
+		// Query the ranking to verify access.
+		ranking, err := a.Queries.GetRankingBySlug(ctx, slug)
+		if err != nil {
+			a.Logger.Debug("RequireRankingAccess: ranking not found", "slug", slug, "err", err, "userID", userID, "draftKeys", draftKeys)
+			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
+		a.Logger.Debug("RequireRankingAccess: ranking found", "slug", slug, "userID", userID, "draftKeys", draftKeys, "rankingUserID", ranking.UserID)
 
-		// TODO: Check if the user has access to the ranking by slug
+		// Verify access based on ownership.
+		if ranking.UserID == nil {
+			// Draft: only accessible by the session that created it.
+			if !slices.Contains(draftKeys, slug) {
+				a.Logger.Debug("RequireRankingAccess: draft access denied", "slug", slug, "userID", userID, "hasDraft", slices.Contains(draftKeys, slug))
+				http.Error(w, "not found", http.StatusNotFound)
+				return
+			}
+		} else {
+			// Owned ranking: only accessible by the owner.
+			if userID == 0 || *ranking.UserID != userID {
+				a.Logger.Debug("RequireRankingAccess: owned access denied", "slug", slug, "userID", userID, "rankingUserID", *ranking.UserID)
+				http.Error(w, "not found", http.StatusNotFound)
+				return
+			}
+		}
 
 		ctx = context.WithValue(ctx, constants.SlugKey, slug)
 

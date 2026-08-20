@@ -9,7 +9,7 @@ import (
 
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5"
 )
 
 var (
@@ -17,11 +17,16 @@ var (
 	ErrInvalidTierPlacement = errors.New("Ranking cannot be placed on this tier.")
 )
 
+// txBeginner is a database connection that can start transactions (savepoints).
+type txBeginner interface {
+	Begin(context.Context) (pgx.Tx, error)
+}
+
 // RankingsService owns all business logic for rankings, tiers, and their items.
 // It speaks in contexts, database models, and errors — never HTTP.
 type RankingsService struct {
 	Queries *db.Queries
-	Pool    *pgxpool.Pool
+	Pool    txBeginner
 }
 
 type EnsureDraftRequest struct {
@@ -93,12 +98,12 @@ type Ranking struct {
 func (s *RankingsService) GetRankingForSlug(ctx context.Context, slug uuid.UUID) (Ranking, error) {
 	ranking, err := s.Queries.GetRankingBySlug(ctx, slug)
 	if err != nil {
-		return Ranking{}, err
+		return Ranking{}, ErrRankingNotFound
 	}
 
 	return Ranking{
 		Ranking: ranking,
-		IsDraft: false,
+		IsDraft: ranking.UserID == nil,
 	}, nil
 }
 
@@ -225,7 +230,7 @@ type UpdateTierRequest struct {
 	TierID        int64
 	Label         string
 	Color         string
-	AllowMultiple bool
+	AllowMultiple *bool // nil means keep existing value
 }
 
 // UpdateTier changes the label, color, or multi-item setting of a tier.
@@ -249,12 +254,17 @@ func (s *RankingsService) UpdateTier(ctx context.Context, req UpdateTierRequest)
 		color = tier.Color
 	}
 
+	allowMultiple := tier.AllowMultiple
+	if req.AllowMultiple != nil {
+		allowMultiple = *req.AllowMultiple
+	}
+
 	tier, err = s.Queries.UpdateTier(ctx, db.UpdateTierParams{
 		ID:            tier.ID,
 		Label:         label,
 		Color:         color,
 		Position:      tier.Position,
-		AllowMultiple: req.AllowMultiple,
+		AllowMultiple: allowMultiple,
 	})
 
 	return tier, err
@@ -457,7 +467,7 @@ var DefaultTiers = []struct {
 	Color         string
 	AllowMultiple bool
 }{
-	{"S", "#f59e0b", false},
+	{"S", "#f59e0b", true},
 	{"A", "#22c55e", false},
 	{"B", "#3b82f6", true},
 	{"C", "#a855f7", true},

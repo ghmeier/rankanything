@@ -132,37 +132,6 @@ func (q *Queries) DeleteTier(ctx context.Context, id int64) error {
 	return err
 }
 
-const ensureDraftRankingForSlug = `-- name: EnsureDraftRankingForSlug :one
-SELECT EXISTS (
-    SELECT 1  FROM rankings WHERE slug = $1 AND user_id IS NULL
-)
-`
-
-func (q *Queries) EnsureDraftRankingForSlug(ctx context.Context, slug uuid.UUID) (bool, error) {
-	row := q.db.QueryRow(ctx, ensureDraftRankingForSlug, slug)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
-const ensureUserRankingForSlug = `-- name: EnsureUserRankingForSlug :one
-SELECT EXISTS (
-    SELECT 1  FROM rankings WHERE slug = $1 AND user_id = $2
-)
-`
-
-type EnsureUserRankingForSlugParams struct {
-	Slug   uuid.UUID
-	UserID *int64
-}
-
-func (q *Queries) EnsureUserRankingForSlug(ctx context.Context, arg EnsureUserRankingForSlugParams) (bool, error) {
-	row := q.db.QueryRow(ctx, ensureUserRankingForSlug, arg.Slug, arg.UserID)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
 const getRankingBySlug = `-- name: GetRankingBySlug :one
 SELECT id, slug, user_id, title, description, created_at, updated_at FROM rankings WHERE slug = $1
 `

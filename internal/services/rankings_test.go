@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ghmeier/rankanything/internal/auth"
+	db "github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/ghmeier/rankanything/internal/testsupport"
 	"github.com/google/uuid"
@@ -20,15 +22,27 @@ func svcWithCtx(t *testing.T) (*services.RankingsService, context.Context) {
 
 	env := testsupport.NewEnv(t)
 	svc := &services.RankingsService{
-		Queries:  env.Queries,
-		Pool:     env.Pool,
-		Sessions: env.App.Sessions,
+		Queries: env.Queries,
+		Pool:    env.Tx,
 	}
 
 	// Start an empty session so Drafts() / UserID() work without panicking.
-	ctx := t.Context()
+	ctx := testsupport.SessionContext(t, env.App.Sessions.SessionManager)
 
 	return svc, ctx
+}
+
+// createTestUser creates a user in the test database and returns the user id.
+func createTestUser(t *testing.T, q *db.Queries) int64 {
+	t.Helper()
+	pw, err := auth.HashPassword("testpassword")
+	require.NoError(t, err)
+	u, err := q.CreateUser(context.Background(), db.CreateUserParams{
+		Email:        "testuser+" + uuid.NewString() + "@example.com",
+		PasswordHash: pw,
+	})
+	require.NoError(t, err)
+	return u.ID
 }
 
 // ---------------------------------------------------------------------------
@@ -40,7 +54,7 @@ func TestEnsureDraftCreatesAndSeedsTiers(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "Untitled ranking", ranking.Title)
@@ -56,10 +70,9 @@ func TestEnsureDraftCreatesAndSeedsTiers(t *testing.T) {
 		assert.Equal(t, expected.Label, tiers[i].Label)
 	}
 
-	// The draft slug should be registered in the session.
-	drafts := svc.Sessions.Drafts(ctx)
-	assert.Len(t, drafts, 1)
-	assert.Contains(t, drafts, ranking.Slug)
+	// The draft should exist in the database with no owner.
+	_, err = svc.Queries.GetRankingBySlug(ctx, ranking.Slug)
+	require.NoError(t, err)
 }
 
 // ---------------------------------------------------------------------------
@@ -69,9 +82,14 @@ func TestEnsureDraftCreatesAndSeedsTiers(t *testing.T) {
 func TestCreateForUserCreatesOwnedRankingWithTiers(t *testing.T) {
 	t.Parallel()
 
-	svc, ctx := svcWithCtx(t)
+	env := testsupport.NewEnv(t)
+	ctx := testsupport.SessionContext(t, env.App.Sessions.SessionManager)
+	svc := &services.RankingsService{
+		Queries: env.Queries,
+		Pool:    env.Tx,
+	}
 
-	userID := int64(42)
+	userID := createTestUser(t, env.Queries)
 	ranking, err := svc.CreateForUser(ctx, services.CreateForUserRequest{UserID: userID})
 	require.NoError(t, err)
 
@@ -90,12 +108,27 @@ func TestCreateForUserCreatesOwnedRankingWithTiers(t *testing.T) {
 func TestGetRankingForSlugReturnsOwnedRanking(t *testing.T) {
 	t.Parallel()
 
-	svc, ctx := svcWithCtx(t)
-
 	env := testsupport.NewEnv(t)
-	require.NoError(t, env.App.Sessions.LogIn(ctx, 1))
+	ctx := testsupport.SessionContext(t, env.App.Sessions.SessionManager)
 
-	ranking, err := svc.CreateForUser(ctx, services.CreateForUserRequest{UserID: 1})
+	// Create the user so the foreign key constraint is satisfied.
+	password, err := auth.HashPassword("testpassword")
+	require.NoError(t, err)
+	user, err := env.Queries.CreateUser(ctx, db.CreateUserParams{
+		Email:        "test@example.com",
+		PasswordHash: password,
+	})
+	require.NoError(t, err)
+
+	err = env.App.Sessions.LogIn(ctx, user.ID)
+	require.NoError(t, err)
+
+	svc := &services.RankingsService{
+		Queries: env.Queries,
+		Pool:    env.Tx,
+	}
+
+	ranking, err := svc.CreateForUser(ctx, services.CreateForUserRequest{UserID: user.ID})
 	require.NoError(t, err)
 
 	found, err := svc.GetRankingForSlug(ctx, ranking.Slug)
@@ -114,7 +147,7 @@ func TestGetRankingForSlugReturnsDraftForSession(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	found, err := svc.GetRankingForSlug(ctx, ranking.Slug)
@@ -133,7 +166,7 @@ func TestUpdateRanking(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	updated, err := svc.UpdateRanking(ctx, services.UpdateRankingRequest{
@@ -152,7 +185,7 @@ func TestUpdateRankingPartial(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	updated, err := svc.UpdateRanking(ctx, services.UpdateRankingRequest{
@@ -174,7 +207,7 @@ func TestAddItem(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	item, err := svc.AddItem(ctx, services.AddItemRequest{
@@ -199,7 +232,7 @@ func TestAddMultipleItems(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	_, err = svc.AddItem(ctx, services.AddItemRequest{Slug: ranking.Slug, Label: "First"})
@@ -223,7 +256,7 @@ func TestDeleteItem(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	item, err := svc.AddItem(ctx, services.AddItemRequest{Slug: ranking.Slug, Label: "ToDelete"})
@@ -246,7 +279,7 @@ func TestAddTier(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	initialCount := len(services.DefaultTiers)
@@ -272,7 +305,7 @@ func TestAddTierDefaults(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	tier, err := svc.AddTier(ctx, services.AddTierRequest{Slug: ranking.Slug})
@@ -291,7 +324,7 @@ func TestUpdateTier(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	tiers, err := svc.Queries.ListTiers(ctx, ranking.ID)
@@ -316,7 +349,7 @@ func TestUpdateTierKeepsUnchangedFields(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	tiers, err := svc.Queries.ListTiers(ctx, ranking.ID)
@@ -344,7 +377,7 @@ func TestGetTier(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	tiers, err := svc.Queries.ListTiers(ctx, ranking.ID)
@@ -363,7 +396,7 @@ func TestGetTierWithItems(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	// Add two items.
@@ -398,7 +431,7 @@ func TestDeleteTier(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	initialTiers, err := svc.Queries.ListTiers(ctx, ranking.ID)
@@ -426,7 +459,7 @@ func TestSetPlacementsOrdersItems(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	itemA, err := svc.AddItem(ctx, services.AddItemRequest{Slug: ranking.Slug, Label: "A"})
@@ -458,7 +491,7 @@ func TestSetPlacementsClearsToTray(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	item, err := svc.AddItem(ctx, services.AddItemRequest{Slug: ranking.Slug, Label: "Unplace me"})
@@ -497,7 +530,7 @@ func TestSetPlacementsOnSingleTier(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	itemA, err := svc.AddItem(ctx, services.AddItemRequest{Slug: ranking.Slug, Label: "A"})
@@ -516,10 +549,10 @@ func TestSetPlacementsOnSingleTier(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// S tier is single-item only. Placing two should error.
+	// A tier is single-item only. Placing two should error.
 	err = svc.SetPlacements(ctx, services.SetPlacementsRequest{
 		Slug:    ranking.Slug,
-		TierID:  tiers[0].ID, // S tier, AllowMultiple == false
+		TierID:  tiers[1].ID, // A tier, AllowMultiple == false
 		ItemIDs: []int64{itemA.ID, itemB.ID},
 	})
 	assert.Error(t, err)
@@ -530,7 +563,7 @@ func TestSetPlacementsClearsOldPlacements(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	itemA, err := svc.AddItem(ctx, services.AddItemRequest{Slug: ranking.Slug, Label: "A"})
@@ -583,7 +616,7 @@ func TestSaveDraftUnownedDraftRedirectsToRegister(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	result, err := svc.SaveDraft(ctx, services.SaveDraftRequest{
@@ -599,9 +632,15 @@ func TestSaveDraftUnownedDraftRedirectsToRegister(t *testing.T) {
 func TestSaveDraftOwnedRanking(t *testing.T) {
 	t.Parallel()
 
-	svc, ctx := svcWithCtx(t)
+	env := testsupport.NewEnv(t)
+	ctx := testsupport.SessionContext(t, env.App.Sessions.SessionManager)
+	svc := &services.RankingsService{
+		Queries: env.Queries,
+		Pool:    env.Tx,
+	}
 
-	ranking, err := svc.CreateForUser(ctx, services.CreateForUserRequest{UserID: 1})
+	userID := createTestUser(t, env.Queries)
+	ranking, err := svc.CreateForUser(ctx, services.CreateForUserRequest{UserID: userID})
 	require.NoError(t, err)
 
 	result, err := svc.SaveDraft(ctx, services.SaveDraftRequest{
@@ -618,15 +657,22 @@ func TestSaveDraftOwnedRanking(t *testing.T) {
 func TestSaveDraftDraftWithSignedInUser(t *testing.T) {
 	t.Parallel()
 
-	svc, ctx := svcWithCtx(t)
+	env := testsupport.NewEnv(t)
+	ctx := testsupport.SessionContext(t, env.App.Sessions.SessionManager)
+	svc := &services.RankingsService{
+		Queries: env.Queries,
+		Pool:    env.Tx,
+	}
 
-	ranking, err := svc.EnsureDraft(ctx)
+	userID := createTestUser(t, env.Queries)
+
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	// Even though it's a draft, a signed-in user gets a success result.
 	result, err := svc.SaveDraft(ctx, services.SaveDraftRequest{
 		Slug:   ranking.Slug,
-		UserID: 99,
+		UserID: userID,
 	})
 	require.NoError(t, err)
 
@@ -643,7 +689,7 @@ func TestBuildBoardData(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	data, err := svc.BuildBoardData(ctx, ranking.Slug)
@@ -660,7 +706,7 @@ func TestBuildBoardDataWithItemsAndPlacements(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	item, err := svc.AddItem(ctx, services.AddItemRequest{Slug: ranking.Slug, Label: "Rank me"})
@@ -690,7 +736,7 @@ func TestBuildBoardDataFormattedDate(t *testing.T) {
 
 	svc, ctx := svcWithCtx(t)
 
-	ranking, err := svc.EnsureDraft(ctx)
+	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
 	// Give it a valid UpdatedAt (postgres default is set on insert).

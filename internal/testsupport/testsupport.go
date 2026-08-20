@@ -17,12 +17,14 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/alexedwards/scs/v2/memstore"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
@@ -36,9 +38,25 @@ import (
 	"github.com/ghmeier/rankanything/internal/services"
 )
 
-// Pool returns a migrated pool with every table truncated, so each test starts
-// from a known-empty database.
-func Pool(t *testing.T) *pgxpool.Pool {
+// init runs migrations once per test process so parallel tests don't race on
+// the goose version table.
+var migrationDone sync.Once
+
+func init() {
+	dsn := os.Getenv("TEST_DATABASE_URL")
+	if dsn == "" {
+		return
+	}
+
+	migrationDone.Do(func() {
+		migrate(dsn)
+	})
+}
+
+// Pool returns a pool and a test-scoped transaction.  All queries execute
+// inside the transaction which rolls back at test end — concurrent tests
+// never conflict.
+func Pool(t *testing.T) (*pgxpool.Pool, pgx.Tx) {
 	t.Helper()
 
 	dsn := os.Getenv("TEST_DATABASE_URL")
@@ -49,15 +67,16 @@ func Pool(t *testing.T) *pgxpool.Pool {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	migrate(t, dsn)
-
 	pool, err := pgxpool.New(ctx, dsn)
 	require.NoError(t, err)
 	require.NoError(t, pool.Ping(ctx))
 	t.Cleanup(pool.Close)
 
-	truncate(t, pool)
-	return pool
+	tx, err := pool.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx.Rollback(ctx) })
+
+	return pool, tx
 }
 
 func NewSessionManager() *scs.SessionManager {
@@ -69,37 +88,46 @@ func NewSessionManager() *scs.SessionManager {
 	return sm
 }
 
-func migrate(t *testing.T, dsn string) {
+// SessionContext creates a context with session data initialized, suitable
+// for tests that need to call auth.Session methods like LogIn or RememberDraft.
+func SessionContext(t *testing.T, sm *scs.SessionManager) context.Context {
 	t.Helper()
-
-	sqlDB, err := sql.Open("pgx", dsn)
+	ctx := context.Background()
+	ctx, err := sm.Load(ctx, "")
 	require.NoError(t, err)
+	return ctx
+}
+
+func migrate(dsn string) {
+	sqlDB, err := sql.Open("pgx", dsn)
+	if err != nil {
+		panic(err)
+	}
 	defer sqlDB.Close()
 
 	goose.SetLogger(goose.NopLogger())
-	require.NoError(t, goose.SetDialect("postgres"))
-	require.NoError(t, goose.Up(sqlDB, migrationsDir(t)))
+	if err := goose.SetDialect("postgres"); err != nil {
+		panic(err)
+	}
+	if err := goose.Up(sqlDB, migrationsDir()); err != nil {
+		panic(err)
+	}
 }
 
-func migrationsDir(t *testing.T) string {
-	t.Helper()
+func migrationsDir() string {
 	_, file, _, ok := runtime.Caller(0)
-	require.True(t, ok)
+	if !ok {
+		panic("unable to determine migrations directory")
+	}
 	return filepath.Join(filepath.Dir(file), "..", "..", "db", "migrations")
-}
-
-func truncate(t *testing.T, pool *pgxpool.Pool) {
-	t.Helper()
-	_, err := pool.Exec(context.Background(),
-		`TRUNCATE ranking_tier_items, ranking_items, ranked_items, ranking_tiers, rankings, users RESTART IDENTITY CASCADE`)
-	require.NoError(t, err)
 }
 
 // Env is a running server plus the collaborators tests want to poke at.
 type Env struct {
 	T       *testing.T
 	App     *app.App
-	Pool    *pgxpool.Pool
+	Pool    *pgxpool.Pool // kept for health checks
+	Tx      pgx.Tx        // test transaction; rolls back on test exit
 	Queries *db.Queries
 	Server  *httptest.Server
 }
@@ -109,29 +137,29 @@ type Env struct {
 func NewEnv(t *testing.T) *Env {
 	t.Helper()
 
-	pool := Pool(t)
+	pool, tx := Pool(t)
 
 	renderer, err := render.New(assets.Templates())
 	require.NoError(t, err)
 
-	queries := db.New(pool)
+	queries := db.New(tx)
 	sm := NewSessionManager()
 	s := auth.NewSessions(sm)
 	application := &app.App{
 		Pool:       pool,
-		Queries:    queries,
+		Queries:    queries.WithTx(tx),
 		Sessions:   s,
 		Render:     renderer,
-		Logger:     slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError})),
+		Logger:     slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
 		Static:     assets.Static(),
-		UserSvc:    &services.UserService{Queries: queries, Sessions: s},
-		RankingSvc: &services.RankingsService{Queries: queries, Sessions: s, Pool: pool},
+		UserSvc:    &services.UserService{Queries: queries.WithTx(tx), Sessions: s},
+		RankingSvc: &services.RankingsService{Queries: queries.WithTx(tx), Pool: tx},
 	}
 
 	srv := httptest.NewServer(application.Routes())
 	t.Cleanup(srv.Close)
 
-	return &Env{T: t, App: application, Pool: pool, Queries: application.Queries, Server: srv}
+	return &Env{T: t, App: application, Pool: pool, Tx: tx, Queries: application.Queries, Server: srv}
 }
 
 // Client is a browser-like client: it keeps cookies and tracks the CSRF token
@@ -192,6 +220,17 @@ func (c *Client) form(method, path string, form url.Values) *Response {
 	require.NoError(c.t, err)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("X-CSRF-Token", c.CSRF())
+	return c.do(req)
+}
+
+// FormWithBogusCSRF submits a form with an intentionally invalid CSRF token,
+// for testing that the server rejects it.
+func (c *Client) FormWithBogusCSRF(method, path string, form url.Values) *Response {
+	c.t.Helper()
+	req, err := http.NewRequest(method, c.env.Server.URL+path, strings.NewReader(form.Encode()))
+	require.NoError(c.t, err)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("X-CSRF-Token", "bogus")
 	return c.do(req)
 }
 

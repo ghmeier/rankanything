@@ -142,14 +142,14 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ranking, err := a.RankingSvc.GetRankingForSlug(ctx, slug)
+	boardData, err := a.RankingSvc.BuildBoardData(ctx, slug)
 	if err != nil {
 		a.serverError(w, r, err)
 		return
 	}
 
 	base := a.base(r)
-	view := a.assembleBuilderView(base, services.BoardData{Ranking: ranking.Ranking})
+	view := a.assembleBuilderView(base, boardData)
 	a.renderBoard(w, r, view)
 }
 
@@ -173,16 +173,14 @@ func (a *App) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ranking, err := a.RankingSvc.GetRankingForSlug(r.Context(), slug)
+	boardData, err := a.RankingSvc.BuildBoardData(r.Context(), slug)
 	if err != nil {
 		a.serverError(w, r, err)
 		return
 	}
 
 	base := a.base(r)
-	view := a.assembleBuilderView(base, services.BoardData{
-		Ranking: ranking.Ranking,
-	})
+	view := a.assembleBuilderView(base, boardData)
 	a.renderBoard(w, r, view)
 }
 
@@ -201,18 +199,18 @@ func (a *App) handleAddTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ranking, err := a.RankingSvc.GetRankingForSlug(ctx, slug)
+	boardData, err := a.RankingSvc.BuildBoardData(ctx, slug)
 	if err != nil {
 		a.serverError(w, r, err)
 		return
 	}
 
 	base := a.base(r)
-	view := a.assembleBuilderView(base, services.BoardData{Ranking: ranking.Ranking})
+	view := a.assembleBuilderView(base, boardData)
 	a.renderBoard(w, r, view)
 }
 
-// handleEdit is POST /r/{slug}/tiers/{tierID}/edit — enable editing a tier
+// handleEditTier is POST /r/{slug}/tiers/{tierID}/edit — enable editing a tier
 func (a *App) handleEditTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
@@ -262,7 +260,7 @@ func (a *App) handleUpdateTier(w http.ResponseWriter, r *http.Request) {
 	}
 
 	view := TierRowLabelView{Tier: tier, RankingSlug: slug}
-	a.Render.Partial(w, http.StatusAccepted, "partials/tier_row_label.html", view)
+	a.Render.Partial(w, http.StatusOK, "partials/tier_row_label.html", view)
 }
 
 // handleDeleteTier is DELETE /r/{slug}/tiers/{tierID} — remove a tier.
@@ -285,14 +283,14 @@ func (a *App) handleDeleteTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ranking, err := a.RankingSvc.GetRankingForSlug(ctx, slug)
+	boardData, err := a.RankingSvc.BuildBoardData(ctx, slug)
 	if err != nil {
 		a.serverError(w, r, err)
 		return
 	}
 
 	base := a.base(r)
-	view := a.assembleBuilderView(base, services.BoardData{Ranking: ranking.Ranking})
+	view := a.assembleBuilderView(base, boardData)
 	a.renderBoard(w, r, view)
 }
 
@@ -322,10 +320,10 @@ func (a *App) handleSetPlacements(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidTierPlacement) {
-			ranking, _ := a.RankingSvc.GetRankingForSlug(ctx, slug)
+			boardData, _ := a.RankingSvc.BuildBoardData(ctx, slug)
 			base := a.base(r)
 			view := BuilderView{BaseView: base, Error: "tier holds a single item"}
-			if ranking.UserID == nil {
+			if boardData.IsDraft {
 				view.IsDraft = true
 			}
 			a.Render.Partial(w, http.StatusUnprocessableEntity, "partials/board.html", view)
@@ -335,14 +333,14 @@ func (a *App) handleSetPlacements(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ranking, err := a.RankingSvc.GetRankingForSlug(ctx, slug)
+	boardData, err := a.RankingSvc.BuildBoardData(ctx, slug)
 	if err != nil {
 		a.serverError(w, r, err)
 		return
 	}
 
 	base := a.base(r)
-	view := a.assembleBuilderView(base, services.BoardData{Ranking: ranking.Ranking})
+	view := a.assembleBuilderView(base, boardData)
 	a.renderBoard(w, r, view)
 }
 
@@ -397,7 +395,10 @@ func (a *App) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	a.Sessions.Flash(r.Context(), "Account created! Your draft has been attached.")
-	http.Redirect(w, r, "/me", http.StatusSeeOther)
+	if next == "" {
+		next = "/me"
+	}
+	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 
 func (a *App) renderRegisterError(w http.ResponseWriter, r *http.Request, email, next, errMsg string) {
