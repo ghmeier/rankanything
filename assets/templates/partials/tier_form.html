@@ -1,5 +1,5 @@
 {{ define "partials/tier_form.html" }}
-<form class="flex gap-2" hx-post="/r/{{ .Ranking.Slug }}/tiers" hx-target="#board" hx-swap="innerHTML" hx-on::after-request="this.reset()">
+<form class="flex gap-2" hx-post="/r/{{ .Ranking.Slug }}/tiers" hx-target="#tier-rows" hx-swap="innerHTML" hx-on::after-request="this.reset()">
     <input name="label" required placeholder="New tier label" aria-label="New tier label" class="rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm outline-none focus:border-amber-400" />
     <input type="color" name="color" value="#94a3b8" aria-label="New tier color" class="h-9 w-12 rounded bg-transparent" />
     <button class="rounded-md border border-slate-600 px-3 py-1.5 text-sm text-slate-300 hover:border-amber-400 hover:text-amber-300">Add tier</button>

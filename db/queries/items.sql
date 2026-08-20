@@ -3,6 +3,9 @@ INSERT INTO ranked_items (label, sublabel, source_url, source_image_url, image_u
 VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
+-- name: GetItem :one
+SELECT * from ranked_items where id = $1;
+
 -- name: AddItemToRanking :exec
 INSERT INTO ranking_items (ranking_id, ranked_item_id)
 VALUES ($1, $2)
@@ -41,6 +44,6 @@ DELETE FROM ranking_tier_items ti
 USING ranking_tiers t
 WHERE ti.ranking_tier_id = t.id AND t.ranking_id = $1 AND ti.ranked_item_id = $2;
 
--- name: InsertPlacement :exec
+-- name: AddItemToTier :exec
 INSERT INTO ranking_tier_items (ranking_tier_id, ranked_item_id, position)
 VALUES ($1, $2, $3);

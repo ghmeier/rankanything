@@ -410,7 +410,7 @@ func TestGetTierWithItems(t *testing.T) {
 	tiers, err := svc.Queries.ListTiers(ctx, ranking.ID)
 	require.NoError(t, err)
 
-	err = svc.SetPlacements(ctx, services.SetPlacementsRequest{
+	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
 		Slug:    ranking.Slug,
 		TierID:  tiers[0].ID,
 		ItemIDs: []int64{item2.ID, item1.ID},
@@ -471,7 +471,7 @@ func TestSetPlacementsOrdersItems(t *testing.T) {
 	tiers, err := svc.Queries.ListTiers(ctx, ranking.ID)
 	require.NoError(t, err)
 
-	err = svc.SetPlacements(ctx, services.SetPlacementsRequest{
+	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
 		Slug:    ranking.Slug,
 		TierID:  tiers[0].ID,
 		ItemIDs: []int64{itemB.ID, itemA.ID},
@@ -502,7 +502,7 @@ func TestSetPlacementsClearsToTray(t *testing.T) {
 	require.NoError(t, err)
 
 	// Place first.
-	err = svc.SetPlacements(ctx, services.SetPlacementsRequest{
+	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
 		Slug:    ranking.Slug,
 		TierID:  tiers[0].ID,
 		ItemIDs: []int64{item.ID},
@@ -514,7 +514,7 @@ func TestSetPlacementsClearsToTray(t *testing.T) {
 	assert.Len(t, placements, 1)
 
 	// Then remove to tray (tier_id == 0).
-	err = svc.SetPlacements(ctx, services.SetPlacementsRequest{
+	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
 		Slug:    ranking.Slug,
 		TierID:  0,
 		ItemIDs: []int64{item.ID},
@@ -543,7 +543,7 @@ func TestSetPlacementsOnSingleTier(t *testing.T) {
 	require.NoError(t, err)
 
 	// B tier allows multiple — placing two items should succeed.
-	err = svc.SetPlacements(ctx, services.SetPlacementsRequest{
+	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
 		Slug:    ranking.Slug,
 		TierID:  tiers[2].ID, // B tier, AllowMultiple == true
 		ItemIDs: []int64{itemA.ID, itemB.ID},
@@ -551,7 +551,7 @@ func TestSetPlacementsOnSingleTier(t *testing.T) {
 	require.NoError(t, err)
 
 	// A tier is single-item only. Placing two should error.
-	err = svc.SetPlacements(ctx, services.SetPlacementsRequest{
+	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
 		Slug:    ranking.Slug,
 		TierID:  tiers[1].ID, // A tier, AllowMultiple == false
 		ItemIDs: []int64{itemA.ID, itemB.ID},
@@ -578,7 +578,7 @@ func TestSetPlacementsClearsOldPlacements(t *testing.T) {
 	require.NoError(t, err)
 
 	// Put itemA on A tier (single-item).
-	err = svc.SetPlacements(ctx, services.SetPlacementsRequest{
+	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
 		Slug:    ranking.Slug,
 		TierID:  tiers[1].ID, // A tier, AllowMultiple == false
 		ItemIDs: []int64{itemA.ID},
@@ -586,7 +586,7 @@ func TestSetPlacementsClearsOldPlacements(t *testing.T) {
 	require.NoError(t, err)
 
 	// Put itemB on S tier.
-	err = svc.SetPlacements(ctx, services.SetPlacementsRequest{
+	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
 		Slug:    ranking.Slug,
 		TierID:  tiers[0].ID,
 		ItemIDs: []int64{itemB.ID},
@@ -594,7 +594,7 @@ func TestSetPlacementsClearsOldPlacements(t *testing.T) {
 	require.NoError(t, err)
 
 	// Replace A tier with only itemC (clears itemA from A tier).
-	err = svc.SetPlacements(ctx, services.SetPlacementsRequest{
+	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
 		Slug:    ranking.Slug,
 		TierID:  tiers[1].ID,
 		ItemIDs: []int64{itemC.ID},
@@ -716,7 +716,7 @@ func TestBuildBoardDataWithItemsAndPlacements(t *testing.T) {
 	tiers, err := svc.Queries.ListTiers(ctx, ranking.ID)
 	require.NoError(t, err)
 
-	err = svc.SetPlacements(ctx, services.SetPlacementsRequest{
+	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
 		Slug:    ranking.Slug,
 		TierID:  tiers[0].ID,
 		ItemIDs: []int64{item.ID},

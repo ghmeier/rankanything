@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/google/uuid"
@@ -27,6 +28,21 @@ type txBeginner interface {
 type RankingsService struct {
 	Queries *db.Queries
 	Pool    txBeginner
+}
+
+// Ranking bundles the ranking with metadata the handler needs.
+type Ranking struct {
+	db.Ranking
+	IsDraft bool
+}
+
+// RankingWithItems holds the raw data needed to render a ranking's board.
+type RankingWithItems struct {
+	Ranking    db.Ranking
+	IsDraft    bool
+	Tiers      []db.RankingTier
+	Items      []db.RankedItem
+	Placements []db.RankingTierItem
 }
 
 type EnsureDraftRequest struct {
@@ -83,12 +99,6 @@ func (s *RankingsService) CreateForUser(ctx context.Context, req CreateForUserRe
 		return db.Ranking{}, fmt.Errorf("seed tiers: %w", err)
 	}
 	return ranking, nil
-}
-
-// Ranking bundles the ranking with metadata the handler needs.
-type Ranking struct {
-	db.Ranking
-	IsDraft bool
 }
 
 // Authorize fetches a ranking by slug and checks session-based access.
@@ -235,11 +245,6 @@ type UpdateTierRequest struct {
 
 // UpdateTier changes the label, color, or multi-item setting of a tier.
 func (s *RankingsService) UpdateTier(ctx context.Context, req UpdateTierRequest) (db.RankingTier, error) {
-	_, err := s.GetRankingForSlug(ctx, req.Slug)
-	if err != nil {
-		return db.RankingTier{}, err
-	}
-
 	tier, err := s.Queries.GetTier(ctx, req.TierID)
 	if err != nil {
 		return db.RankingTier{}, err
@@ -278,11 +283,6 @@ type GetTierRequest struct {
 
 // GetTier fetches a tier and its items for rendering an editable view.
 func (s *RankingsService) GetTier(ctx context.Context, req GetTierRequest) (db.RankingTier, []db.RankedItem, error) {
-	_, err := s.GetRankingForSlug(ctx, req.Slug)
-	if err != nil {
-		return db.RankingTier{}, nil, err
-	}
-
 	tier, err := s.Queries.GetTier(ctx, req.TierID)
 	if err != nil {
 		return db.RankingTier{}, nil, err
@@ -304,73 +304,48 @@ type DeleteTierRequest struct {
 
 // DeleteTier removes a tier from the ranking.
 func (s *RankingsService) DeleteTier(ctx context.Context, req DeleteTierRequest) error {
-	_, err := s.GetRankingForSlug(ctx, req.Slug)
-	if err != nil {
-		return err
-	}
-
 	return s.Queries.DeleteTier(ctx, req.TierID)
 }
 
-// SetPlacementsRequest is the input for reordering items via drag-and-drop.
-type SetPlacementsRequest struct {
-	Slug    uuid.UUID
-	TierID  int64
-	ItemIDs []int64
+// AddItemToTierRequest is the input for reordering items via drag-and-drop.
+type AddItemToTierRequest struct {
+	Slug   uuid.UUID
+	TierID int64
+	ItemID int64
 }
 
-// SetPlacements updates item positions, optionally clearing them into the
+// AddItemToTier updates item positions, optionally clearing them into the
 // unassigned tray when TierID is 0.
-func (s *RankingsService) SetPlacements(ctx context.Context, req SetPlacementsRequest) error {
-	ranking, err := s.GetRankingForSlug(ctx, req.Slug)
-	if err != nil {
-		return err
-	}
-
-	// tier_id == 0 means items were dropped into the unassigned tray.
-	if req.TierID == 0 {
-		for _, itemID := range req.ItemIDs {
-			if err := s.Queries.RemoveItemFromTiers(ctx, db.RemoveItemFromTiersParams{
-				RankingID:    ranking.ID,
-				RankedItemID: itemID,
-			}); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
+func (s *RankingsService) AddItemToTier(ctx context.Context, req AddItemToTierRequest) (db.RankedItem, error) {
 	// Check allow_multiple constraint before modifying.
 	tier, err := s.Queries.GetTier(ctx, req.TierID)
 	if err != nil {
-		return err
-	}
-	if !tier.AllowMultiple && len(req.ItemIDs) > 1 {
-		return ErrInvalidTierPlacement
+		return db.RankedItem{}, err
 	}
 
-	// Clear existing placements for this tier.
-	if err := s.Queries.ClearTierPlacements(ctx, req.TierID); err != nil {
-		return err
-	}
-
-	// Reinsert with new positions in a transaction to avoid constraint violations.
-	tx, err := s.Pool.Begin(ctx)
+	items, err := s.Queries.ListRankingTierItems(ctx, tier.ID)
 	if err != nil {
-		return err
+		return db.RankedItem{}, err
 	}
-	q := s.Queries.WithTx(tx)
-	for i, itemID := range req.ItemIDs {
-		if err := q.InsertPlacement(ctx, db.InsertPlacementParams{
-			RankingTierID: req.TierID,
-			RankedItemID:  itemID,
-			Position:      int32(i),
-		}); err != nil {
-			_ = tx.Rollback(ctx)
-			return err
-		}
+
+	itemIDs := make([]int64, len(items))
+	for _, item := range items {
+		itemIDs = append(itemIDs, item.ID)
 	}
-	return tx.Commit(ctx)
+
+	if slices.Contains(itemIDs, req.ItemID) {
+		return s.Queries.GetItem(ctx, req.ItemID)
+	}
+
+	if !tier.AllowMultiple && len(itemIDs) >= 1 {
+		return db.RankedItem{}, ErrInvalidTierPlacement
+	}
+
+	err = s.Queries.AddItemToTier(ctx, db.AddItemToTierParams{RankingTierID: tier.ID, RankedItemID: req.ItemID, Position: int32(len(itemIDs))})
+	if err != nil {
+		return db.RankedItem{}, err
+	}
+	return s.Queries.GetItem(ctx, req.ItemID)
 }
 
 // SaveDraftRequest is the input for the save endpoint.
@@ -414,50 +389,34 @@ func (s *RankingsService) SaveDraft(ctx context.Context, req SaveDraftRequest) (
 	}, nil
 }
 
-// BoardData holds the raw data needed to render a ranking's board.
-type BoardData struct {
-	Ranking          db.Ranking
-	IsDraft          bool
-	FormattedUpdated string
-	Tiers            []db.RankingTier
-	Items            []db.RankedItem
-	Placements       []db.RankingTierItem
-}
-
 // BuildBoardData fetches all data needed to render the ranking board.
-func (s *RankingsService) BuildBoardData(ctx context.Context, slug uuid.UUID) (BoardData, error) {
+func (s *RankingsService) GetRankingWithItems(ctx context.Context, slug uuid.UUID) (RankingWithItems, error) {
 	ranking, err := s.GetRankingForSlug(ctx, slug)
 	if err != nil {
-		return BoardData{}, err
-	}
-
-	var formattedUpdated string
-	if ranking.UpdatedAt.Valid {
-		formattedUpdated = ranking.UpdatedAt.Time.Format("Jan 2, 2006")
+		return RankingWithItems{}, err
 	}
 
 	tiers, err := s.Queries.ListTiers(ctx, ranking.ID)
 	if err != nil {
-		return BoardData{}, err
+		return RankingWithItems{}, err
 	}
 
 	items, err := s.Queries.ListRankingItems(ctx, ranking.ID)
 	if err != nil {
-		return BoardData{}, err
+		return RankingWithItems{}, err
 	}
 
 	placements, err := s.Queries.ListRankingItemsByPosition(ctx, ranking.ID)
 	if err != nil {
-		return BoardData{}, err
+		return RankingWithItems{}, err
 	}
 
-	return BoardData{
-		Ranking:          ranking.Ranking,
-		IsDraft:          ranking.IsDraft,
-		FormattedUpdated: formattedUpdated,
-		Tiers:            tiers,
-		Items:            items,
-		Placements:       placements,
+	return RankingWithItems{
+		Ranking:    ranking.Ranking,
+		IsDraft:    ranking.IsDraft,
+		Tiers:      tiers,
+		Items:      items,
+		Placements: placements,
 	}, nil
 }
 

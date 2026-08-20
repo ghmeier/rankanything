@@ -12,30 +12,42 @@
             htmx.onLoad(function (content) {
                 var sortables = content.querySelectorAll(".sortable");
                 for (var i = 0; i < sortables.length; i++) {
-                    var sortable = sortables[i];
-                    var sortableInstance = new Sortable(sortable, {
+                    initSortable(sortables[i]);
+                }
+            });
+
+            function initSortable(el) {
+                var sortable = Sortable.get(el);
+                if (sortable) sortable.destroy();
+                new Sortable(el, {
+                    animation: 150,
+                    ghostClass: "blue-background-class",
+                    filter: ".htmx-indicator",
+                    onMove: function (evt) {
+                        return evt.related.className.indexOf("htmx-indicator") === -1;
+                    },
+                    onEnd: function (evt) {
+                        this.option("disabled", true);
+                    },
+                });
+                el.addEventListener("htmx:afterSwap", function () {
+                    var s = Sortable.get(el);
+                    if (s) s.destroy();
+                    new Sortable(el, {
                         animation: 150,
                         ghostClass: "blue-background-class",
-
-                        // Make the `.htmx-indicator` unsortable
                         filter: ".htmx-indicator",
                         onMove: function (evt) {
                             return evt.related.className.indexOf("htmx-indicator") === -1;
                         },
-
-                        // Disable sorting on the `end` event
                         onEnd: function (evt) {
                             this.option("disabled", true);
                         },
                     });
-
-                    // Re-enable sorting on the `htmx:afterSwap` event
-                    sortable.addEventListener("htmx:afterSwap", function () {
-                        sortableInstance.option("disabled", false);
-                    });
-                }
-            });
+                });
+            }
         </script>
+
     </head>
     <body class="min-h-full bg-slate-950 text-slate-100 antialiased" hx-headers='{"X-CSRF-Token": "{{ with .Data }}{{ .CSRFToken }}{{ end }}"}'>
         <header class="border-b border-slate-800">

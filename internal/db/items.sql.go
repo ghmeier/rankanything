@@ -25,6 +25,22 @@ func (q *Queries) AddItemToRanking(ctx context.Context, arg AddItemToRankingPara
 	return err
 }
 
+const addItemToTier = `-- name: AddItemToTier :exec
+INSERT INTO ranking_tier_items (ranking_tier_id, ranked_item_id, position)
+VALUES ($1, $2, $3)
+`
+
+type AddItemToTierParams struct {
+	RankingTierID int64
+	RankedItemID  int64
+	Position      int32
+}
+
+func (q *Queries) AddItemToTier(ctx context.Context, arg AddItemToTierParams) error {
+	_, err := q.db.Exec(ctx, addItemToTier, arg.RankingTierID, arg.RankedItemID, arg.Position)
+	return err
+}
+
 const clearTierPlacements = `-- name: ClearTierPlacements :exec
 DELETE FROM ranking_tier_items WHERE ranking_tier_id = $1
 `
@@ -81,20 +97,24 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (RankedI
 	return i, err
 }
 
-const insertPlacement = `-- name: InsertPlacement :exec
-INSERT INTO ranking_tier_items (ranking_tier_id, ranked_item_id, position)
-VALUES ($1, $2, $3)
+const getItem = `-- name: GetItem :one
+SELECT id, label, sublabel, source_url, source_image_url, image_url, created_at, updated_at from ranked_items where id = $1
 `
 
-type InsertPlacementParams struct {
-	RankingTierID int64
-	RankedItemID  int64
-	Position      int32
-}
-
-func (q *Queries) InsertPlacement(ctx context.Context, arg InsertPlacementParams) error {
-	_, err := q.db.Exec(ctx, insertPlacement, arg.RankingTierID, arg.RankedItemID, arg.Position)
-	return err
+func (q *Queries) GetItem(ctx context.Context, id int64) (RankedItem, error) {
+	row := q.db.QueryRow(ctx, getItem, id)
+	var i RankedItem
+	err := row.Scan(
+		&i.ID,
+		&i.Label,
+		&i.Sublabel,
+		&i.SourceUrl,
+		&i.SourceImageUrl,
+		&i.ImageUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const listRankingItems = `-- name: ListRankingItems :many

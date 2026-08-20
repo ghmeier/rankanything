@@ -8,7 +8,6 @@ import (
 
 	"github.com/ghmeier/rankanything/internal/auth"
 	"github.com/ghmeier/rankanything/internal/constants"
-	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/google/uuid"
 )
@@ -18,7 +17,7 @@ import (
 // handleHome is GET / — resume an existing draft or create a new one.
 func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	if userID := a.Sessions.UserID(r.Context()); userID != 0 {
-		http.Redirect(w, r, "/rankings", http.StatusSeeOther)
+		http.Redirect(w, r, "/me", http.StatusSeeOther)
 		return
 	}
 
@@ -35,7 +34,6 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 
 // handleNew is GET /new — create a fresh ranking for a signed-in user.
 func (a *App) handleNew(w http.ResponseWriter, r *http.Request) {
-	_ = a.base(r)
 	userID := a.Sessions.UserID(r.Context())
 	if userID == 0 {
 		http.Redirect(w, r, "/login?next=/new", http.StatusSeeOther)
@@ -55,7 +53,7 @@ func (a *App) handleViewRanking(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
 
-	boardData, err := a.RankingSvc.BuildBoardData(ctx, slug)
+	ranking, err := a.RankingSvc.GetRankingWithItems(ctx, slug)
 	if err != nil {
 		if errors.Is(err, services.ErrRankingNotFound) {
 			a.notFound(w, r)
@@ -65,9 +63,9 @@ func (a *App) handleViewRanking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	base := a.base(r)
-	view := a.assembleBuilderView(base, boardData)
-	a.renderBoard(w, r, view)
+	if err = a.RenderRankingPage(w, r, ranking); err != nil {
+		a.serverError(w, r, err)
+	}
 }
 
 // handleUpdateRanking is POST /r/{slug} — update title or description.
@@ -87,8 +85,7 @@ func (a *App) handleUpdateRanking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	base := a.base(r)
-	view := BuilderView{BaseView: base, Ranking: updated}
+	view := RankingView{Ranking: updated}
 	if updated.UserID == nil {
 		view.IsDraft = true
 	}
@@ -125,14 +122,12 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 	label := strings.TrimSpace(r.FormValue("label"))
 
 	if label == "" {
-		base := a.base(r)
-		view := BuilderView{BaseView: base, Error: "Give the item a name."}
-		a.Render.Partial(w, http.StatusUnprocessableEntity, "partials/board.html", view)
+		a.Render.Empty(w, http.StatusBadRequest)
 		return
 	}
 
 	imageURL := r.FormValue("image_url")
-	_, err := a.RankingSvc.AddItem(ctx, services.AddItemRequest{
+	item, err := a.RankingSvc.AddItem(ctx, services.AddItemRequest{
 		Slug:     slug,
 		Label:    label,
 		ImageURL: imageURL,
@@ -142,18 +137,11 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	boardData, err := a.RankingSvc.BuildBoardData(ctx, slug)
-	if err != nil {
+	if err = a.Render.Partial(w, http.StatusOK, "partials/item_card.html", RankedItemCard{Item: item, RankingSlug: slug}); err != nil {
 		a.serverError(w, r, err)
-		return
 	}
-
-	base := a.base(r)
-	view := a.assembleBuilderView(base, boardData)
-	a.renderBoard(w, r, view)
 }
 
-// handleDeleteItem is DELETE /r/{slug}/items/{itemID} — remove an item.
 func (a *App) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
@@ -164,7 +152,7 @@ func (a *App) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = a.RankingSvc.DeleteItem(r.Context(), services.DeleteItemRequest{
+	err = a.RankingSvc.DeleteItem(ctx, services.DeleteItemRequest{
 		Slug:   slug,
 		ItemID: id,
 	})
@@ -173,15 +161,8 @@ func (a *App) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	boardData, err := a.RankingSvc.BuildBoardData(r.Context(), slug)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
+	a.Render.Empty(w, http.StatusAccepted)
 
-	base := a.base(r)
-	view := a.assembleBuilderView(base, boardData)
-	a.renderBoard(w, r, view)
 }
 
 // handleAddTier is POST /r/{slug}/tiers — add a new tier.
@@ -189,7 +170,7 @@ func (a *App) handleAddTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
 
-	_, err := a.RankingSvc.AddTier(ctx, services.AddTierRequest{
+	tier, err := a.RankingSvc.AddTier(ctx, services.AddTierRequest{
 		Slug:  slug,
 		Label: r.FormValue("label"),
 		Color: r.FormValue("color"),
@@ -199,15 +180,16 @@ func (a *App) handleAddTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	boardData, err := a.RankingSvc.BuildBoardData(ctx, slug)
+	items, err := a.RankingSvc.Queries.ListRankingTierItems(ctx, tier.ID)
 	if err != nil {
-		a.serverError(w, r, err)
+		rankError(a, w, r, err)
 		return
 	}
-
-	base := a.base(r)
-	view := a.assembleBuilderView(base, boardData)
-	a.renderBoard(w, r, view)
+	tierView := TierRowView{Tier: tier, RankingSlug: slug, Items: items}
+	err = a.Render.Partial(w, http.StatusOK, "partials/tier_row.html", tierView)
+	if err != nil {
+		a.serverError(w, r, err)
+	}
 }
 
 // handleEditTier is POST /r/{slug}/tiers/{tierID}/edit — enable editing a tier
@@ -231,7 +213,10 @@ func (a *App) handleEditTier(w http.ResponseWriter, r *http.Request) {
 	}
 
 	view := TierRowLabelView{Tier: tier, RankingSlug: slug}
-	a.Render.Partial(w, http.StatusAccepted, "partials/tier_row_label_editable.html", view)
+	err = a.Render.Partial(w, http.StatusAccepted, "partials/tier_row_label_editable.html", view)
+	if err != nil {
+		a.serverError(w, r, err)
+	}
 }
 
 // handleUpdateTier is PUT /r/{slug}/tiers/{tierID} — rename, recolor, or toggle.
@@ -264,7 +249,10 @@ func (a *App) handleUpdateTier(w http.ResponseWriter, r *http.Request) {
 	}
 
 	view := TierRowLabelView{Tier: tier, RankingSlug: slug}
-	a.Render.Partial(w, http.StatusOK, "partials/tier_row_label.html", view)
+	if err := a.Render.Partial(w, http.StatusOK, "partials/tier_row_label.html", view); err != nil {
+		a.serverError(w, r, err)
+	}
+
 }
 
 // handleDeleteTier is DELETE /r/{slug}/tiers/{tierID} — remove a tier.
@@ -287,19 +275,11 @@ func (a *App) handleDeleteTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	boardData, err := a.RankingSvc.BuildBoardData(ctx, slug)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-
-	base := a.base(r)
-	view := a.assembleBuilderView(base, boardData)
-	a.renderBoard(w, r, view)
+	a.Render.Empty(w, http.StatusAccepted)
 }
 
 // handleSetPlacements is PUT /r/{slug}/placements — reorder items via drag-and-drop.
-func (a *App) handleSetPlacements(w http.ResponseWriter, r *http.Request) {
+func (a *App) handleAddItemToTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
 	tierIDStr := r.FormValue("tier_id")
@@ -308,56 +288,31 @@ func (a *App) handleSetPlacements(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, r, err)
 		return
 	}
-
-	var itemIDs []int64
-	for _, raw := range r.Form["item_id"] {
-		id, err := strconv.ParseInt(raw, 10, 64)
-		if err == nil {
-			itemIDs = append(itemIDs, id)
-		}
+	itemIDStr := r.FormValue("item_id")
+	itemID, err := strconv.ParseInt(itemIDStr, 10, 64)
+	if err != nil {
+		a.serverError(w, r, err)
+		return
 	}
 
-	err = a.RankingSvc.SetPlacements(ctx, services.SetPlacementsRequest{
-		Slug:    slug,
-		TierID:  tierID,
-		ItemIDs: itemIDs,
+	item, err := a.RankingSvc.AddItemToTier(ctx, services.AddItemToTierRequest{
+		Slug:   slug,
+		TierID: tierID,
+		ItemID: itemID,
 	})
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidTierPlacement) {
-			boardData, _ := a.RankingSvc.BuildBoardData(ctx, slug)
-			base := a.base(r)
-			view := BuilderView{BaseView: base, Error: "tier holds a single item"}
-			if boardData.IsDraft {
-				view.IsDraft = true
-			}
-			a.Render.Partial(w, http.StatusUnprocessableEntity, "partials/board.html", view)
+			a.Render.Empty(w, http.StatusConflict)
 			return
 		}
 		rankError(a, w, r, err)
 		return
 	}
 
-	boardData, err := a.RankingSvc.BuildBoardData(ctx, slug)
-	if err != nil {
+	if err = a.Render.Partial(w, http.StatusOK, "partials/item_card.html", RankedItemCard{Item: item, RankingSlug: slug}); err != nil {
 		a.serverError(w, r, err)
-		return
 	}
 
-	base := a.base(r)
-	view := a.assembleBuilderView(base, boardData)
-	a.renderBoard(w, r, view)
-}
-
-// commaSplit splits a comma-separated string into trimmed, non-empty parts.
-func commaSplit(s string) []string {
-	var out []string
-	for _, part := range strings.Split(s, ",") {
-		trimmed := strings.TrimSpace(part)
-		if trimmed != "" {
-			out = append(out, trimmed)
-		}
-	}
-	return out
 }
 
 // ─── Auth routes ─────────────────────────────────────────────────────────────
@@ -458,7 +413,7 @@ func (a *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-// handleRankings is GET /rankings — show signed-in user's saved rankings.
+// handleRankings is GET /me — show signed-in user's saved rankings.
 func (a *App) handleRankings(w http.ResponseWriter, r *http.Request) {
 	userID := a.Sessions.UserID(r.Context())
 	if userID == 0 {
@@ -492,39 +447,4 @@ func rankError(a *App, w http.ResponseWriter, r *http.Request, err error) {
 		return
 	}
 	a.serverError(w, r, err)
-}
-
-// assembleBuilderView builds a BuilderView from service BoardData.
-func (a *App) assembleBuilderView(base BaseView, bd services.BoardData) BuilderView {
-	byID := make(map[int64]db.RankedItem, len(bd.Items))
-	for _, it := range bd.Items {
-		byID[it.ID] = it
-	}
-	placed := make(map[int64]bool, len(bd.Placements))
-
-	tierItems := make(map[int64][]db.RankedItem, len(bd.Tiers))
-	for _, p := range bd.Placements {
-		it, ok := byID[p.RankedItemID]
-		if !ok {
-			continue
-		}
-		placed[p.RankedItemID] = true
-		tierItems[p.RankingTierID] = append(tierItems[p.RankingTierID], it)
-	}
-
-	view := BuilderView{
-		BaseView:         base,
-		Ranking:          bd.Ranking,
-		IsDraft:          bd.IsDraft,
-		FormattedUpdated: bd.FormattedUpdated,
-	}
-	for _, t := range bd.Tiers {
-		view.Tiers = append(view.Tiers, TierView{Tier: t, Items: tierItems[t.ID]})
-	}
-	for _, it := range bd.Items {
-		if !placed[it.ID] {
-			view.Unassigned = append(view.Unassigned, it)
-		}
-	}
-	return view
 }

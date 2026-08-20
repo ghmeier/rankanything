@@ -1,20 +1,11 @@
 {{ define "partials/board.html" }}
 <div class="space-y-6">
-  {{ if .Error }}
-  <p
-    role="alert"
-    class="rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm text-rose-200"
-  >
-    {{ .Error }}
-  </p>
-  {{ end }}
-
-  <div class="space-y-2">
+  <div id="tier-rows" class="space-y-2">
     {{ range .Tiers }} {{ template "partials/tier_row.html" dict "Tier" .Tier
     "Items" .Items "Ranking" $.Ranking }} {{ end }}
   </div>
-
   {{ template "partials/tier_form.html" . }} {{ template
-  "partials/item_tray.html" . }}
+  "partials/item_tray.html" dict "RankingSlug" .Ranking.Slug "Unassigned"
+  .Unassigned }}
 </div>
 {{ end }}
