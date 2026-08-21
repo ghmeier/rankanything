@@ -278,11 +278,11 @@ func (a *App) handleDeleteTier(w http.ResponseWriter, r *http.Request) {
 	a.Render.Empty(w, http.StatusAccepted)
 }
 
-// handleSetPlacements is PUT /r/{slug}/placements — reorder items via drag-and-drop.
+// handleSetPlacements is PUT /r/{slug}/tiers/{tierID} — reorder items via drag-and-drop.
 func (a *App) handleAddItemToTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
-	tierIDStr := r.FormValue("tier_id")
+	tierIDStr := r.PathValue("tierID")
 	tierID, err := strconv.ParseInt(tierIDStr, 10, 64)
 	if err != nil {
 		a.serverError(w, r, err)

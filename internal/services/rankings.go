@@ -389,7 +389,7 @@ func (s *RankingsService) SaveDraft(ctx context.Context, req SaveDraftRequest) (
 	}, nil
 }
 
-// BuildBoardData fetches all data needed to render the ranking board.
+// GetRankingWithItems fetches all data needed to render the ranking board.
 func (s *RankingsService) GetRankingWithItems(ctx context.Context, slug uuid.UUID) (RankingWithItems, error) {
 	ranking, err := s.GetRankingForSlug(ctx, slug)
 	if err != nil {

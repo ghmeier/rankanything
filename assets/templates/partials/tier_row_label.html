@@ -1,18 +1,12 @@
 {{ define "partials/tier_row_label.html" }} {{ $tier := .Tier }} {{ $slug :=
 .RankingSlug }}
 <div
-  class="flex w-28 shrink-0 flex-col items-center justify-center gap-1 rounded-l-sm p-2"
-  style="background-color: {{ $tier.Color }}1a"
+  class="flex flex-col gap-1 items-center w-28 shrink-0 rounded-l-sm p-2 relative"
+  style="background-color: {{ $tier.Color }}"
   id="tier-container-{{ $tier.ID }}"
 >
-  <div
-    class="w-20 bg-transparent text-center text-xl font-bold outline-none"
-    style="color: {{ $tier.Color }}"
-  >
-    {{ $tier.Label }}
-  </div>
   <button
-    class="mr-2 text-sm h-fit cursor-pointer"
+    class="h-fit cursor-pointer absolute right-2 top-2"
     hx-post="/r/{{ $slug }}/tiers/{{ $tier.ID }}/edit"
     hx-trigger="click"
     hx-target="#tier-container-{{ $tier.ID }}"
@@ -21,5 +15,10 @@
   >
     {{ template "partials/edit_icon.html" }}
   </button>
+  <div
+    class="rounded-lg px-2 text-center m-auto text-xl w-fit font-bold bg-slate-900/60 line-clamp-2"
+  >
+    {{ $tier.Label }}
+  </div>
 </div>
 {{ end }}

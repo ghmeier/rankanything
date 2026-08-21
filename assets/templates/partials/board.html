@@ -2,7 +2,7 @@
 <div class="space-y-6">
   <div id="tier-rows" class="space-y-2">
     {{ range .Tiers }} {{ template "partials/tier_row.html" dict "Tier" .Tier
-    "Items" .Items "Ranking" $.Ranking }} {{ end }}
+    "Items" .Items "RankingSlug" $.Ranking.Slug }} {{ end }}
   </div>
   {{ template "partials/tier_form.html" . }} {{ template
   "partials/item_tray.html" dict "RankingSlug" .Ranking.Slug "Unassigned"

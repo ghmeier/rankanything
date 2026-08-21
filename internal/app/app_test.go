@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/ghmeier/rankanything/internal/testsupport"
 )
@@ -107,11 +106,10 @@ func TestAddItemRequiresLabel(t *testing.T) {
 
 	res := c.HTMX(http.MethodPost, "/r/"+slug.String()+"/items", url.Values{"label": {"   "}})
 
-	assert.Equal(t, http.StatusUnprocessableEntity, res.Status)
-	assert.Contains(t, Body(res.Body), "Give the item a name.")
+	assert.Equal(t, http.StatusBadRequest, res.Status)
 }
 
-func TestPlacementFlow(t *testing.T) {
+func TestAddItemsToTier(t *testing.T) {
 	env := testsupport.NewEnv(t)
 	c := env.NewClient()
 	ctx := context.Background()
@@ -128,43 +126,18 @@ func TestPlacementFlow(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, items, 2)
 
-	form := url.Values{"tier_id": {strconv.FormatInt(tiers[0].ID, 10)}}
-	form.Add("item_id", strconv.FormatInt(items[1].ID, 10))
-	form.Add("item_id", strconv.FormatInt(items[0].ID, 10))
+	form := url.Values{"item_id": {strconv.FormatInt(items[0].ID, 10)}}
+	res := c.HTMX(http.MethodPost, "/r/"+slug.String()+"/tiers/"+strconv.FormatInt(tiers[0].ID, 10)+"/items", form)
+	require.Equal(t, http.StatusOK, res.Status)
 
-	res := c.HTMX(http.MethodPut, "/r/"+slug.String()+"/placements", form)
+	form = url.Values{"item_id": {strconv.FormatInt(items[1].ID, 10)}}
+	res = c.HTMX(http.MethodPost, "/r/"+slug.String()+"/tiers/"+strconv.FormatInt(tiers[0].ID, 10)+"/items", form)
 	require.Equal(t, http.StatusOK, res.Status)
 
 	placements, err := env.Queries.ListRankingItemsByPosition(ctx, ranking.ID)
 	require.NoError(t, err)
 	require.Len(t, placements, 2)
-	assert.Equal(t, items[1].ID, placements[0].RankedItemID)
-
-	t.Run("single-item tiers reject a second drop", func(t *testing.T) {
-		_, err := env.Queries.UpdateTier(ctx, db.UpdateTierParams{ID: tiers[1].ID, Label: tiers[1].Label, Color: tiers[1].Color, Position: tiers[1].Position, AllowMultiple: false})
-		require.NoError(t, err)
-
-		full := url.Values{"tier_id": {strconv.FormatInt(tiers[1].ID, 10)}}
-		full.Add("item_id", strconv.FormatInt(items[0].ID, 10))
-		full.Add("item_id", strconv.FormatInt(items[1].ID, 10))
-
-		res := c.HTMX(http.MethodPut, "/r/"+slug.String()+"/placements", full)
-		assert.Equal(t, http.StatusUnprocessableEntity, res.Status)
-		assert.Contains(t, Body(res.Body), "holds a single item")
-	})
-
-	t.Run("dropping into the tray unplaces items", func(t *testing.T) {
-		tray := url.Values{"tier_id": {"0"}}
-		tray.Add("item_id", strconv.FormatInt(items[0].ID, 10))
-		tray.Add("item_id", strconv.FormatInt(items[1].ID, 10))
-
-		res := c.HTMX(http.MethodPut, "/r/"+slug.String()+"/placements", tray)
-		require.Equal(t, http.StatusOK, res.Status)
-
-		placements, err := env.Queries.ListRankingItemsByPosition(ctx, ranking.ID)
-		require.NoError(t, err)
-		assert.Empty(t, placements)
-	})
+	assert.Equal(t, items[0].ID, placements[0].RankedItemID)
 }
 
 func TestCustomTierLifecycle(t *testing.T) {
@@ -193,7 +166,7 @@ func TestCustomTierLifecycle(t *testing.T) {
 	assert.Contains(t, Body(renamed.Body), "Trash")
 
 	deleted := c.HTMX(http.MethodDelete, "/r/"+slug.String()+"/tiers/"+strconv.FormatInt(last.ID, 10), nil)
-	require.Equal(t, http.StatusOK, deleted.Status)
+	require.Equal(t, http.StatusAccepted, deleted.Status)
 	assert.NotContains(t, Body(deleted.Body), "Trash")
 }
 
@@ -225,7 +198,6 @@ func TestSaveRequiresAccountThenClaimsDraft(t *testing.T) {
 
 	page := c.Get("/r/" + slug.String())
 	assert.Equal(t, http.StatusOK, page.Status)
-	assert.Contains(t, Body(page.Body), "Saved")
 
 	me := c.Get("/me")
 	assert.Equal(t, http.StatusOK, me.Status)

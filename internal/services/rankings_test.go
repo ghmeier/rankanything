@@ -3,7 +3,6 @@ package services_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/ghmeier/rankanything/internal/auth"
 	db "github.com/ghmeier/rankanything/internal/db"
@@ -410,10 +409,17 @@ func TestGetTierWithItems(t *testing.T) {
 	tiers, err := svc.Queries.ListTiers(ctx, ranking.ID)
 	require.NoError(t, err)
 
-	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
-		Slug:    ranking.Slug,
-		TierID:  tiers[0].ID,
-		ItemIDs: []int64{item2.ID, item1.ID},
+	_, err = svc.AddItemToTier(ctx, services.AddItemToTierRequest{
+		Slug:   ranking.Slug,
+		TierID: tiers[0].ID,
+		ItemID: item1.ID,
+	})
+	require.NoError(t, err)
+
+	_, err = svc.AddItemToTier(ctx, services.AddItemToTierRequest{
+		Slug:   ranking.Slug,
+		TierID: tiers[0].ID,
+		ItemID: item2.ID,
 	})
 	require.NoError(t, err)
 
@@ -422,10 +428,6 @@ func TestGetTierWithItems(t *testing.T) {
 
 	assert.Len(t, items, 2)
 }
-
-// ---------------------------------------------------------------------------
-// DeleteTier
-// ---------------------------------------------------------------------------
 
 func TestDeleteTier(t *testing.T) {
 	t.Parallel()
@@ -451,11 +453,7 @@ func TestDeleteTier(t *testing.T) {
 	assert.Len(t, tiers, len(services.DefaultTiers))
 }
 
-// ---------------------------------------------------------------------------
-// SetPlacements (happy path)
-// ---------------------------------------------------------------------------
-
-func TestSetPlacementsOrdersItems(t *testing.T) {
+func TestAddItemsRespectsAllowMultiple(t *testing.T) {
 	t.Parallel()
 
 	svc, ctx := svcWithCtx(t)
@@ -471,146 +469,20 @@ func TestSetPlacementsOrdersItems(t *testing.T) {
 	tiers, err := svc.Queries.ListTiers(ctx, ranking.ID)
 	require.NoError(t, err)
 
-	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
-		Slug:    ranking.Slug,
-		TierID:  tiers[0].ID,
-		ItemIDs: []int64{itemB.ID, itemA.ID},
+	_, err = svc.AddItemToTier(ctx, services.AddItemToTierRequest{
+		Slug:   ranking.Slug,
+		TierID: tiers[1].ID,
+		ItemID: itemA.ID,
 	})
 	require.NoError(t, err)
-
-	placements, err := svc.Queries.ListRankingItemsByPosition(ctx, ranking.ID)
-	require.NoError(t, err)
-	assert.Len(t, placements, 2)
-	assert.Equal(t, itemB.ID, placements[0].RankedItemID)
-	assert.Equal(t, int32(0), placements[0].Position)
-	assert.Equal(t, itemA.ID, placements[1].RankedItemID)
-	assert.Equal(t, int32(1), placements[1].Position)
-}
-
-func TestSetPlacementsClearsToTray(t *testing.T) {
-	t.Parallel()
-
-	svc, ctx := svcWithCtx(t)
-
-	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
-	require.NoError(t, err)
-
-	item, err := svc.AddItem(ctx, services.AddItemRequest{Slug: ranking.Slug, Label: "Unplace me"})
-	require.NoError(t, err)
-
-	tiers, err := svc.Queries.ListTiers(ctx, ranking.ID)
-	require.NoError(t, err)
-
-	// Place first.
-	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
-		Slug:    ranking.Slug,
-		TierID:  tiers[0].ID,
-		ItemIDs: []int64{item.ID},
-	})
-	require.NoError(t, err)
-
-	placements, err := svc.Queries.ListRankingItemsByPosition(ctx, ranking.ID)
-	require.NoError(t, err)
-	assert.Len(t, placements, 1)
-
-	// Then remove to tray (tier_id == 0).
-	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
-		Slug:    ranking.Slug,
-		TierID:  0,
-		ItemIDs: []int64{item.ID},
-	})
-	require.NoError(t, err)
-
-	placements, err = svc.Queries.ListRankingItemsByPosition(ctx, ranking.ID)
-	require.NoError(t, err)
-	assert.Empty(t, placements)
-}
-
-func TestSetPlacementsOnSingleTier(t *testing.T) {
-	t.Parallel()
-
-	svc, ctx := svcWithCtx(t)
-
-	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
-	require.NoError(t, err)
-
-	itemA, err := svc.AddItem(ctx, services.AddItemRequest{Slug: ranking.Slug, Label: "A"})
-	require.NoError(t, err)
-	itemB, err := svc.AddItem(ctx, services.AddItemRequest{Slug: ranking.Slug, Label: "B"})
-	require.NoError(t, err)
-
-	tiers, err := svc.Queries.ListTiers(ctx, ranking.ID)
-	require.NoError(t, err)
-
-	// B tier allows multiple — placing two items should succeed.
-	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
-		Slug:    ranking.Slug,
-		TierID:  tiers[2].ID, // B tier, AllowMultiple == true
-		ItemIDs: []int64{itemA.ID, itemB.ID},
-	})
-	require.NoError(t, err)
-
-	// A tier is single-item only. Placing two should error.
-	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
-		Slug:    ranking.Slug,
-		TierID:  tiers[1].ID, // A tier, AllowMultiple == false
-		ItemIDs: []int64{itemA.ID, itemB.ID},
-	})
+	_, err = svc.AddItemToTier(
+		ctx, services.AddItemToTierRequest{
+			Slug:   ranking.Slug,
+			TierID: tiers[1].ID,
+			ItemID: itemB.ID,
+		})
 	assert.Error(t, err)
 }
-
-func TestSetPlacementsClearsOldPlacements(t *testing.T) {
-	t.Parallel()
-
-	svc, ctx := svcWithCtx(t)
-
-	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
-	require.NoError(t, err)
-
-	itemA, err := svc.AddItem(ctx, services.AddItemRequest{Slug: ranking.Slug, Label: "A"})
-	require.NoError(t, err)
-	itemB, err := svc.AddItem(ctx, services.AddItemRequest{Slug: ranking.Slug, Label: "B"})
-	require.NoError(t, err)
-	itemC, err := svc.AddItem(ctx, services.AddItemRequest{Slug: ranking.Slug, Label: "C"})
-	require.NoError(t, err)
-
-	tiers, err := svc.Queries.ListTiers(ctx, ranking.ID)
-	require.NoError(t, err)
-
-	// Put itemA on A tier (single-item).
-	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
-		Slug:    ranking.Slug,
-		TierID:  tiers[1].ID, // A tier, AllowMultiple == false
-		ItemIDs: []int64{itemA.ID},
-	})
-	require.NoError(t, err)
-
-	// Put itemB on S tier.
-	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
-		Slug:    ranking.Slug,
-		TierID:  tiers[0].ID,
-		ItemIDs: []int64{itemB.ID},
-	})
-	require.NoError(t, err)
-
-	// Replace A tier with only itemC (clears itemA from A tier).
-	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
-		Slug:    ranking.Slug,
-		TierID:  tiers[1].ID,
-		ItemIDs: []int64{itemC.ID},
-	})
-	require.NoError(t, err)
-
-	placements, err := svc.Queries.ListRankingItemsByPosition(ctx, ranking.ID)
-	require.NoError(t, err)
-
-	// itemC is on A tier, itemB is on S tier. itemA was cleared from A tier.
-	assert.Len(t, placements, 2)
-}
-
-// ---------------------------------------------------------------------------
-// SaveDraft
-// ---------------------------------------------------------------------------
 
 func TestSaveDraftUnownedDraftRedirectsToRegister(t *testing.T) {
 	t.Parallel()
@@ -681,11 +553,7 @@ func TestSaveDraftDraftWithSignedInUser(t *testing.T) {
 	assert.Equal(t, "/r/"+ranking.Slug.String(), result.Redirect)
 }
 
-// ---------------------------------------------------------------------------
-// BuildBoardData
-// ---------------------------------------------------------------------------
-
-func TestBuildBoardData(t *testing.T) {
+func TestGetRankingWithItems(t *testing.T) {
 	t.Parallel()
 
 	svc, ctx := svcWithCtx(t)
@@ -693,7 +561,7 @@ func TestBuildBoardData(t *testing.T) {
 	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
 	require.NoError(t, err)
 
-	data, err := svc.BuildBoardData(ctx, ranking.Slug)
+	data, err := svc.GetRankingWithItems(ctx, ranking.Slug)
 	require.NoError(t, err)
 
 	assert.Equal(t, ranking.ID, data.Ranking.ID)
@@ -702,7 +570,7 @@ func TestBuildBoardData(t *testing.T) {
 	assert.Len(t, data.Tiers, len(services.DefaultTiers))
 }
 
-func TestBuildBoardDataWithItemsAndPlacements(t *testing.T) {
+func TestGetRankingWithItemsAndPlacements(t *testing.T) {
 	t.Parallel()
 
 	svc, ctx := svcWithCtx(t)
@@ -716,14 +584,14 @@ func TestBuildBoardDataWithItemsAndPlacements(t *testing.T) {
 	tiers, err := svc.Queries.ListTiers(ctx, ranking.ID)
 	require.NoError(t, err)
 
-	err = svc.SetPlacements(ctx, services.AddItemToTierRequest{
-		Slug:    ranking.Slug,
-		TierID:  tiers[0].ID,
-		ItemIDs: []int64{item.ID},
+	_, err = svc.AddItemToTier(ctx, services.AddItemToTierRequest{
+		Slug:   ranking.Slug,
+		TierID: tiers[0].ID,
+		ItemID: item.ID,
 	})
 	require.NoError(t, err)
 
-	data, err := svc.BuildBoardData(ctx, ranking.Slug)
+	data, err := svc.GetRankingWithItems(ctx, ranking.Slug)
 	require.NoError(t, err)
 
 	assert.Len(t, data.Items, 1)
@@ -731,28 +599,6 @@ func TestBuildBoardDataWithItemsAndPlacements(t *testing.T) {
 	assert.Len(t, data.Placements, 1)
 	assert.Equal(t, item.ID, data.Placements[0].RankedItemID)
 }
-
-func TestBuildBoardDataFormattedDate(t *testing.T) {
-	t.Parallel()
-
-	svc, ctx := svcWithCtx(t)
-
-	ranking, err := svc.EnsureDraft(ctx, services.EnsureDraftRequest{})
-	require.NoError(t, err)
-
-	// Give it a valid UpdatedAt (postgres default is set on insert).
-	data, err := svc.BuildBoardData(ctx, ranking.Slug)
-	require.NoError(t, err)
-
-	assert.NotEmpty(t, data.FormattedUpdated)
-	// Should be in "Jan 2, 2006" format.
-	_, err = time.Parse("Jan 2, 2006", data.FormattedUpdated)
-	require.NoError(t, err, "FormattedUpdated should be in 'Jan 2, 2006' format, got %q", data.FormattedUpdated)
-}
-
-// ---------------------------------------------------------------------------
-// Error paths (not happy path, but important for completeness)
-// ---------------------------------------------------------------------------
 
 func TestGetRankingForSlugNotFound(t *testing.T) {
 	t.Parallel()
