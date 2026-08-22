@@ -1,54 +1,48 @@
 {{ define "partials/tier_row_label_editable.html" }} {{ $tier := .Tier }} {{
 $slug := .RankingSlug }}
-<div
-  class="flex w-28 shrink-0 flex-col items-center justify-center gap-1 rounded-l-sm p-2"
+<form
+  hx-put="/r/{{ $slug }}/tiers/{{ $tier.ID }}"
+  hx-swap="outerHTML"
+  hx-target="#tier-container-{{ $tier.ID }}"
+  hx-trigger="submit"
+  class="flex flex-col items-center gap-1 w-28 shrink-0 p-2 relative"
   style="background-color: {{ $tier.Color }}1a"
   id="tier-container-{{ $tier.ID }}"
 >
-  <form
-    hx-put="/r/{{ $slug }}/tiers/{{ $tier.ID }}"
+  <button class="h-fit cursor-pointer absolute right-2 top-2" type="submit">
+    {{ template "partials/save_icon.html" }}
+  </button>
+  <input
+    name="label"
+    value="{{ $tier.Label }}"
+    aria-label="Tier label"
+    class="w-20 bg-transparent text-center text-xl font-bold outline-none"
+    style="color: {{ $tier.Color }}"
+  />
+  <input
+    type="color"
+    name="color"
+    value="{{ $tier.Color }}"
+    aria-label="Tier color"
+    class="h-5 w-10 bg-transparent"
+  />
+  <label class="flex items-center gap-1 text-[10px] tracking-wide text-muted">
+    <input
+      type="checkbox"
+      name="allow_multiple"
+      value="true"
+      {{if
+      $tier.AllowMultiple}}checked{{end}}
+    />
+    multi
+  </label>
+  <button
+    class="text-[10px] tracking-wide text-slate-500 hover:text-rose-400"
+    hx-delete="/r/{{ $slug }}/tiers/{{ $tier.ID }}"
+    hx-target="closest tier-row"
     hx-swap="outerHTML"
-    hx-target="#tier-container-{{ $tier.ID }}"
-    hx-trigger="submit"
-    class="flex flex-col items-center gap-1"
   >
-    <input
-      name="label"
-      value="{{ $tier.Label }}"
-      aria-label="Tier label"
-      class="w-20 bg-transparent text-center text-xl font-bold outline-none"
-      style="color: {{ $tier.Color }}"
-    />
-    <input
-      type="color"
-      name="color"
-      value="{{ $tier.Color }}"
-      aria-label="Tier color"
-      class="h-5 w-10 bg-transparent"
-    />
-    <label
-      class="flex items-center gap-1 text-[10px] uppercase tracking-wide text-slate-400"
-    >
-      <input
-        type="checkbox"
-        name="allow_multiple"
-        value="true"
-        {{if
-        $tier.AllowMultiple}}checked{{end}}
-      />
-      multi
-    </label>
-    <button
-      class="text-[10px] tracking-wide text-slate-500 hover:text-rose-400"
-      hx-delete="/r/{{ $slug }}/tiers/{{ $tier.ID }}"
-      hx-target="closest tier-row"
-      hx-swap="outerHTML"
-    >
-      Delete
-    </button>
-    <button class="mr-2 text-sm h-fit cursor-pointer" type="submit">
-      Save
-    </button>
-  </form>
-</div>
+    Delete
+  </button>
+</form>
 {{ end }}
