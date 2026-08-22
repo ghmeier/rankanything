@@ -1,14 +1,14 @@
 {{ define "pages/register.html" }}
 <div class="mx-auto max-w-sm space-y-6">
-    <h1 class="text-2xl font-bold tracking-tight">Create your account</h1>
-    <p class="text-sm text-slate-400">
-        Your current draft is attached to your account as soon as you sign up.
-    </p>
-    {{ template "partials/auth_form.html" dict "Action" "/register" "Submit"
-    "Create account" "View" . }}
-    <p class="text-sm text-slate-400">
-        Already registered?
-        <a href="/login" class="text-amber-300 hover:underline">Sign in</a>.
-    </p>
+  <h1 class="text-2xl font-bold tracking-tight">Create your account</h1>
+  <p class="text-sm text-muted">
+    Your current draft is attached to your account as soon as you sign up.
+  </p>
+  {{ template "partials/auth_form.html" dict "Action" "/register" "Submit"
+  "Create account" "View" . }}
+  <p class="text-sm text-text-muted">
+    Already registered?
+    <a href="/login" class="text-text hover:underline">Sign in</a>.
+  </p>
 </div>
 {{ end }}

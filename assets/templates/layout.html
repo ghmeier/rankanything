@@ -1,75 +1,58 @@
 {{ define "layout.html" }}<!doctype html>
 <html lang="en" class="h-full">
-    <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Rank Anything</title>
-        <meta name="description" content="Drag anything into tiers. Start ranking instantly, sign in only when you want to keep it." />
-        <link rel="stylesheet" href="/static/css/app.css" />
-        <script src="/static/js/htmx.min.js"></script>
-        <script src="/static/js/Sortable.min.js"></script>
-        <script>
-            htmx.onLoad(function (content) {
-                var sortables = content.querySelectorAll(".sortable");
-                for (var i = 0; i < sortables.length; i++) {
-                    initSortable(sortables[i]);
-                }
-            });
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rank Anything</title>
+    <meta
+      name="description"
+      content="Drag anything into tiers. Start ranking instantly, sign in only when you want to keep it."
+    />
+    <link rel="stylesheet" href="/static/css/app.css" />
+    <script src="/static/js/htmx.min.js"></script>
+  </head>
+  <body
+    class="min-h-full bg-background text-text antialiased"
+    hx-headers='{"X-CSRF-Token": "{{ with .Data }}{{ .CSRFToken }}{{ end }}"}'
+  >
+    <header class="border-b border-border">
+      <div
+        class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4"
+      >
+        <a href="/" class="text-lg font-semibold tracking-tight"
+          ><span class="text-text-muted">rank</span>anything</a
+        >
+        <nav class="flex items-center gap-4 text-sm">
+          {{ with .Data }} {{ if .User }}
+          <a href="/me" class="text-text-muted hover:text-text-muted-hover"
+            >Your rankings</a
+          >
+          <button
+            class="text-text-muted hover:text-text-muted-hover"
+            hx-post="/logout"
+          >
+            Sign out
+          </button>
 
-            function initSortable(el) {
-                var sortable = Sortable.get(el);
-                if (sortable) sortable.destroy();
-                new Sortable(el, {
-                    animation: 150,
-                    ghostClass: "blue-background-class",
-                    filter: ".htmx-indicator",
-                    onMove: function (evt) {
-                        return evt.related.className.indexOf("htmx-indicator") === -1;
-                    },
-                    onEnd: function (evt) {
-                        this.option("disabled", true);
-                    },
-                });
-                el.addEventListener("htmx:afterSwap", function () {
-                    var s = Sortable.get(el);
-                    if (s) s.destroy();
-                    new Sortable(el, {
-                        animation: 150,
-                        ghostClass: "blue-background-class",
-                        filter: ".htmx-indicator",
-                        onMove: function (evt) {
-                            return evt.related.className.indexOf("htmx-indicator") === -1;
-                        },
-                        onEnd: function (evt) {
-                            this.option("disabled", true);
-                        },
-                    });
-                });
-            }
-        </script>
+          {{ else }}
+          <a href="/login" class="text-text-muted hover:text-text-muted-hover"
+            >Sign in</a
+          >
+          <a
+            href="/register"
+            class="rounded-md bg-primary hover:bg-primary-hover text-background px-3 py-1.5 font-medium"
+            >Create account</a
+          >
+          {{ end }} {{ end }}
+        </nav>
+      </div>
+    </header>
 
-    </head>
-    <body class="min-h-full bg-slate-950 text-slate-100 antialiased" hx-headers='{"X-CSRF-Token": "{{ with .Data }}{{ .CSRFToken }}{{ end }}"}'>
-        <header class="border-b border-slate-800">
-            <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-                <a href="/" class="text-lg font-semibold tracking-tight">rank<span class="text-amber-400">anything</span></a>
-                <nav class="flex items-center gap-4 text-sm">
-                    {{ with .Data }} {{ if .User }}
-                    <a href="/me" class="text-slate-300 hover:text-white">Your rankings</a>
-                    <form method="post" action="/logout">
-                        <button class="text-slate-400 hover:text-white">Sign out</button>
-                    </form>
-                    {{ else }}
-                    <a href="/login" class="text-slate-300 hover:text-white">Sign in</a>
-                    <a href="/register" class="rounded-md bg-amber-400 px-3 py-1.5 font-medium text-slate-900 hover:bg-amber-300">Create account</a>
-                    {{ end }} {{ end }}
-                </nav>
-            </div>
-        </header>
+    {{ with .Data }}{{ template "partials/flash.html" .Flash }}{{ end }}
 
-        {{ with .Data }}{{ template "partials/flash.html" .Flash }}{{ end }}
-
-        <main class="mx-auto max-w-6xl px-6 py-8">{{ renderDynamic .Page .Data }}</main>
-    </body>
+    <main class="mx-auto max-w-6xl px-6 py-4">
+      {{ renderDynamic .Page .Data }}
+    </main>
+  </body>
 </html>
 {{ end }}

@@ -9,7 +9,10 @@ TEST_DATABASE_URL ?= postgres://postgres:postgres@localhost:5432/postgres?sslmod
 tidy:
 	go mod tidy
 
-dev: css watch
+dev:
+	@trap 'kill 0' INT TERM EXIT; \
+	$(MAKE) watch & \
+	$(MAKE) css-watch
 
 watch:
 	air

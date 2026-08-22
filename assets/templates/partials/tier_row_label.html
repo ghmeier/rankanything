@@ -1,7 +1,7 @@
 {{ define "partials/tier_row_label.html" }} {{ $tier := .Tier }} {{ $slug :=
 .RankingSlug }}
 <div
-  class="flex flex-col gap-1 items-center w-28 shrink-0 rounded-l-sm p-2 relative"
+  class="flex flex-col gap-1 items-center w-28 shrink-0 p-2 relative"
   style="background-color: {{ $tier.Color }}"
   id="tier-container-{{ $tier.ID }}"
 >
@@ -16,7 +16,7 @@
     {{ template "partials/edit_icon.html" }}
   </button>
   <div
-    class="rounded-lg px-2 text-center m-auto text-xl w-fit font-bold bg-slate-900/60 line-clamp-2"
+    class="rounded-lg px-2 text-center m-auto text-xl w-fit font-bold bg-surface/60 text-text line-clamp-2"
   >
     {{ $tier.Label }}
   </div>

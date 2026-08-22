@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -397,24 +398,29 @@ func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.Sessions.Flash(r.Context(), "Welcome back!")
-	http.Redirect(w, r, "/me", http.StatusSeeOther)
+	w.Header().Set("HX-Redirect", "/")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *App) renderLoginError(w http.ResponseWriter, r *http.Request, email, next, errMsg string) {
 	base := a.base(r)
 	view := AuthView{BaseView: base, Email: email, Next: next, Error: errMsg}
-	a.Render.Page(w, http.StatusUnauthorized, "pages/login.html", view)
+	fmt.Println(errMsg)
+	err := a.Render.Partial(w, http.StatusUnauthorized, "pages/login.html", view)
+	if err != nil {
+		a.serverError(w, r, err)
+	}
 }
 
 // handleLogout is POST /logout.
 func (a *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 	_ = a.UserSvc.Logout(r.Context())
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	w.Header().Set("HX-Redirect", "/")
+	w.WriteHeader(http.StatusNoContent)
 }
 
-// handleRankings is GET /me — show signed-in user's saved rankings.
-func (a *App) handleRankings(w http.ResponseWriter, r *http.Request) {
+// handleMe is GET /me — show signed-in user's saved rankings.
+func (a *App) handleMe(w http.ResponseWriter, r *http.Request) {
 	userID := a.Sessions.UserID(r.Context())
 	if userID == 0 {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)

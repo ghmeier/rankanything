@@ -33,7 +33,7 @@
       </button>
     </form>
   </div>
-  <div id="tray-items" class="flex min-h-20 flex-wrap gap-2 sortable">
+  <div id="tray-items" class="flex min-h-20 flex-wrap gap-2">
     {{ range .Unassigned }} {{ template "partials/item_card.html" dict "Item" .
     "RankingSlug" $.RankingSlug }} {{ end }}
   </div>

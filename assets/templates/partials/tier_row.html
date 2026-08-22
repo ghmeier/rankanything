@@ -1,12 +1,10 @@
 {{ define "partials/tier_row.html" }} {{ $tier := .Tier }}
-<section
-  class="flex items-stretch gap-2 rounded-sm border border-slate-800 bg-slate-900/60"
->
+<section class="flex items-stretch gap-2 bg-surface">
   {{ template "partials/tier_row_label.html" dict "Tier" $tier "RankingSlug"
   .RankingSlug }}
   <div
     id="tier-items-{{ $tier.ID }}"
-    class="flex min-h-24 flex-1 flex-wrap content-start gap-2 p-3 sortable"
+    class="flex min-h-24 flex-1 flex-wrap content-start gap-2 p-3"
   >
     {{ range .Items }} {{ template "partials/item_card.html" dict "Item" .
     "RankingSlug" $.RankingSlug }} {{ end }}

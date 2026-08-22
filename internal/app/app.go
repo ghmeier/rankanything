@@ -49,7 +49,7 @@ func (a *App) Routes() http.Handler {
 	mux.Handle("POST /r/{slug}/tiers/{tierID}/edit", a.RequireRankingAccess(http.HandlerFunc(a.handleEditTier)))
 	mux.Handle("POST /r/{slug}/tiers/{tierID}/items", a.RequireRankingAccess(http.HandlerFunc(a.handleAddItemToTier)))
 
-	mux.Handle("GET /me", a.RequireUser(http.HandlerFunc(a.handleRankings)))
+	mux.Handle("GET /me", a.RequireUser(http.HandlerFunc(a.handleMe)))
 
 	// Auth.
 	mux.HandleFunc("GET /register", a.handleRegisterForm)

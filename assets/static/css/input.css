@@ -1,1 +1,75 @@
 @import "tailwindcss";
+
+@source '../../templates';
+
+:root {
+  --app-background: #f8f8f7;
+  --app-surface: #ffffff;
+  --app-surface-hover: #f0f0ef;
+  --app-surface-muted: #f0f0ef;
+  --app-surface-muted-hover: #e5e5e3;
+
+  --app-primary: #242424;
+  --app-primary-hover: #111111;
+
+  --app-secondary: #6b6b68;
+  --app-secondary-hover: #575754;
+
+  --app-border: #dededc;
+
+  --app-text: #242424;
+  --app-text-hover: #111111;
+  --app-text-muted: #6b6b68;
+  --app-text-muted-hover: #242424;
+  --app-text-subtle: #969692;
+  --app-text-subtle-hover: #6b6b68;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --app-background: #141414;
+    --app-surface: #1e1e1e;
+    --app-surface-hover: #282828;
+    --app-surface-muted: #282828;
+    --app-surface-muted-hover: #333333;
+
+    --app-primary: #f2f2f2;
+    --app-primary-hover: #ffffff;
+
+    --app-secondary: #a8a8a3;
+    --app-secondary-hover: #c5c5c0;
+
+    --app-border: #383838;
+
+    --app-text: #f2f2f2;
+    --app-text-muted: #a8a8a3;
+    --app-text-subtle: #777773;
+    --app-text-hover: #ffffff;
+    --app-text-muted-hover: #f2f2f2;
+    --app-text-subtle-hover: #a8a8a3;
+  }
+}
+
+@theme {
+  --color-background: var(--app-background);
+
+  --color-surface: var(--app-surface);
+  --color-surface-hover: var(--app-surface-hover);
+  --color-surface-muted: var(--app-surface-muted);
+  --color-surface-muted-hover: var(--app-surface-muted-hover);
+
+  --color-primary: var(--app-primary);
+  --color-primary-hover: var(--app-primary-hover);
+
+  --color-secondary: var(--app-secondary);
+  --color-secondary-hover: var(--app-secondary-hover);
+
+  --color-border: var(--app-border);
+
+  --color-text: var(--app-text);
+  --color-text-hover: var(--app-text-hover);
+  --color-text-muted: var(--app-text-muted);
+  --color-text-muted-hover: var(--app-text-muted-hover);
+  --color-text-subtle: var(--app-text-subtle);
+  --color-text-subtle-hover: var(--app-text-subtle-hover);
+}
