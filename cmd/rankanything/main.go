@@ -63,14 +63,15 @@ func run(logger *slog.Logger) error {
 	s := auth.NewSessions(sm)
 
 	application := &app.App{
-		Pool:       p,
-		Queries:    q,
-		Sessions:   s,
-		Render:     renderer,
-		Logger:     logger,
-		Static:     assets.Static(),
-		UserSvc:    &services.UserService{Queries: q, Sessions: s},
-		RankingSvc: &services.RankingsService{Queries: q, Pool: p},
+		Pool:         p,
+		Queries:      q,
+		Sessions:     s,
+		Render:       renderer,
+		Logger:       logger,
+		Static:       assets.Static(),
+		IsProduction: cfg.IsProduction(),
+		UserSvc:      &services.UserService{Queries: q, Sessions: s},
+		RankingSvc:   &services.RankingsService{Queries: q, Pool: p},
 	}
 
 	srv := &http.Server{

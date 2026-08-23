@@ -15,11 +15,20 @@ type BaseView struct {
 	Flash     string
 }
 
-// RankingView is the whole board: ranking, tiers with their items, and the
-// unranked tray.
+// HomeView backs GET / for a signed-out visitor. feat/landing-page (wave 3)
+// replaces this with the real marketing page; it exists only so signed-out
+// traffic has somewhere to land now that there's no anonymous draft to
+// redirect into.
+type HomeView struct {
+	BaseView
+}
+
+// RankingView is the whole board: the ranking, the version being viewed, its
+// tiers with their items, and the unranked tray.
 type RankingView struct {
 	BaseView
 	Ranking    db.Ranking
+	Version    db.RankingVersion
 	IsDraft    bool
 	Tiers      []TierView
 	Unassigned []db.RankingItem
@@ -31,26 +40,24 @@ type TierView struct {
 	Items []db.RankingItem
 }
 
+// RankingItemCard renders a single item card.
 type RankingItemCard struct {
 	Item        db.RankingItem
-	TierID      *int64 // nil means unranked.
-	RankingSlug uuid.UUID
+	RankingUUID uuid.UUID
 }
 
 // TierRowView renders a single tier row with its items (for fine-grained tier swaps).
 type TierRowView struct {
 	Tier        db.RankingTier
 	Items       []db.RankingItem
-	RankingSlug uuid.UUID
-}
-type TierRowLabelView struct {
-	Tier        db.RankingTier
-	RankingSlug uuid.UUID
+	RankingUUID uuid.UUID
 }
 
-// EmptyTierRowView renders an empty div for OOB-swap to remove a tier row.
-type EmptyTierRowView struct {
-	TierID int64
+// TierRowLabelView renders just a tier's label, in either its display or
+// editable form.
+type TierRowLabelView struct {
+	Tier        db.RankingTier
+	RankingUUID uuid.UUID
 }
 
 // AuthView backs the login and register pages.
@@ -93,17 +100,18 @@ func (a *App) serverError(w http.ResponseWriter, r *http.Request, err error) {
 	http.Error(w, "internal server error", http.StatusInternalServerError)
 }
 
-func (a *App) RenderRankingPage(w http.ResponseWriter, r *http.Request, ranking services.RankingWithItems) error {
+// RenderRankingPage renders the whole board page for one version of a ranking.
+func (a *App) RenderRankingPage(w http.ResponseWriter, r *http.Request, board services.RankingBoard) error {
 	base := a.base(r)
 
-	byID := make(map[int64]db.RankingItem, len(ranking.Items))
-	for _, it := range ranking.Items {
+	byID := make(map[int64]db.RankingItem, len(board.Items))
+	for _, it := range board.Items {
 		byID[it.ID] = it
 	}
-	placed := make(map[int64]bool, len(ranking.Placements))
+	placed := make(map[int64]bool, len(board.Placements))
 
-	tierItems := make(map[int64][]db.RankingItem, len(ranking.Tiers))
-	for _, p := range ranking.Placements {
+	tierItems := make(map[int64][]db.RankingItem, len(board.Tiers))
+	for _, p := range board.Placements {
 		it, ok := byID[p.RankingItemID]
 		if !ok {
 			continue
@@ -114,17 +122,17 @@ func (a *App) RenderRankingPage(w http.ResponseWriter, r *http.Request, ranking 
 
 	view := RankingView{
 		BaseView: base,
-		Ranking:  ranking.Ranking,
-		IsDraft:  ranking.IsDraft,
+		Ranking:  board.Ranking,
+		Version:  board.Version,
+		IsDraft:  board.IsDraft,
 	}
-	for _, t := range ranking.Tiers {
+	for _, t := range board.Tiers {
 		view.Tiers = append(view.Tiers, TierView{Tier: t, Items: tierItems[t.ID]})
 	}
-	for _, it := range ranking.Items {
+	for _, it := range board.Items {
 		if !placed[it.ID] {
 			view.Unassigned = append(view.Unassigned, it)
 		}
 	}
 	return a.Render.Page(w, http.StatusOK, "pages/ranking.html", view)
-
 }

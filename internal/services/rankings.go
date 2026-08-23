@@ -4,9 +4,11 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base32"
 	"errors"
 	"fmt"
-	"slices"
+	"strings"
 
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/google/uuid"
@@ -14,8 +16,13 @@ import (
 )
 
 var (
-	ErrRankingNotFound      = errors.New("Ranking not found.")
-	ErrInvalidTierPlacement = errors.New("Ranking cannot be placed on this tier.")
+	ErrRankingNotFound = errors.New("Ranking not found.")
+	// ErrInvalidTierPlacement covers both a tier's normal capacity rules and
+	// an attempt to place an item and a tier from different ranking versions
+	// in the same operation — the latter is a cross-version placement, which
+	// AddRankingItemToTier's explicit ranking_version_id column is designed
+	// to make impossible.
+	ErrInvalidTierPlacement = errors.New("Item cannot be placed on this tier.")
 )
 
 // txBeginner is a database connection that can start transactions (savepoints).
@@ -23,29 +30,23 @@ type txBeginner interface {
 	Begin(context.Context) (pgx.Tx, error)
 }
 
-// RankingsService owns all business logic for rankings, tiers, and their items.
-// It speaks in contexts, database models, and errors — never HTTP.
+// RankingsService owns all business logic for rankings, their versions,
+// tiers, and items. It speaks in contexts, database models, and errors —
+// never HTTP.
 type RankingsService struct {
 	Queries *db.Queries
 	Pool    txBeginner
 }
 
-// RankingWithItems holds the raw data needed to render a ranking's board.
-type RankingWithItems struct {
+// RankingBoard holds everything needed to render one version of a ranking:
+// its tiers, its items, and which items sit in which tier.
+type RankingBoard struct {
 	Ranking    db.Ranking
+	Version    db.RankingVersion
 	IsDraft    bool
 	Tiers      []db.RankingTier
 	Items      []db.RankingItem
-	Placements []db.RankingTierItem
-}
-
-type EnsureDraftRequest struct {
-	DraftKeys []uuid.UUID
-}
-
-type GetRankingForSlugRequest struct {
-	EnsureDraftRequest
-	Slug uuid.UUID
+	Placements []db.RankingItemTier
 }
 
 // CreateForUserRequest is the input for creating a user-owned ranking.
@@ -53,33 +54,60 @@ type CreateForUserRequest struct {
 	UserID int64
 }
 
-// CreateForUser creates a ranking owned by the given user and seeds it with
-// the default tier palette.
+// CreateForUser creates a ranking owned by the given user, along with its
+// first draft version, and seeds that version with the default tier
+// palette. There is no anonymous path: every ranking is owned from the
+// moment it exists.
 func (s *RankingsService) CreateForUser(ctx context.Context, req CreateForUserRequest) (db.Ranking, error) {
 	ranking, err := s.Queries.CreateRanking(ctx, db.CreateRankingParams{
 		Name:   "Untitled ranking",
 		UserID: req.UserID,
 	})
 	if err != nil {
+		return db.Ranking{}, fmt.Errorf("create ranking: %w", err)
+	}
+
+	short, err := newShortUUID()
+	if err != nil {
 		return db.Ranking{}, err
 	}
-	if err := seedDefaultTiers(ctx, s.Queries, ranking.ID); err != nil {
+	version, err := s.Queries.CreateRankingVersion(ctx, db.CreateRankingVersionParams{
+		ShortUuid: short,
+		RankingID: ranking.ID,
+	})
+	if err != nil {
+		return db.Ranking{}, fmt.Errorf("create draft version: %w", err)
+	}
+
+	if err := seedDefaultTiers(ctx, s.Queries, ranking.ID, version.ID); err != nil {
 		return db.Ranking{}, fmt.Errorf("seed tiers: %w", err)
+	}
+
+	return ranking, nil
+}
+
+// GetRanking fetches a ranking by its external uuid. It does not check
+// ownership — that is RequireRankingAccess's job; this is the lookup it (and
+// handlers that already know access is granted) build on.
+func (s *RankingsService) GetRanking(ctx context.Context, id uuid.UUID) (db.Ranking, error) {
+	ranking, err := s.Queries.GetRankingByUUID(ctx, id)
+	if err != nil {
+		return db.Ranking{}, ErrRankingNotFound
 	}
 	return ranking, nil
 }
 
-// Authorize fetches a ranking by slug and checks session-based access.
-// Anonymous users may only access drafts they created; signed-in users may
-// only access rankings they own.  Returns ErrRankingNotFound when access is
-// denied or the ranking doesn't exist.
-func (s *RankingsService) GetRankingForSlug(ctx context.Context, slug uuid.UUID) (db.Ranking, error) {
-	ranking, err := s.Queries.GetRankingByUUID(ctx, slug)
-	if err != nil {
-		return db.Ranking{}, ErrRankingNotFound
+// ResolveVersion resolves which version of ranking a request addresses: the
+// live version (most recently published, falling back to the draft) when
+// shortUUID is empty, or the version pinned by that short_uuid otherwise.
+func (s *RankingsService) ResolveVersion(ctx context.Context, ranking db.Ranking, shortUUID string) (db.RankingVersion, error) {
+	if shortUUID == "" {
+		return s.Queries.ResolveLiveRankingVersion(ctx, ranking.ID)
 	}
-
-	return ranking, nil
+	return s.Queries.GetRankingVersionByShortUUID(ctx, db.GetRankingVersionByShortUUIDParams{
+		RankingID: ranking.ID,
+		ShortUuid: shortUUID,
+	})
 }
 
 // UpdateRankingRequest is the input for modifying a ranking's metadata.
@@ -91,7 +119,7 @@ type UpdateRankingRequest struct {
 
 // UpdateRanking changes the title and/or description of a ranking.
 func (s *RankingsService) UpdateRanking(ctx context.Context, req UpdateRankingRequest) (db.Ranking, error) {
-	ranking, err := s.GetRankingForSlug(ctx, req.UUID)
+	ranking, err := s.GetRanking(ctx, req.UUID)
 	if err != nil {
 		return db.Ranking{}, err
 	}
@@ -103,292 +131,272 @@ func (s *RankingsService) UpdateRanking(ctx context.Context, req UpdateRankingRe
 	})
 }
 
-// AddItemRequest is the input for adding an item to a ranking.
+// AddItemRequest is the input for adding an item to a ranking version.
 type AddItemRequest struct {
-	Slug     uuid.UUID
-	Label    string
-	ImageURL string
+	VersionID      int64
+	Title          string
+	ImageSourceURL string
 }
 
-// AddItem adds a new ranked item to the specified ranking.
+// AddItem adds a new item to the given ranking version, unranked until it's
+// placed in a tier.
 func (s *RankingsService) AddItem(ctx context.Context, req AddItemRequest) (db.RankingItem, error) {
-	ranking, err := s.GetRankingForSlug(ctx, req.Slug)
-	if err != nil {
-		return db.RankingItem{}, err
+	var imageURL *string
+	if req.ImageSourceURL != "" {
+		imageURL = &req.ImageSourceURL
 	}
 
-	item, err := s.Queries.CreateRankingItem(ctx, db.CreateItemParams{
-		Label:    req.Label,
-		ImageUrl: req.ImageURL,
+	return s.Queries.CreateRankingItem(ctx, db.CreateRankingItemParams{
+		RankingVersionID: req.VersionID,
+		Title:            req.Title,
+		ImageSourceUrl:   imageURL,
 	})
-	if err != nil {
-		return db.RankingItem{}, err
-	}
-
-	err = s.Queries.AddItemToRanking(ctx, db.AddItemToRankingParams{
-		RankingID:     ranking.ID,
-		RankingItemID: item.ID,
-	})
-	if err != nil {
-		return db.RankingItem{}, err
-	}
-
-	return item, nil
 }
 
-func (s *RankingsService) DeleteItem(ctx context.Context, itemID int64) error {
-	return s.Queries.DeleteRankingItem(itemID)
+// DeleteItemRequest is the input for removing an item.
+type DeleteItemRequest struct {
+	VersionID int64
+	ItemID    int64
+}
+
+// DeleteItem removes an item and any tier placements it holds. It refuses to
+// delete an item that does not belong to VersionID, so an item id from a
+// ranking the caller does not have this version's access to can't be
+// deleted by guessing an id.
+func (s *RankingsService) DeleteItem(ctx context.Context, req DeleteItemRequest) error {
+	item, err := s.Queries.GetRankingItem(ctx, req.ItemID)
+	if err != nil {
+		return ErrRankingNotFound
+	}
+	if item.RankingVersionID != req.VersionID {
+		return ErrRankingNotFound
+	}
+
+	if err := s.Queries.RemoveRankingItemFromAllTiers(ctx, item.ID); err != nil {
+		return err
+	}
+	return s.Queries.DeleteRankingItem(ctx, item.ID)
 }
 
 // AddTierRequest is the input for creating a new tier.
 type AddTierRequest struct {
-	Slug  uuid.UUID
-	Label string
-	Color string
+	VersionID int64
+	RankingID int64
+	Title     string
+	Color     string
 }
 
-// AddTier creates a new tier at the end of the specified ranking.
+// AddTier creates a new tier at the end of the given ranking version.
 func (s *RankingsService) AddTier(ctx context.Context, req AddTierRequest) (db.RankingTier, error) {
-	ranking, err := s.GetRankingForSlug(ctx, req.Slug)
-	if err != nil {
-		return db.RankingTier{}, err
-	}
-
-	label := req.Label
-	if label == "" {
-		label = "New tier"
+	title := req.Title
+	if title == "" {
+		title = "New tier"
 	}
 	color := req.Color
 	if color == "" {
 		color = "#94a3b8"
 	}
 
-	pos, err := s.Queries.NextTierPosition(ctx, ranking.ID)
+	pos, err := s.Queries.NextRankingTierPosition(ctx, req.VersionID)
 	if err != nil {
 		return db.RankingTier{}, err
 	}
 
-	return s.Queries.CreateTier(ctx, db.CreateTierParams{
-		RankingID:     ranking.ID,
-		Label:         label,
-		Position:      pos,
-		Color:         color,
-		AllowMultiple: true,
+	return s.Queries.CreateRankingTier(ctx, db.CreateRankingTierParams{
+		RankingVersionID: req.VersionID,
+		RankingID:        req.RankingID,
+		Title:            title,
+		ColorHex:         color,
+		Position:         pos,
 	})
 }
 
-// UpdateTierRequest is the input for modifying a tier's properties.
+// UpdateTierRequest is the input for modifying a tier's label or color.
 type UpdateTierRequest struct {
-	Slug          uuid.UUID
-	TierID        int64
-	Label         string
-	Color         string
-	AllowMultiple *bool // nil means keep existing value
+	VersionID int64
+	TierID    int64
+	Title     string // empty keeps the existing title
+	Color     string // empty keeps the existing color
 }
 
-// UpdateTier changes the label, color, or multi-item setting of a tier.
+// UpdateTier changes the title and/or color of a tier. It refuses to update
+// a tier that does not belong to VersionID.
 func (s *RankingsService) UpdateTier(ctx context.Context, req UpdateTierRequest) (db.RankingTier, error) {
-	tier, err := s.Queries.GetTier(ctx, req.TierID)
+	tier, err := s.getTierForVersion(ctx, req.TierID, req.VersionID)
 	if err != nil {
 		return db.RankingTier{}, err
 	}
 
-	label := req.Label
-	if label == "" {
-		label = tier.Label
+	title := req.Title
+	if title == "" {
+		title = tier.Title
 	}
 	color := req.Color
 	if color == "" {
-		color = tier.Color
+		color = tier.ColorHex
 	}
 
-	allowMultiple := tier.AllowMultiple
-	if req.AllowMultiple != nil {
-		allowMultiple = *req.AllowMultiple
-	}
-
-	tier, err = s.Queries.UpdateTier(ctx, db.UpdateTierParams{
-		ID:            tier.ID,
-		Label:         label,
-		Color:         color,
-		Position:      tier.Position,
-		AllowMultiple: allowMultiple,
+	return s.Queries.UpdateRankingTier(ctx, db.UpdateRankingTierParams{
+		ID:       tier.ID,
+		Title:    title,
+		ColorHex: color,
+		Position: tier.Position,
 	})
-
-	return tier, err
 }
 
-// GetTierRequest is the input for viewing a tier's editable contents.
+// GetTierRequest is the input for fetching a single tier.
 type GetTierRequest struct {
-	Slug   uuid.UUID
-	TierID int64
+	VersionID int64
+	TierID    int64
 }
 
-// GetTier fetches a tier and its items for rendering an editable view.
-func (s *RankingsService) GetTier(ctx context.Context, req GetTierRequest) (db.RankingTier, []db.RankingItem, error) {
-	tier, err := s.Queries.GetTier(ctx, req.TierID)
-	if err != nil {
-		return db.RankingTier{}, nil, err
-	}
-
-	items, err := s.Queries.ListRankingTierItems(ctx, tier.ID)
-	if err != nil {
-		return db.RankingTier{}, nil, err
-	}
-
-	return tier, items, nil
+// GetTier fetches a tier, refusing one that does not belong to VersionID.
+func (s *RankingsService) GetTier(ctx context.Context, req GetTierRequest) (db.RankingTier, error) {
+	return s.getTierForVersion(ctx, req.TierID, req.VersionID)
 }
 
 // DeleteTierRequest is the input for removing a tier.
 type DeleteTierRequest struct {
-	Slug   uuid.UUID
-	TierID int64
+	VersionID int64
+	TierID    int64
 }
 
-// DeleteTier removes a tier from the ranking.
+// DeleteTier removes a tier from the ranking version. Its item placements
+// cascade-delete with it — the items themselves survive, unranked, so a
+// deleted tier returns its items to the unassigned tray rather than losing
+// them.
 func (s *RankingsService) DeleteTier(ctx context.Context, req DeleteTierRequest) error {
-	return s.Queries.DeleteTier(ctx, req.TierID)
+	tier, err := s.getTierForVersion(ctx, req.TierID, req.VersionID)
+	if err != nil {
+		return err
+	}
+	return s.Queries.DeleteRankingTier(ctx, tier.ID)
 }
 
-// AddItemToTierRequest is the input for reordering items via drag-and-drop.
+// getTierForVersion fetches a tier and confirms it belongs to versionID,
+// translating both "no such tier" and "wrong version" to ErrRankingNotFound
+// so a caller can't distinguish a bad id from someone else's tier.
+func (s *RankingsService) getTierForVersion(ctx context.Context, tierID, versionID int64) (db.RankingTier, error) {
+	tier, err := s.Queries.GetRankingTier(ctx, tierID)
+	if err != nil {
+		return db.RankingTier{}, ErrRankingNotFound
+	}
+	if tier.RankingVersionID != versionID {
+		return db.RankingTier{}, ErrRankingNotFound
+	}
+	return tier, nil
+}
+
+// AddItemToTierRequest is the input for placing an item in a tier.
 type AddItemToTierRequest struct {
-	Slug   uuid.UUID
-	TierID int64
-	ItemID int64
+	VersionID int64
+	TierID    int64
+	ItemID    int64
 }
 
-// AddItemToTier updates item positions, optionally clearing them into the
-// unassigned tray when TierID is 0.
+// AddItemToTier moves an item into a tier, clearing any prior placement it
+// held first (the MVP places an item in one tier at a time, even though the
+// schema allows more down the line). Both the tier and the item must belong
+// to VersionID — the caller supplies it explicitly rather than the query
+// inferring it, which is what makes placing an item against a tier from a
+// different ranking version impossible.
 func (s *RankingsService) AddItemToTier(ctx context.Context, req AddItemToTierRequest) (db.RankingItem, error) {
-	// Check allow_multiple constraint before modifying.
-	tier, err := s.Queries.GetTier(ctx, req.TierID)
+	tier, err := s.Queries.GetRankingTier(ctx, req.TierID)
 	if err != nil {
-		return db.RankingItem{}, err
+		return db.RankingItem{}, ErrInvalidTierPlacement
 	}
-
-	items, err := s.Queries.ListRankingTierItems(ctx, tier.ID)
+	item, err := s.Queries.GetRankingItem(ctx, req.ItemID)
 	if err != nil {
-		return db.RankingItem{}, err
+		return db.RankingItem{}, ErrInvalidTierPlacement
 	}
-
-	itemIDs := make([]int64, len(items))
-	for _, item := range items {
-		itemIDs = append(itemIDs, item.ID)
-	}
-
-	if slices.Contains(itemIDs, req.ItemID) {
-		return s.Queries.GetItem(ctx, req.ItemID)
-	}
-
-	if !tier.AllowMultiple && len(itemIDs) >= 1 {
+	if tier.RankingVersionID != req.VersionID || item.RankingVersionID != req.VersionID {
 		return db.RankingItem{}, ErrInvalidTierPlacement
 	}
 
-	err = s.Queries.AddItemToTier(ctx, db.AddItemToTierParams{RankingTierID: tier.ID, RankingItemID: req.ItemID, Position: int32(len(itemIDs))})
+	if err := s.Queries.RemoveRankingItemFromAllTiers(ctx, item.ID); err != nil {
+		return db.RankingItem{}, err
+	}
+
+	pos, err := s.Queries.NextRankingItemTierPosition(ctx, tier.ID)
 	if err != nil {
 		return db.RankingItem{}, err
 	}
-	return s.Queries.GetItem(ctx, req.ItemID)
+
+	if _, err := s.Queries.AddRankingItemToTier(ctx, db.AddRankingItemToTierParams{
+		RankingItemID:    item.ID,
+		RankingTierID:    tier.ID,
+		RankingVersionID: req.VersionID,
+		Position:         pos,
+	}); err != nil {
+		return db.RankingItem{}, err
+	}
+
+	return item, nil
 }
 
-// SaveDraftRequest is the input for the save endpoint.
-type SaveDraftRequest struct {
-	Slug   uuid.UUID
-	UserID int64 // 0 means the user is not signed in
-}
-
-// SaveDraftResult describes what the handler should do after save.
-type SaveDraftResult struct {
-	IsOwned  bool // true when the ranking is already user-owned
-	Redirect string
-	Message  string
-}
-
-// SaveDraft determines whether a draft can be saved or needs registration.
-func (s *RankingsService) SaveDraft(ctx context.Context, req SaveDraftRequest) (SaveDraftResult, error) {
-	ranking, err := s.GetRankingForSlug(ctx, req.Slug)
+// GetBoard fetches everything needed to render one version of a ranking.
+func (s *RankingsService) GetBoard(ctx context.Context, ranking db.Ranking, version db.RankingVersion) (RankingBoard, error) {
+	tiers, err := s.Queries.ListRankingTiersForVersion(ctx, version.ID)
 	if err != nil {
-		return SaveDraftResult{}, err
+		return RankingBoard{}, err
 	}
-
-	if ranking.UserID != nil {
-		return SaveDraftResult{
-			IsOwned:  true,
-			Redirect: "/r/" + ranking.Slug.String(),
-			Message:  "Ranking saved!",
-		}, nil
-	}
-
-	if req.UserID != 0 {
-		return SaveDraftResult{
-			IsOwned:  true,
-			Redirect: "/r/" + ranking.Slug.String(),
-			Message:  "Ranking saved!",
-		}, nil
-	}
-
-	return SaveDraftResult{
-		Redirect: "/register?next=/r/" + ranking.Slug.String(),
-	}, nil
-}
-
-// GetRankingWithItems fetches all data needed to render the ranking board.
-func (s *RankingsService) GetRankingWithItems(ctx context.Context, slug uuid.UUID) (RankingWithItems, error) {
-	ranking, err := s.GetRankingForSlug(ctx, slug)
+	items, err := s.Queries.ListRankingItemsForVersion(ctx, version.ID)
 	if err != nil {
-		return RankingWithItems{}, err
+		return RankingBoard{}, err
 	}
-
-	tiers, err := s.Queries.ListTiers(ctx, ranking.ID)
+	placements, err := s.Queries.ListRankingItemTiersForVersion(ctx, version.ID)
 	if err != nil {
-		return RankingWithItems{}, err
+		return RankingBoard{}, err
 	}
 
-	items, err := s.Queries.ListRankingItems(ctx, ranking.ID)
-	if err != nil {
-		return RankingWithItems{}, err
-	}
-
-	placements, err := s.Queries.ListRankingItemsByPosition(ctx, ranking.ID)
-	if err != nil {
-		return RankingWithItems{}, err
-	}
-
-	return RankingWithItems{
-		Ranking:    ranking.Ranking,
-		IsDraft:    ranking.IsDraft,
+	return RankingBoard{
+		Ranking:    ranking,
+		Version:    version,
+		IsDraft:    !version.PublishedAt.Valid,
 		Tiers:      tiers,
 		Items:      items,
 		Placements: placements,
 	}, nil
 }
 
-// DefaultTiers defines the S/A/B/C/D palette.
+// DefaultTiers defines the S/A/B/C/D palette every new ranking version is
+// seeded with.
 var DefaultTiers = []struct {
-	Label         string
-	Color         string
-	AllowMultiple bool
+	Label string
+	Color string
 }{
-	{"S", "#f59e0b", true},
-	{"A", "#22c55e", false},
-	{"B", "#3b82f6", true},
-	{"C", "#a855f7", true},
-	{"D", "#64748b", true},
+	{"S", "#f59e0b"},
+	{"A", "#22c55e"},
+	{"B", "#3b82f6"},
+	{"C", "#a855f7"},
+	{"D", "#64748b"},
 }
 
-// seedDefaultTiers creates S/A/B/C/D tiers for a new ranking.
-func seedDefaultTiers(ctx context.Context, q *db.Queries, rankingID int64) error {
+// seedDefaultTiers creates the default tier palette for a freshly created
+// ranking version.
+func seedDefaultTiers(ctx context.Context, q *db.Queries, rankingID, versionID int64) error {
 	for i, dt := range DefaultTiers {
-		pos := int32(i)
-		if _, err := q.CreateTier(ctx, db.CreateTierParams{
-			RankingID:     rankingID,
-			Label:         dt.Label,
-			Position:      pos,
-			Color:         dt.Color,
-			AllowMultiple: dt.AllowMultiple,
+		if _, err := q.CreateRankingTier(ctx, db.CreateRankingTierParams{
+			RankingVersionID: versionID,
+			RankingID:        rankingID,
+			Title:            dt.Label,
+			ColorHex:         dt.Color,
+			Position:         int16(i),
 		}); err != nil {
 			return fmt.Errorf("seed tier %s: %w", dt.Label, err)
 		}
 	}
 	return nil
+}
+
+// newShortUUID returns an 8-character lowercase identifier for addressing a
+// version within its ranking (/r/{uuid}/v/{short}). 5 random bytes, base32
+// encoded with no padding, is exactly 8 characters — matching the schema's
+// short_uuid length check.
+func newShortUUID() (string, error) {
+	b := make([]byte, 5)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate short uuid: %w", err)
+	}
+	return strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b)), nil
 }

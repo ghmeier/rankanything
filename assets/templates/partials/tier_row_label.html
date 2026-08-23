@@ -1,13 +1,13 @@
-{{ define "partials/tier_row_label.html" }} {{ $tier := .Tier }} {{ $slug :=
-.RankingSlug }}
+{{ define "partials/tier_row_label.html" }} {{ $tier := .Tier }} {{ $uuid :=
+.RankingUUID }}
 <div
   class="flex flex-col gap-1 items-center w-28 shrink-0 p-2 relative"
-  style="background-color: {{ $tier.Color }}"
+  style="background-color: {{ $tier.ColorHex }}"
   id="tier-container-{{ $tier.ID }}"
 >
   <button
     class="h-fit cursor-pointer absolute right-2 top-2"
-    hx-post="/r/{{ $slug }}/tiers/{{ $tier.ID }}/edit"
+    hx-post="/r/{{ $uuid }}/tiers/{{ $tier.ID }}/edit"
     hx-target="#tier-container-{{ $tier.ID }}"
     hx-swap="outerHTML"
     aria-label="Edit Tier"
@@ -17,7 +17,7 @@
   <div
     class="rounded-lg px-2 text-center m-auto text-xl w-fit font-bold bg-surface/60 text-text line-clamp-2"
   >
-    {{ $tier.Label }}
+    {{ $tier.Title }}
   </div>
 </div>
 {{ end }}

@@ -11,7 +11,6 @@ import (
 
 	"github.com/ghmeier/rankanything/internal/auth"
 	"github.com/ghmeier/rankanything/internal/db"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -25,7 +24,7 @@ type emailAlreadyRegisteredError struct{}
 func (*emailAlreadyRegisteredError) Error() string { return "email already registered" }
 
 // UserService implements user-facing business logic: registration, login,
-// logout, and draft claiming.
+// and logout.
 type UserService struct {
 	Queries  *db.Queries
 	Sessions *auth.Sessions
@@ -38,9 +37,8 @@ type RegisterRequest struct {
 	Next     string
 }
 
-// Register creates a user, logs them in, and claims any unclaimed drafts
-// from this session. The handler is responsible for setting flash messages
-// and performing the redirect.
+// Register creates a user and logs them in. The handler is responsible for
+// setting flash messages and performing the redirect.
 func (s *UserService) Register(ctx context.Context, req RegisterRequest) (*db.User, error) {
 	user, err := s.Queries.CreateUser(ctx, db.CreateUserParams{
 		Email:        req.Email,
@@ -59,10 +57,6 @@ func (s *UserService) Register(ctx context.Context, req RegisterRequest) (*db.Us
 
 	_ = s.Queries.TouchLastLogin(ctx, user.ID)
 
-	if err := s.claimDrafts(ctx, user.ID); err != nil {
-		return nil, err
-	}
-
 	return &user, nil
 }
 
@@ -73,9 +67,9 @@ type LoginRequest struct {
 	Next     string
 }
 
-// Login authenticates a user, logs them in, touches their last login time,
-// and claims any unclaimed drafts from this session. The handler is
-// responsible for setting flash messages and performing the redirect.
+// Login authenticates a user, logs them in, and touches their last login
+// time. The handler is responsible for setting flash messages and
+// performing the redirect.
 func (s *UserService) Login(ctx context.Context, req LoginRequest) (*db.User, error) {
 	user, err := s.Queries.GetUserByEmail(ctx, req.Email)
 	if err != nil {
@@ -95,31 +89,12 @@ func (s *UserService) Login(ctx context.Context, req LoginRequest) (*db.User, er
 
 	_ = s.Queries.TouchLastLogin(ctx, user.ID)
 
-	if err := s.claimDrafts(ctx, user.ID); err != nil {
-		return nil, err
-	}
-
 	return &user, nil
 }
 
 // Logout destroys the current session.
 func (s *UserService) Logout(ctx context.Context) error {
 	return s.Sessions.LogOut(ctx)
-}
-
-// claimDrafts claims any unclaimed rankings belonging to this session and
-// records them under the given user.
-func (s *UserService) claimDrafts(ctx context.Context, userID int64) error {
-	drafts := s.Sessions.Drafts(ctx)
-	slugs := make([]uuid.UUID, len(drafts))
-
-	for _, slug := range drafts {
-		slugs = append(slugs, slug)
-	}
-
-	s.Queries.ClaimRankings(ctx, db.ClaimRankingsParams{Slugs: slugs, UserID: &userID})
-
-	return nil
 }
 
 // isUniqueViolation reports whether an error is a PostgreSQL unique constraint violation.

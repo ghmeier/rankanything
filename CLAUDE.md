@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Rankanything is a server-rendered tier-list builder: create a ranking, add items, drag them into tiers, share it. Anonymous visitors get a working board immediately (an unclaimed "draft"); signing in claims it. Go 1.26 + htmx + Tailwind 4 + Postgres 18, shipped as a single binary with templates and static assets embedded (`assets/assets.go`).
+Rankanything is a server-rendered tier-list builder: create a ranking, add items, drag them into tiers, share it. Every ranking has a signed-in owner from creation — there is no anonymous draft. A ranking's tiers and items belong to a `RankingVersion` (a draft has no `published_at`); `/r/{uuid}` addresses the live version, `/r/{uuid}/v/{short}` pins one. Go 1.26 + htmx + Tailwind 4 + Postgres 18, shipped as a single binary with templates and static assets embedded (`assets/assets.go`).
 
 ## Commands
 
@@ -13,12 +13,13 @@ make dev            # air (Go hot reload) + tailwind --watch, together
 make test           # rtk go test ./... -race, with TEST_DATABASE_URL exported
 make migrate        # goose up against $DATABASE_URL
 make migrate-down   # goose down one step
+make templ          # regenerate *_templ.go from .templ sources; the generated files are committed, so run this and commit the result after any .templ change, or CI's drift check fails
 make sqlc           # regenerate internal/db from db/queries + db/migrations
 make css            # one-shot minified tailwind build
 make tidy
 
 go run ./cmd/rankanything                    # run the server (make run is stale: it points at a nonexistent ./main.go)
-go test ./internal/app -run TestHomeCreatesAnonymousDraft -race
+go test ./internal/app -run TestOwnedRankingsAreNotReadableByOthers -race
 npx prettier --write 'assets/templates/**/*.html'   # go-template-aware formatting
 ```
 
@@ -36,10 +37,10 @@ npx prettier --write 'assets/templates/**/*.html'   # go-template-aware formatti
 
 **htmx conventions:** the layout sets `hx-headers` with the session CSRF token on `<body>`, so every htmx-issued mutation carries `X-CSRF-Token` automatically. Mutating handlers respond with the smallest partial that covers the change (`partials/item_card.html`, `partials/tier_row.html`, a label swap for inline tier editing) or `Render.Empty` for deletions; out-of-band swaps are used to remove a row. Adding an endpoint usually means adding a partial, not a page.
 
-**Auth and ownership (`internal/auth`):** sessions are scs backed by pgxstore. The session holds `user_id`, a list of draft slugs this browser created, a CSRF token, and a one-shot flash. A ranking with `user_id IS NULL` is a draft, reachable only by a session that lists its slug; an owned ranking is reachable only by its owner. That check lives in `App.RequireRankingAccess`, which parses the `{slug}` path value and stashes the `uuid.UUID` in the request context under `constants.SlugKey` — handlers on those routes read the slug from context, never from `PathValue`, and can assume access is already granted. `RequireUser` gates the account page. The global chain is Recover → RequestLog → CrossOriginProtection → session LoadAndSave → CSRF.
+**Auth and ownership (`internal/auth`):** sessions are scs backed by pgxstore. The session holds `user_id`, a CSRF token, and a one-shot flash. A ranking is reachable only by its owner — that check lives in `App.RequireRankingAccess`, which parses the `{uuid}` path value, confirms `rankings.user_id` matches the session's user, and stashes the ranking's `uuid.UUID` in the request context under `constants.RankingUUIDKey`. It also resolves which version the request addresses (the live version for `/r/{uuid}`, or the one pinned by `/r/{uuid}/v/{short}`) and stashes that `db.RankingVersion` under `constants.RankingVersionKey`. Handlers on those routes read both from context, never from `PathValue`, and can assume access is already granted. `RequireUser` gates the account page. `Routes()` is split into `registerAuthRoutes`, `registerRankingRoutes`, and `registerPublicRoutes` (one file each), called from the middleware chain: Recover → RequestLog → CrossOriginProtection → session LoadAndSave → CSRF.
 
 **Styling:** `assets/static/css/input.css` defines semantic CSS variables (`--app-background`, `--app-surface`, `--app-text-muted`, …) with a `prefers-color-scheme: dark` block, exposed to Tailwind as utilities like `bg-background`, `text-text-muted`, `border-border`. Use those tokens rather than raw palette colors. `app.css` is generated and gitignored.
 
 ## Tests
 
-`internal/testsupport` boots the real app — real templates, real Postgres, in-memory session store — behind an `httptest.Server`. Each test gets a transaction that rolls back on cleanup, so tests are isolated and parallel-safe; migrations run once per process. Tests **skip** (not fail) when `TEST_DATABASE_URL` is unset. The `Client` helper keeps a cookie jar, does not follow redirects (assert on `Location`), scrapes the CSRF token out of returned HTML and attaches it, and offers `HTMX(method, path, form)` for fragment requests plus `FormWithBogusCSRF` for rejection tests. Handler tests live in `internal/app` and drive the app through HTTP; service tests bypass HTTP and call the service directly.
+`internal/testsupport` boots the real app — real templates, real Postgres, in-memory session store — behind an `httptest.Server`. Each test gets a transaction that rolls back on cleanup, so tests are isolated and parallel-safe; migrations run once per process. Tests **skip** (not fail) when `TEST_DATABASE_URL` is unset. The `Client` helper keeps a cookie jar, does not follow redirects (assert on `Location`), scrapes the CSRF token out of returned HTML and attaches it, and offers `HTMX(method, path, form)` for fragment requests plus `FormWithBogusCSRF` for rejection tests. `Env.NewOwnerClient()` registers a fresh user and creates a ranking for them (draft version seeded with the default tiers, same as `GET /new`) — the fixture most ranking tests need now that every ranking requires a signed-in owner. Handler tests live in `internal/app` and drive the app through HTTP; service tests bypass HTTP and call the service directly.

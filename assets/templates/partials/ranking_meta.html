@@ -2,11 +2,11 @@
 <div id="ranking-meta" class="space-y-2">
   <input
     name="title"
-    value="{{ .Ranking.Title }}"
+    value="{{ .Ranking.Name }}"
     aria-label="Ranking title"
     class="w-full text-2xl font-bold tracking-tight text-text outline-none placeholder:text-subtle focus:border-b focus:border-border"
     placeholder="Untitled ranking"
-    hx-post="/r/{{ .Ranking.Slug }}"
+    hx-post="/r/{{ .Ranking.Uuid }}"
     hx-target="#ranking-meta"
     hx-swap="outerHTML"
     hx-trigger="change"
@@ -17,7 +17,7 @@
     aria-label="Ranking description"
     class="w-full text-sm text-muted outline-none placeholder:text-subtle"
     placeholder="What are you ranking?"
-    hx-post="/r/{{ .Ranking.Slug }}"
+    hx-post="/r/{{ .Ranking.Uuid }}"
     hx-target="#ranking-meta"
     hx-swap="outerHTML"
     hx-trigger="change"

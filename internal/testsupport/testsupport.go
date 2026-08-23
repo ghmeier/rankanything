@@ -33,6 +33,7 @@ import (
 	"github.com/ghmeier/rankanything/assets"
 	"github.com/ghmeier/rankanything/internal/app"
 	"github.com/ghmeier/rankanything/internal/auth"
+	"github.com/ghmeier/rankanything/internal/config"
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/render"
 	"github.com/ghmeier/rankanything/internal/services"
@@ -145,15 +146,21 @@ func NewEnv(t *testing.T) *Env {
 	queries := db.New(tx)
 	sm := NewSessionManager()
 	s := auth.NewSessions(sm)
+	// Reading APP_ENV directly (rather than requiring a full config.Load,
+	// which also demands DATABASE_URL) keeps this test environment able to
+	// exercise the same production gating main.go wires from config.Config.
+	isProduction := config.Config{Env: os.Getenv("APP_ENV")}.IsProduction()
+
 	application := &app.App{
-		Pool:       pool,
-		Queries:    queries.WithTx(tx),
-		Sessions:   s,
-		Render:     renderer,
-		Logger:     slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
-		Static:     assets.Static(),
-		UserSvc:    &services.UserService{Queries: queries.WithTx(tx), Sessions: s},
-		RankingSvc: &services.RankingsService{Queries: queries.WithTx(tx), Pool: tx},
+		Pool:         pool,
+		Queries:      queries.WithTx(tx),
+		Sessions:     s,
+		Render:       renderer,
+		Logger:       slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		Static:       assets.Static(),
+		IsProduction: isProduction,
+		UserSvc:      &services.UserService{Queries: queries.WithTx(tx), Sessions: s},
+		RankingSvc:   &services.RankingsService{Queries: queries.WithTx(tx), Pool: tx},
 	}
 
 	srv := httptest.NewServer(application.Routes())
@@ -186,6 +193,39 @@ func (e *Env) NewClient() *Client {
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
 	}
+}
+
+// OwnerClient is a signed-in client together with the ranking (and its
+// seeded draft version) it owns — the fixture nearly every ranking test in
+// internal/app needs now that anonymous drafts are gone and every ranking
+// requires a signed-in owner from the moment it's created.
+type OwnerClient struct {
+	*Client
+	Ranking db.Ranking
+	Draft   db.RankingVersion
+}
+
+// NewOwnerClient registers a fresh user and creates a ranking through the
+// same service path GET /new uses, so its draft version comes pre-seeded
+// with the default tiers exactly like the real app.
+func (e *Env) NewOwnerClient() *OwnerClient {
+	e.T.Helper()
+	c := e.NewClient()
+
+	email := "owner+" + uuid.NewString() + "@example.com"
+	res := c.Post("/register", url.Values{"email": {email}, "password": {"supersecret"}})
+	require.Equal(e.T, http.StatusSeeOther, res.Status)
+
+	user, err := e.Queries.GetUserByEmail(context.Background(), email)
+	require.NoError(e.T, err)
+
+	ranking, err := e.App.RankingSvc.CreateForUser(context.Background(), services.CreateForUserRequest{UserID: user.ID})
+	require.NoError(e.T, err)
+
+	draft, err := e.Queries.ResolveLiveRankingVersion(context.Background(), ranking.ID)
+	require.NoError(e.T, err)
+
+	return &OwnerClient{Client: c, Ranking: ranking, Draft: draft}
 }
 
 // Get performs a GET and captures the CSRF token from the response body.

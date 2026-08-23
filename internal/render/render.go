@@ -30,6 +30,15 @@ func New(fsys fs.FS) (*Renderer, error) {
 
 func funcs(r *Renderer) template.FuncMap {
 	return template.FuncMap{
+		// deref reads a *string field (nullable columns map to pointers; see
+		// CLAUDE.md) as a template can't dereference one on its own — fmt's
+		// %v leaves a *string as a bare pointer instead of following it.
+		"deref": func(s *string) string {
+			if s == nil {
+				return ""
+			}
+			return *s
+		},
 		"dict": func(kv ...any) (map[string]any, error) {
 			if len(kv)%2 != 0 {
 				return nil, fmt.Errorf("dict: odd argument count")

@@ -6,8 +6,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
-	"os"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,6 +13,7 @@ import (
 	"github.com/ghmeier/rankanything/internal/auth"
 	"github.com/ghmeier/rankanything/internal/constants"
 	"github.com/ghmeier/rankanything/internal/db"
+	"github.com/ghmeier/rankanything/internal/email"
 	"github.com/ghmeier/rankanything/internal/render"
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/ghmeier/rankanything/internal/ui"
@@ -22,49 +21,34 @@ import (
 
 // App holds everything the handlers need.
 type App struct {
-	Pool       *pgxpool.Pool
-	Queries    *db.Queries
-	Sessions   *auth.Sessions
-	Render     *render.Renderer
-	Logger     *slog.Logger
-	Static     fs.FS
+	Pool     *pgxpool.Pool
+	Queries  *db.Queries
+	Sessions *auth.Sessions
+	Render   *render.Renderer
+	Logger   *slog.Logger
+	Static   fs.FS
+
+	// IsProduction drives the handful of things that must never run in a
+	// live deployment (right now, just the /components dev route). It's
+	// set once in cmd/rankanything/main.go from config.Config.IsProduction,
+	// so there is exactly one source of truth for "are we in production"
+	// rather than this package re-reading APP_ENV itself.
+	IsProduction bool
+
 	UserSvc    *services.UserService
 	RankingSvc *services.RankingsService
+
+	// Wired to nil until their owning wave 3/4 branch lands. Declaring the
+	// field here means each branch changes its own line rather than every
+	// sibling branch adding a field to this struct in parallel.
+	EmailSvc email.Sender           // feat/auth-flows: verification + password-reset mail
+	ShareSvc *services.ShareService // feat/public-share: is_public / public_slug toggling
 }
 
 // Routes builds the fully wrapped handler for the app.
 func (a *App) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(a.Static))))
-
-	// Builder — the landing page is the product.
-	mux.HandleFunc("GET /{$}", a.handleHome)
-	mux.HandleFunc("GET /new", a.handleNew)
-	mux.Handle("GET /r/{slug}", a.RequireRankingAccess(http.HandlerFunc(a.handleViewRanking)))
-	mux.Handle("POST /r/{slug}", a.RequireRankingAccess(http.HandlerFunc(a.handleUpdateRanking)))
-	mux.Handle("POST /r/{slug}/save", a.RequireRankingAccess(http.HandlerFunc(a.handleSave)))
-	mux.Handle("POST /r/{slug}/items", a.RequireRankingAccess(http.HandlerFunc(a.handleAddItem)))
-	mux.Handle("DELETE /r/{slug}/items/{itemID}", a.RequireRankingAccess(http.HandlerFunc(a.handleDeleteItem)))
-	mux.Handle("POST /r/{slug}/tiers", a.RequireRankingAccess(http.HandlerFunc(a.handleAddTier)))
-	mux.Handle("PUT /r/{slug}/tiers/{tierID}", a.RequireRankingAccess(http.HandlerFunc(a.handleUpdateTier)))
-	mux.Handle("DELETE /r/{slug}/tiers/{tierID}", a.RequireRankingAccess(http.HandlerFunc(a.handleDeleteTier)))
-	mux.Handle("POST /r/{slug}/tiers/{tierID}/edit", a.RequireRankingAccess(http.HandlerFunc(a.handleEditTier)))
-	mux.Handle("POST /r/{slug}/tiers/{tierID}/items", a.RequireRankingAccess(http.HandlerFunc(a.handleAddItemToTier)))
-
-	mux.Handle("GET /me", a.RequireUser(http.HandlerFunc(a.handleMe)))
-
-	// The component gallery is a development tool; it never runs in production.
-	if !isProductionEnv() {
-		mux.HandleFunc("GET /components", ui.ComponentsHandler)
-	}
-
-	// Auth.
-	mux.HandleFunc("GET /register", a.handleRegisterForm)
-	mux.HandleFunc("POST /register", a.handleRegister)
-	mux.HandleFunc("GET /login", a.handleLoginForm)
-	mux.HandleFunc("POST /login", a.handleLogin)
-	mux.HandleFunc("POST /logout", a.handleLogout)
-
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.Pool.Ping(r.Context()); err != nil {
 			http.Error(w, "unhealthy", http.StatusServiceUnavailable)
@@ -73,6 +57,15 @@ func (a *App) Routes() http.Handler {
 		_, _ = w.Write([]byte("ok"))
 	})
 
+	// The component gallery is a development tool; it never runs in production.
+	if !a.IsProduction {
+		mux.HandleFunc("GET /components", ui.ComponentsHandler)
+	}
+
+	a.registerAuthRoutes(mux)
+	a.registerRankingRoutes(mux)
+	a.registerPublicRoutes(mux)
+
 	return auth.Chain(mux,
 		auth.Recover(a.Logger),
 		auth.RequestLog(a.Logger),
@@ -80,13 +73,6 @@ func (a *App) Routes() http.Handler {
 		a.Sessions.LoadAndSave,
 		auth.CSRF(a.Sessions),
 	)
-}
-
-// isProductionEnv mirrors config.Config.IsProduction without pulling in the
-// whole config package (which requires a loaded .env and DATABASE_URL) just
-// to gate one dev-only route.
-func isProductionEnv() bool {
-	return strings.EqualFold(os.Getenv("APP_ENV"), "production")
 }
 
 // RequireUser gates handlers that only make sense for a signed-in user.
@@ -98,41 +84,44 @@ func (a *App) RequireUser(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
-
 }
 
+// RequireRankingAccess parses the ranking uuid from the path, confirms the
+// session's user owns it, and resolves which version the request addresses:
+// the live version for /r/{uuid}, or the version pinned by /r/{uuid}/v/{short}.
+// Both are stashed in the request context under constants.RankingUUIDKey and
+// constants.RankingVersionKey — handlers on these routes read from context,
+// never from PathValue, and can assume access is already granted.
 func (a *App) RequireRankingAccess(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		slugStr := r.PathValue("slug")
-		if slugStr == "" {
-			http.Redirect(w, r, "/", http.StatusSeeOther)
-			return
-		}
-		slug, err := uuid.Parse(slugStr)
+
+		rankingUUID, err := uuid.Parse(r.PathValue("uuid"))
 		if err != nil {
-			http.Redirect(w, r, "/", http.StatusSeeOther)
+			a.notFound(w, r)
 			return
 		}
 
-		userID := a.Sessions.UserID(ctx)
-
-		// Query the ranking to verify access.
-		ranking, err := a.Queries.GetRankingByUUID(ctx, slug)
+		ranking, err := a.RankingSvc.GetRanking(ctx, rankingUUID)
 		if err != nil {
-			http.Error(w, "not found", http.StatusNotFound)
+			a.notFound(w, r)
 			return
 		}
 
-		// Owned ranking: only accessible by the owner.
-		if userID == 0 || ranking.UserID != userID {
-			http.Error(w, "not found", http.StatusNotFound)
+		if userID := a.Sessions.UserID(ctx); userID == 0 || ranking.UserID != userID {
+			a.notFound(w, r)
 			return
 		}
 
-		ctx = context.WithValue(ctx, constants.SlugKey, slug)
+		version, err := a.RankingSvc.ResolveVersion(ctx, ranking, r.PathValue("short"))
+		if err != nil {
+			a.notFound(w, r)
+			return
+		}
+
+		ctx = context.WithValue(ctx, constants.RankingUUIDKey, rankingUUID)
+		ctx = context.WithValue(ctx, constants.RankingVersionKey, version)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
-
 }

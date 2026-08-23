@@ -1,7 +1,7 @@
 {{ define "partials/tier_form.html" }}
 <form
   class="flex gap-2"
-  hx-post="/r/{{ .Ranking.Slug }}/tiers"
+  hx-post="/r/{{ .Ranking.Uuid }}/tiers"
   hx-target="#tier-rows"
   hx-swap="beforeend"
   hx-on::after-request="this.reset()"

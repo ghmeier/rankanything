@@ -8,6 +8,7 @@ import (
 
 	"github.com/ghmeier/rankanything/internal/auth"
 	"github.com/ghmeier/rankanything/internal/constants"
+	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/render"
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/google/uuid"
@@ -15,25 +16,24 @@ import (
 
 // ─── Builder routes ─────────────────────────────────────────────────────────
 
-// handleHome is GET / — resume an existing draft or create a new one.
+// handleHome is GET / — a signed-in user goes straight to their rankings.
+// A signed-out visitor sees a minimal holding page: feat/landing-page
+// (wave 3) replaces it with the real marketing page. There is no anonymous
+// entry point anymore — every ranking needs an owner from creation.
 func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	if userID := a.Sessions.UserID(r.Context()); userID != 0 {
 		http.Redirect(w, r, "/me", http.StatusSeeOther)
 		return
 	}
 
-	ctx := r.Context()
-	ranking, err := a.RankingSvc.EnsureDraft(r.Context(), services.EnsureDraftRequest{DraftKeys: a.Sessions.Drafts(ctx)})
-	if err != nil {
+	base := a.base(r)
+	if err := a.Render.Page(w, http.StatusOK, "pages/home.html", HomeView{BaseView: base}); err != nil {
 		a.serverError(w, r, err)
-		return
 	}
-	a.Sessions.RememberDraft(r.Context(), ranking.Uuid)
-
-	http.Redirect(w, r, "/r/"+ranking.Uuid.String(), http.StatusSeeOther)
 }
 
-// handleNew is GET /new — create a fresh ranking for a signed-in user.
+// handleNew is GET /new — create a fresh ranking for a signed-in user, with
+// its draft version seeded from the default tier palette.
 func (a *App) handleNew(w http.ResponseWriter, r *http.Request) {
 	userID := a.Sessions.UserID(r.Context())
 	if userID == 0 {
@@ -49,37 +49,39 @@ func (a *App) handleNew(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/r/"+ranking.Uuid.String(), http.StatusSeeOther)
 }
 
-// handleViewRanking is GET /r/{slug} — render the board for a ranking.
+// handleViewRanking is GET /r/{uuid} or GET /r/{uuid}/v/{short} — render the
+// board for the version RequireRankingAccess resolved.
 func (a *App) handleViewRanking(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
+	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
+	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
 
-	ranking, err := a.RankingSvc.GetRankingWithItems(ctx, slug)
+	ranking, err := a.RankingSvc.GetRanking(ctx, rankingUUID)
 	if err != nil {
-		if errors.Is(err, services.ErrRankingNotFound) {
-			a.notFound(w, r)
-		} else {
-			a.serverError(w, r, err)
-		}
+		rankError(a, w, r, err)
 		return
 	}
 
-	if err = a.RenderRankingPage(w, r, ranking); err != nil {
+	board, err := a.RankingSvc.GetBoard(ctx, ranking, version)
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+
+	if err := a.RenderRankingPage(w, r, board); err != nil {
 		a.serverError(w, r, err)
 	}
 }
 
-// handleUpdateRanking is POST /r/{slug} — update title or description.
+// handleUpdateRanking is POST /r/{uuid} — update title or description.
 func (a *App) handleUpdateRanking(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
-	title := r.FormValue("title")
-	desc := r.FormValue("description")
+	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
 
 	updated, err := a.RankingSvc.UpdateRanking(ctx, services.UpdateRankingRequest{
-		UUID:        slug,
-		Name:        title,
-		Description: desc,
+		UUID:        rankingUUID,
+		Name:        r.FormValue("title"),
+		Description: r.FormValue("description"),
 	})
 	if err != nil {
 		rankError(a, w, r, err)
@@ -92,183 +94,142 @@ func (a *App) handleUpdateRanking(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleSave is POST /r/{slug}/save — claim an anonymous draft or confirm save.
-func (a *App) handleSave(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
-	userID := a.Sessions.UserID(ctx)
-
-	result, err := a.RankingSvc.SaveDraft(ctx, services.SaveDraftRequest{
-		Slug:   slug,
-		UserID: userID,
-	})
-	if err != nil {
-		rankError(a, w, r, err)
-		return
-	}
-
-	if result.Redirect != "" {
-		a.Sessions.Flash(ctx, result.Message)
-		http.Redirect(w, r, result.Redirect, http.StatusSeeOther)
-	}
-}
-
-// handleAddItem is POST /r/{slug}/items — add a new item to the ranking.
+// handleAddItem is POST /r/{uuid}/items — add a new item to the version
+// being viewed.
 func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
-	label := strings.TrimSpace(r.FormValue("label"))
+	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
+	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+	title := strings.TrimSpace(r.FormValue("label"))
 
-	if label == "" {
+	if title == "" {
 		a.Render.Empty(w, http.StatusBadRequest)
 		return
 	}
 
-	imageURL := r.FormValue("image_url")
 	item, err := a.RankingSvc.AddItem(ctx, services.AddItemRequest{
-		Slug:     slug,
-		Label:    label,
-		ImageURL: imageURL,
+		VersionID:      version.ID,
+		Title:          title,
+		ImageSourceURL: r.FormValue("image_url"),
 	})
 	if err != nil {
 		a.serverError(w, r, err)
 		return
 	}
 
-	if err = a.Render.Partial(w, http.StatusOK, "partials/item_card.html", RankingItemCard{Item: item, RankingSlug: slug}); err != nil {
+	if err = a.Render.Partial(w, http.StatusOK, "partials/item_card.html", RankingItemCard{Item: item, RankingUUID: rankingUUID}); err != nil {
 		a.serverError(w, r, err)
 	}
 }
 
+// handleDeleteItem is DELETE /r/{uuid}/items/{itemID}.
 func (a *App) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
-	itemID := r.PathValue("itemID")
-	id, err := strconv.ParseInt(itemID, 10, 64)
+	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+
+	id, err := strconv.ParseInt(r.PathValue("itemID"), 10, 64)
 	if err != nil {
-		a.serverError(w, r, err)
+		a.notFound(w, r)
 		return
 	}
 
-	err = a.RankingSvc.DeleteItem(ctx, services.DeleteItemRequest{
-		Slug:   slug,
-		ItemID: id,
-	})
-	if err != nil {
+	if err := a.RankingSvc.DeleteItem(ctx, services.DeleteItemRequest{VersionID: version.ID, ItemID: id}); err != nil {
 		rankError(a, w, r, err)
 		return
 	}
 
 	a.Render.Empty(w, http.StatusAccepted)
-
 }
 
-// handleAddTier is POST /r/{slug}/tiers — add a new tier.
+// handleAddTier is POST /r/{uuid}/tiers — add a new tier.
 func (a *App) handleAddTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
+	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
+	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
 
 	tier, err := a.RankingSvc.AddTier(ctx, services.AddTierRequest{
-		Slug:  slug,
-		Label: r.FormValue("label"),
-		Color: r.FormValue("color"),
+		VersionID: version.ID,
+		RankingID: version.RankingID,
+		Title:     r.FormValue("label"),
+		Color:     r.FormValue("color"),
 	})
 	if err != nil {
 		rankError(a, w, r, err)
 		return
 	}
 
-	// items, err := a.RankingSvc.Queries.ListRankingTierItems(ctx, tier.ID)
-	if err != nil {
-		rankError(a, w, r, err)
-		return
-	}
-	tierView := TierRowView{Tier: tier, RankingSlug: slug, Items: items}
-	err = a.Render.Partial(w, http.StatusOK, "partials/tier_row.html", tierView)
-	if err != nil {
+	tierView := TierRowView{Tier: tier, RankingUUID: rankingUUID}
+	if err := a.Render.Partial(w, http.StatusOK, "partials/tier_row.html", tierView); err != nil {
 		a.serverError(w, r, err)
 	}
 }
 
-// handleEditTier is POST /r/{slug}/tiers/{tierID}/edit — enable editing a tier
+// handleEditTier is POST /r/{uuid}/tiers/{tierID}/edit — enable editing a tier.
 func (a *App) handleEditTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
-	tierID := r.PathValue("tierID")
-	id, err := strconv.ParseInt(tierID, 10, 64)
+	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
+	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+
+	id, err := strconv.ParseInt(r.PathValue("tierID"), 10, 64)
 	if err != nil {
-		a.serverError(w, r, err)
+		a.notFound(w, r)
 		return
 	}
 
-	tier, _, err := a.RankingSvc.GetTier(ctx, services.GetTierRequest{
-		Slug:   slug,
-		TierID: id,
-	})
+	tier, err := a.RankingSvc.GetTier(ctx, services.GetTierRequest{VersionID: version.ID, TierID: id})
 	if err != nil {
 		rankError(a, w, r, err)
 		return
 	}
 
-	view := TierRowLabelView{Tier: tier, RankingSlug: slug}
-	err = a.Render.Partial(w, http.StatusAccepted, "partials/tier_row_label_editable.html", view)
-	if err != nil {
+	view := TierRowLabelView{Tier: tier, RankingUUID: rankingUUID}
+	if err := a.Render.Partial(w, http.StatusAccepted, "partials/tier_row_label_editable.html", view); err != nil {
 		a.serverError(w, r, err)
 	}
 }
 
-// handleUpdateTier is PUT /r/{slug}/tiers/{tierID} — rename, recolor, or toggle.
+// handleUpdateTier is PUT /r/{uuid}/tiers/{tierID} — rename or recolor.
 func (a *App) handleUpdateTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
-	tierID := r.PathValue("tierID")
-	id, err := strconv.ParseInt(tierID, 10, 64)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
+	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
+	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
 
-	var allowMultiplePtr *bool
-	if r.FormValue("allow_multiple") != "" {
-		allowMultiple := r.FormValue("allow_multiple") == "true"
-		allowMultiplePtr = &allowMultiple
+	id, err := strconv.ParseInt(r.PathValue("tierID"), 10, 64)
+	if err != nil {
+		a.notFound(w, r)
+		return
 	}
 
 	tier, err := a.RankingSvc.UpdateTier(ctx, services.UpdateTierRequest{
-		Slug:          slug,
-		TierID:        id,
-		Label:         r.FormValue("label"),
-		Color:         r.FormValue("color"),
-		AllowMultiple: allowMultiplePtr,
+		VersionID: version.ID,
+		TierID:    id,
+		Title:     r.FormValue("label"),
+		Color:     r.FormValue("color"),
 	})
 	if err != nil {
 		rankError(a, w, r, err)
 		return
 	}
 
-	view := TierRowLabelView{Tier: tier, RankingSlug: slug}
+	view := TierRowLabelView{Tier: tier, RankingUUID: rankingUUID}
 	if err := a.Render.Partial(w, http.StatusOK, "partials/tier_row_label.html", view); err != nil {
 		a.serverError(w, r, err)
 	}
-
 }
 
-// handleDeleteTier is DELETE /r/{slug}/tiers/{tierID} — remove a tier.
+// handleDeleteTier is DELETE /r/{uuid}/tiers/{tierID} — remove a tier. Its
+// items return to the unassigned tray rather than being deleted.
 func (a *App) handleDeleteTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
-	tierID := r.PathValue("tierID")
-	id, err := strconv.ParseInt(tierID, 10, 64)
+	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+
+	id, err := strconv.ParseInt(r.PathValue("tierID"), 10, 64)
 	if err != nil {
-		a.serverError(w, r, err)
+		a.notFound(w, r)
 		return
 	}
 
-	err = a.RankingSvc.DeleteTier(ctx, services.DeleteTierRequest{
-		Slug:   slug,
-		TierID: id,
-	})
-	if err != nil {
+	if err := a.RankingSvc.DeleteTier(ctx, services.DeleteTierRequest{VersionID: version.ID, TierID: id}); err != nil {
 		rankError(a, w, r, err)
 		return
 	}
@@ -276,27 +237,28 @@ func (a *App) handleDeleteTier(w http.ResponseWriter, r *http.Request) {
 	a.Render.Empty(w, http.StatusAccepted)
 }
 
-// handleSetPlacements is PUT /r/{slug}/tiers/{tierID} — reorder items via drag-and-drop.
+// handleAddItemToTier is POST /r/{uuid}/tiers/{tierID}/items — place an item
+// in a tier, via drag-and-drop.
 func (a *App) handleAddItemToTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	slug := ctx.Value(constants.SlugKey).(uuid.UUID)
-	tierIDStr := r.PathValue("tierID")
-	tierID, err := strconv.ParseInt(tierIDStr, 10, 64)
+	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
+	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+
+	tierID, err := strconv.ParseInt(r.PathValue("tierID"), 10, 64)
 	if err != nil {
-		a.serverError(w, r, err)
+		a.notFound(w, r)
 		return
 	}
-	itemIDStr := r.FormValue("item_id")
-	itemID, err := strconv.ParseInt(itemIDStr, 10, 64)
+	itemID, err := strconv.ParseInt(r.FormValue("item_id"), 10, 64)
 	if err != nil {
-		a.serverError(w, r, err)
+		a.notFound(w, r)
 		return
 	}
 
 	item, err := a.RankingSvc.AddItemToTier(ctx, services.AddItemToTierRequest{
-		Slug:   slug,
-		TierID: tierID,
-		ItemID: itemID,
+		VersionID: version.ID,
+		TierID:    tierID,
+		ItemID:    itemID,
 	})
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidTierPlacement) {
@@ -307,10 +269,9 @@ func (a *App) handleAddItemToTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = a.Render.Partial(w, http.StatusOK, "partials/item_card.html", RankedItemCard{Item: item, RankingSlug: slug}); err != nil {
+	if err = a.Render.Partial(w, http.StatusOK, "partials/item_card.html", RankingItemCard{Item: item, RankingUUID: rankingUUID}); err != nil {
 		a.serverError(w, r, err)
 	}
-
 }
 
 // ─── Auth routes ─────────────────────────────────────────────────────────────
@@ -351,11 +312,16 @@ func (a *App) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.Sessions.Flash(r.Context(), "Account created! Your draft has been attached.")
-	if next == "" {
-		next = "/me"
+	a.Sessions.Flash(r.Context(), "Account created!")
+
+	// next is untrusted user input; only follow it when it stays on this
+	// site, the same guard handleLogin uses, so registration can't be used
+	// as an open redirect.
+	target := "/me"
+	if next != "" && isSiteRelativePath(next) {
+		target = next
 	}
-	http.Redirect(w, r, next, http.StatusSeeOther)
+	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
 func (a *App) renderRegisterError(w http.ResponseWriter, r *http.Request, email, next, errMsg string) {
@@ -410,9 +376,14 @@ func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 // isSiteRelativePath reports whether next is safe to redirect to: a path on
 // this site, not an absolute or protocol-relative URL that could send the
-// user elsewhere (an open redirect).
+// user elsewhere (an open redirect). A leading "/\" is also rejected —
+// some browsers normalize a backslash there into a second forward slash,
+// turning what looks like a site-relative path into a protocol-relative one.
 func isSiteRelativePath(next string) bool {
-	return strings.HasPrefix(next, "/") && !strings.HasPrefix(next, "//")
+	if !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") {
+		return false
+	}
+	return !strings.ContainsRune(next, '\\')
 }
 
 func (a *App) renderLoginError(w http.ResponseWriter, r *http.Request, email, next, errMsg string) {
@@ -435,7 +406,7 @@ func (a *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-// handleMe is GET /me — show signed-in user's saved rankings.
+// handleMe is GET /me — show the signed-in user's rankings.
 func (a *App) handleMe(w http.ResponseWriter, r *http.Request) {
 	userID := a.Sessions.UserID(r.Context())
 	if userID == 0 {
@@ -443,18 +414,18 @@ func (a *App) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	base := a.base(r)
-	rankings, err := a.Queries.ListRankingsByUser(r.Context(), &userID)
+	rankings, err := a.Queries.ListRankingsByUser(r.Context(), userID)
 	if err != nil {
 		a.serverError(w, r, err)
 		return
 	}
 	accountRankings := make([]AccountRanking, len(rankings))
-	for i, r := range rankings {
+	for i, ranking := range rankings {
 		var formatted string
-		if r.UpdatedAt.Valid {
-			formatted = r.UpdatedAt.Time.Format("Jan 2, 2006")
+		if ranking.UpdatedAt.Valid {
+			formatted = ranking.UpdatedAt.Time.Format("Jan 2, 2006")
 		}
-		accountRankings[i] = AccountRanking{Ranking: r, FormattedUpdated: formatted}
+		accountRankings[i] = AccountRanking{Ranking: ranking, FormattedUpdated: formatted}
 	}
 	view := AccountView{BaseView: base, Rankings: accountRankings}
 	a.Render.Page(w, http.StatusOK, "pages/me.html", view)

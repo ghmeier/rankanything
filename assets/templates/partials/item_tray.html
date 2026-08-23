@@ -8,7 +8,7 @@
     </h2>
     <form
       class="flex gap-2"
-      hx-post="/r/{{ .RankingSlug }}/items"
+      hx-post="/r/{{ .RankingUUID }}/items"
       hx-target="#tray-items"
       hx-swap="beforeend"
       hx-on::after-request="this.reset()"
@@ -35,7 +35,7 @@
   </div>
   <div id="tray-items" class="flex min-h-20 flex-wrap gap-2">
     {{ range .Unassigned }} {{ template "partials/item_card.html" dict "Item" .
-    "RankingSlug" $.RankingSlug }} {{ end }}
+    "RankingUUID" $.RankingUUID }} {{ end }}
   </div>
 </section>
 {{ end }}

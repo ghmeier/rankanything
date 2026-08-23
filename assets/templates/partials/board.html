@@ -5,10 +5,10 @@
     class="grid overflow-hidden rounded-lg border border-border divide-y divide-border"
   >
     {{ range .Tiers }} {{ template "partials/tier_row.html" dict "Tier" .Tier
-    "Items" .Items "RankingSlug" $.Ranking.Slug }} {{ end }}
+    "Items" .Items "RankingUUID" $.Ranking.Uuid }} {{ end }}
   </div>
   {{ template "partials/tier_form.html" . }} {{ template
-  "partials/item_tray.html" dict "RankingSlug" .Ranking.Slug "Unassigned"
+  "partials/item_tray.html" dict "RankingUUID" .Ranking.Uuid "Unassigned"
   .Unassigned }}
 </div>
 {{ end }}
