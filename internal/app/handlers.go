@@ -16,22 +16,6 @@ import (
 
 // ─── Builder routes ─────────────────────────────────────────────────────────
 
-// handleHome is GET / — a signed-in user goes straight to their rankings.
-// A signed-out visitor sees a minimal holding page: feat/landing-page
-// (wave 3) replaces it with the real marketing page. There is no anonymous
-// entry point anymore — every ranking needs an owner from creation.
-func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
-	if userID := a.Sessions.UserID(r.Context()); userID != 0 {
-		http.Redirect(w, r, "/me", http.StatusSeeOther)
-		return
-	}
-
-	base := a.base(r)
-	if err := a.Render.Page(w, http.StatusOK, "pages/home.html", HomeView{BaseView: base}); err != nil {
-		a.serverError(w, r, err)
-	}
-}
-
 // handleNew is POST /new — create a fresh ranking for the signed-in user,
 // with its draft version seeded from the default tier palette. RequireUser
 // gates it, so the signed-out check lives there rather than being repeated

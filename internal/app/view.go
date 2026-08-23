@@ -15,14 +15,6 @@ type BaseView struct {
 	Flash     string
 }
 
-// HomeView backs GET / for a signed-out visitor. feat/landing-page (wave 3)
-// replaces this with the real marketing page; it exists only so signed-out
-// traffic has somewhere to land now that there's no anonymous draft to
-// redirect into.
-type HomeView struct {
-	BaseView
-}
-
 // RankingView is the whole board: the ranking, the version being viewed, its
 // tiers with their items, and the unranked tray.
 type RankingView struct {
