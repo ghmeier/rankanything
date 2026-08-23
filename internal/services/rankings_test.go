@@ -116,6 +116,49 @@ func TestResolveVersionUnknownShortUUIDErrors(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// ListVersions
+// ---------------------------------------------------------------------------
+
+func TestListVersionsReturnsOnlyTheGivenRankingsVersions(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, ranking, draft := newOwnedRanking(t)
+	_, _, otherRanking, _ := newOwnedRanking(t)
+
+	versions, err := svc.ListVersions(ctx, services.ListVersionsRequest{RankingID: ranking.ID})
+	require.NoError(t, err)
+
+	require.Len(t, versions, 1)
+	assert.Equal(t, draft.ID, versions[0].ID)
+	assert.NotEqual(t, otherRanking.ID, ranking.ID)
+}
+
+func TestListVersionsIncludesBothPublishedAndDraftVersions(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, ranking, draft := newOwnedRanking(t)
+
+	published, err := svc.Queries.PublishRankingVersion(ctx, draft.ID)
+	require.NoError(t, err)
+	newDraft, err := svc.Queries.CreateRankingVersion(ctx, db.CreateRankingVersionParams{
+		ShortUuid: uuid.NewString()[:8],
+		RankingID: ranking.ID,
+	})
+	require.NoError(t, err)
+
+	versions, err := svc.ListVersions(ctx, services.ListVersionsRequest{RankingID: ranking.ID})
+	require.NoError(t, err)
+
+	ids := make([]int64, len(versions))
+	for i, v := range versions {
+		ids[i] = v.ID
+	}
+	require.Len(t, ids, 2)
+	assert.Contains(t, ids, published.ID)
+	assert.Contains(t, ids, newDraft.ID)
+}
+
+// ---------------------------------------------------------------------------
 // UpdateRanking
 // ---------------------------------------------------------------------------
 

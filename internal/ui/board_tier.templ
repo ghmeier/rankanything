@@ -1,0 +1,134 @@
+package ui
+
+import "fmt"
+
+// TierRowProps renders one tier row: its label (or edit form, via
+// TierRowLabelProps) and the items placed in it. A mutation handler renders
+// this standalone as an htmx swap target, so it carries RankingUUID rather
+// than depending on an ancestor for it.
+type TierRowProps struct {
+	RankingUUID string
+	TierID      int64
+	Title       string
+	ColorHex    string
+	Items       []ItemCardProps
+}
+
+templ TierRow(props TierRowProps) {
+	<section class="tier-row flex items-stretch gap-2 bg-surface">
+		@TierRowLabel(TierRowLabelProps{RankingUUID: props.RankingUUID, TierID: props.TierID, Title: props.Title, ColorHex: props.ColorHex})
+		<div
+			id={ fmt.Sprintf("tier-items-%d", props.TierID) }
+			class="flex min-h-24 flex-1 flex-wrap content-start gap-2 p-3"
+		>
+			for _, item := range props.Items {
+				@ItemCard(item)
+			}
+		</div>
+	</section>
+}
+
+// TierRowLabelProps renders a tier's label, either as its display form (a
+// title on its tier color, with an edit button) or — when Editable is set —
+// the inline rename/recolor/delete form that edit button swaps in. Both
+// forms share the same #tier-container-{id} id, so an htmx swap of either
+// lands in the same slot.
+type TierRowLabelProps struct {
+	RankingUUID string
+	TierID      int64
+	Title       string
+	ColorHex    string
+	Editable    bool
+}
+
+templ TierRowLabel(props TierRowLabelProps) {
+	if props.Editable {
+		<form
+			hx-put={ fmt.Sprintf("/r/%s/tiers/%d", props.RankingUUID, props.TierID) }
+			hx-target={ fmt.Sprintf("#tier-container-%d", props.TierID) }
+			hx-swap="outerHTML"
+			hx-trigger="submit"
+			class="relative flex w-28 shrink-0 flex-col items-center gap-1 p-2"
+			style={ "background-color: " + props.ColorHex + "1a" }
+			id={ fmt.Sprintf("tier-container-%d", props.TierID) }
+		>
+			<button class="absolute right-2 top-2 h-fit cursor-pointer" type="submit">
+				@SaveIcon()
+			</button>
+			<input
+				name="label"
+				value={ props.Title }
+				aria-label="Tier label"
+				class="w-20 bg-transparent text-center text-xl font-bold outline-none"
+				style={ "color: " + props.ColorHex }
+			/>
+			<input
+				type="color"
+				name="color"
+				value={ props.ColorHex }
+				aria-label="Tier color"
+				class="h-5 w-10 bg-transparent"
+			/>
+			<button
+				class="text-[10px] tracking-wide text-slate-500 hover:text-rose-400"
+				hx-delete={ fmt.Sprintf("/r/%s/tiers/%d", props.RankingUUID, props.TierID) }
+				hx-target="closest tier-row"
+				hx-swap="outerHTML"
+			>
+				Delete
+			</button>
+		</form>
+	} else {
+		<div
+			class="relative flex w-28 shrink-0 flex-col items-center gap-1 p-2"
+			style={ "background-color: " + props.ColorHex }
+			id={ fmt.Sprintf("tier-container-%d", props.TierID) }
+		>
+			<button
+				class="absolute right-2 top-2 h-fit cursor-pointer"
+				hx-post={ fmt.Sprintf("/r/%s/tiers/%d/edit", props.RankingUUID, props.TierID) }
+				hx-target={ fmt.Sprintf("#tier-container-%d", props.TierID) }
+				hx-swap="outerHTML"
+				aria-label="Edit Tier"
+			>
+				@EditIcon()
+			</button>
+			<div class="m-auto line-clamp-2 w-fit rounded-lg bg-surface/60 px-2 text-center text-xl font-bold text-text">
+				{ props.Title }
+			</div>
+		</div>
+	}
+}
+
+// TierFormProps renders the "add a tier" form at the bottom of the board.
+type TierFormProps struct {
+	RankingUUID string
+}
+
+templ TierForm(props TierFormProps) {
+	<form
+		class="flex gap-2"
+		hx-post={ fmt.Sprintf("/r/%s/tiers", props.RankingUUID) }
+		hx-target="#tier-rows"
+		hx-swap="beforeend"
+		hx-on::after-request="this.reset()"
+	>
+		<input
+			name="label"
+			required
+			placeholder="New tier label"
+			aria-label="New tier label"
+			class="rounded-sm border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:bg-surface-hover"
+		/>
+		<input
+			type="color"
+			name="color"
+			value="#94a3b8"
+			aria-label="New tier color"
+			class="h-9 w-12 rounded bg-transparent"
+		/>
+		<button class="rounded-md border border-border bg-secondary px-3 py-1.5 text-sm text-background hover:bg-secondary-hover">
+			Add tier
+		</button>
+	</form>
+}

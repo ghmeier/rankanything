@@ -9,6 +9,7 @@ import (
 	"github.com/ghmeier/rankanything/internal/constants"
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/services"
+	"github.com/ghmeier/rankanything/internal/ui"
 	"github.com/google/uuid"
 )
 
@@ -51,8 +52,8 @@ func (a *App) handleUpdateRanking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view := RankingView{Ranking: updated}
-	if err := a.Render.Partial(w, http.StatusOK, "partials/ranking_meta.html", view); err != nil {
+	props := rankingMetaProps(rankingUUID.String(), updated)
+	if err := renderComponent(w, r, http.StatusOK, ui.RankingMeta(props)); err != nil {
 		a.serverError(w, r, err)
 	}
 }
@@ -80,7 +81,7 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = a.Render.Partial(w, http.StatusOK, "partials/item_card.html", RankingItemCard{Item: item, RankingUUID: rankingUUID}); err != nil {
+	if err = renderComponent(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), item))); err != nil {
 		a.serverError(w, r, err)
 	}
 }
@@ -121,8 +122,7 @@ func (a *App) handleAddTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tierView := TierRowView{Tier: tier, RankingUUID: rankingUUID}
-	if err := a.Render.Partial(w, http.StatusOK, "partials/tier_row.html", tierView); err != nil {
+	if err := renderComponent(w, r, http.StatusOK, ui.TierRow(tierRowProps(rankingUUID.String(), tier, nil))); err != nil {
 		a.serverError(w, r, err)
 	}
 }
@@ -145,8 +145,8 @@ func (a *App) handleEditTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view := TierRowLabelView{Tier: tier, RankingUUID: rankingUUID}
-	if err := a.Render.Partial(w, http.StatusAccepted, "partials/tier_row_label_editable.html", view); err != nil {
+	props := tierRowLabelProps(rankingUUID.String(), tier, true)
+	if err := renderComponent(w, r, http.StatusAccepted, ui.TierRowLabel(props)); err != nil {
 		a.serverError(w, r, err)
 	}
 }
@@ -174,8 +174,8 @@ func (a *App) handleUpdateTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view := TierRowLabelView{Tier: tier, RankingUUID: rankingUUID}
-	if err := a.Render.Partial(w, http.StatusOK, "partials/tier_row_label.html", view); err != nil {
+	props := tierRowLabelProps(rankingUUID.String(), tier, false)
+	if err := renderComponent(w, r, http.StatusOK, ui.TierRowLabel(props)); err != nil {
 		a.serverError(w, r, err)
 	}
 }
@@ -232,7 +232,7 @@ func (a *App) handleAddItemToTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = a.Render.Partial(w, http.StatusOK, "partials/item_card.html", RankingItemCard{Item: item, RankingUUID: rankingUUID}); err != nil {
+	if err = renderComponent(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), item))); err != nil {
 		a.serverError(w, r, err)
 	}
 }

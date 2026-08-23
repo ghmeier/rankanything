@@ -1,0 +1,88 @@
+package ui
+
+import "fmt"
+
+// ItemCardProps renders one ranking item, in the tray or in a tier. It
+// carries RankingUUID rather than relying on an ancestor for it because a
+// mutation handler renders this component standalone as an htmx swap
+// target, with no surrounding page.
+type ItemCardProps struct {
+	RankingUUID string
+	ItemID      int64
+	Title       string
+	ImageURL    string
+}
+
+templ ItemCard(props ItemCardProps) {
+	<article
+		class="group flex h-fit w-40 items-center gap-2 rounded-md border border-border bg-surface p-2 text-sm shadow-sm"
+		id={ fmt.Sprintf("ranking-item-%d", props.ItemID) }
+	>
+		if props.ImageURL != "" {
+			<img
+				src={ props.ImageURL }
+				alt={ props.Title }
+				loading="lazy"
+				class="h-10 w-10 rounded object-cover"
+			/>
+		}
+		<div class="min-w-0 flex-1">
+			<p class="truncate font-medium text-text">{ props.Title }</p>
+		</div>
+		<button
+			hx-delete={ fmt.Sprintf("/r/%s/items/%d", props.RankingUUID, props.ItemID) }
+			hx-target={ fmt.Sprintf("#ranking-item-%d", props.ItemID) }
+			hx-swap="outerHTML"
+			aria-label={ "Remove " + props.Title }
+			class="text-slate-500 opacity-0 transition group-hover:opacity-100 hover:text-rose-400"
+		>
+			&times;
+		</button>
+	</article>
+}
+
+// ItemTrayProps renders the unranked item tray: its add-item form and every
+// item that isn't yet placed in a tier.
+type ItemTrayProps struct {
+	RankingUUID string
+	Unassigned  []ItemCardProps
+}
+
+templ ItemTray(props ItemTrayProps) {
+	<section class="rounded-lg border border-dashed border-border bg-surface-muted p-4">
+		<div class="mb-3 flex items-center justify-between">
+			<h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">
+				Unranked items
+			</h2>
+			<form
+				class="flex gap-2"
+				hx-post={ fmt.Sprintf("/r/%s/items", props.RankingUUID) }
+				hx-target="#tray-items"
+				hx-swap="beforeend"
+				hx-on::after-request="this.reset()"
+			>
+				<input
+					name="label"
+					required
+					placeholder="Add an item"
+					aria-label="Item label"
+					class="rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:bg-surface-hover"
+				/>
+				<input
+					name="image_url"
+					placeholder="Image URL (optional)"
+					aria-label="Item image URL"
+					class="w-48 rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:bg-surface-hover"
+				/>
+				<button class="rounded-md border border-border bg-secondary px-3 py-1.5 text-sm text-background hover:bg-secondary-hover">
+					Add
+				</button>
+			</form>
+		</div>
+		<div id="tray-items" class="flex min-h-20 flex-wrap gap-2">
+			for _, item := range props.Unassigned {
+				@ItemCard(item)
+			}
+		</div>
+	</section>
+}

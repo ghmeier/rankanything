@@ -359,6 +359,18 @@ func (s *RankingsService) GetBoard(ctx context.Context, ranking db.Ranking, vers
 	}, nil
 }
 
+// ListVersionsRequest is the input for fetching every version of a ranking,
+// for the board's version-picker dropdown.
+type ListVersionsRequest struct {
+	RankingID int64
+}
+
+// ListVersions returns every version of a ranking, most recently created
+// first.
+func (s *RankingsService) ListVersions(ctx context.Context, req ListVersionsRequest) ([]db.RankingVersion, error) {
+	return s.Queries.ListRankingVersionsForRanking(ctx, req.RankingID)
+}
+
 // DefaultTiers defines the S/A/B/C/D palette every new ranking version is
 // seeded with.
 var DefaultTiers = []struct {

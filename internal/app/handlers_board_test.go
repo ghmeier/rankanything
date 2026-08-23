@@ -7,8 +7,10 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/ghmeier/rankanything/internal/testsupport"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -147,4 +149,71 @@ func TestOwnedRankingsAreNotReadableByOthers(t *testing.T) {
 
 	write := stranger.Post("/r/"+owner.Ranking.Uuid.String(), url.Values{"title": {"Hijacked"}})
 	assert.Equal(t, http.StatusNotFound, write.Status)
+}
+
+// ---------------------------------------------------------------------------
+// Version dropdown
+// ---------------------------------------------------------------------------
+
+func TestBoardShowsPublishedDateForAPublishedVersion(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	ctx := context.Background()
+
+	published, err := env.Queries.PublishRankingVersion(ctx, owner.Draft.ID)
+	require.NoError(t, err)
+
+	res := owner.Get("/r/" + owner.Ranking.Uuid.String() + "/v/" + published.ShortUuid)
+
+	require.Equal(t, http.StatusOK, res.Status)
+	assert.Contains(t, Body(res.Body), "Published "+published.PublishedAt.Time.Format("Jan 2, 2006"))
+	assert.NotContains(t, Body(res.Body), "Draft version")
+}
+
+func TestBoardVersionDropdownListsEveryVersionAndMarksTheOneBeingViewed(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	ctx := context.Background()
+
+	published, err := env.Queries.PublishRankingVersion(ctx, owner.Draft.ID)
+	require.NoError(t, err)
+
+	secondDraft, err := env.Queries.CreateRankingVersion(ctx, db.CreateRankingVersionParams{
+		ShortUuid: uuid.NewString()[:8],
+		RankingID: owner.Ranking.ID,
+	})
+	require.NoError(t, err)
+
+	// Viewing the published version: its dropdown entry is marked as the
+	// current one, the new draft's is present but unmarked.
+	onPublished := owner.Get("/r/" + owner.Ranking.Uuid.String() + "/v/" + published.ShortUuid).Body
+	assert.Contains(t, Body(onPublished), `aria-current="true"`)
+	assert.Contains(t, Body(onPublished), "/r/"+owner.Ranking.Uuid.String()+"/v/"+secondDraft.ShortUuid)
+
+	// Viewing the new draft: the live version (/r/{uuid} with no pinned
+	// version) resolves to the published one per ResolveLiveRankingVersion,
+	// so the draft has to be reached by its own short uuid to become "the
+	// one being viewed".
+	onDraft := owner.Get("/r/" + owner.Ranking.Uuid.String() + "/v/" + secondDraft.ShortUuid).Body
+	assert.Contains(t, Body(onDraft), "Draft version")
+	assert.Contains(t, Body(onDraft), "/r/"+owner.Ranking.Uuid.String()+"/v/"+published.ShortUuid)
+}
+
+func TestViewingTheLiveRankingResolvesToTheMostRecentlyPublishedVersion(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	ctx := context.Background()
+
+	published, err := env.Queries.PublishRankingVersion(ctx, owner.Draft.ID)
+	require.NoError(t, err)
+	_, err = env.Queries.CreateRankingVersion(ctx, db.CreateRankingVersionParams{
+		ShortUuid: uuid.NewString()[:8],
+		RankingID: owner.Ranking.ID,
+	})
+	require.NoError(t, err)
+
+	res := owner.Get("/r/" + owner.Ranking.Uuid.String())
+
+	require.Equal(t, http.StatusOK, res.Status)
+	assert.Contains(t, Body(res.Body), "Published "+published.PublishedAt.Time.Format("Jan 2, 2006"))
 }

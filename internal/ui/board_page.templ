@@ -1,0 +1,115 @@
+package ui
+
+import (
+	"cmp"
+	"fmt"
+)
+
+// BoardPageProps configures BoardPage — the whole tier board for one
+// version of a ranking.
+type BoardPageProps struct {
+	CSRFToken     string
+	LoggedIn      bool
+	Flash         string
+	RankingMeta   RankingMetaProps
+	VersionStatus string
+	Versions      []BoardVersionOption
+	Tiers         []TierRowProps
+	TierForm      TierFormProps
+	ItemTray      ItemTrayProps
+}
+
+// RankingMetaProps renders the title/description fields. It is rendered
+// both inside BoardPage and standalone as the htmx swap target when a field
+// is edited, so it carries RankingUUID itself.
+type RankingMetaProps struct {
+	RankingUUID string
+	Name        string
+	Description string
+}
+
+// BoardVersionOption is one entry in the version-picker dropdown: every
+// version of the ranking, its state, and whether it's the one being viewed.
+type BoardVersionOption struct {
+	URL     string
+	Label   string
+	Current bool
+}
+
+templ BoardPage(props BoardPageProps) {
+	@Layout(LayoutProps{Title: cmp.Or(props.RankingMeta.Name, "Untitled ranking"), CSRFToken: props.CSRFToken, LoggedIn: props.LoggedIn, Flash: props.Flash}) {
+		<div class="space-y-4">
+			<section class="flex flex-row items-start justify-between gap-2">
+				<form
+					class="flex-1 space-y-2"
+					hx-post={ fmt.Sprintf("/r/%s", props.RankingMeta.RankingUUID) }
+					hx-target="#ranking-meta"
+					hx-swap="outerHTML"
+				>
+					@RankingMeta(props.RankingMeta)
+				</form>
+				<div class="flex shrink-0 flex-col items-end gap-1">
+					<span class="text-xs uppercase tracking-wide text-text-muted">{ props.VersionStatus }</span>
+					@boardVersionMenu(props.Versions)
+				</div>
+			</section>
+			<div id="board" class="space-y-4">
+				<div id="tier-rows" class="grid overflow-hidden rounded-lg border border-border divide-y divide-border">
+					for _, tier := range props.Tiers {
+						@TierRow(tier)
+					}
+				</div>
+				@TierForm(props.TierForm)
+				@ItemTray(props.ItemTray)
+			</div>
+		</div>
+	}
+}
+
+templ RankingMeta(props RankingMetaProps) {
+	<div id="ranking-meta" class="space-y-2">
+		<input
+			name="title"
+			value={ props.Name }
+			aria-label="Ranking title"
+			class="w-full text-2xl font-bold tracking-tight text-text outline-none placeholder:text-subtle focus:border-b focus:border-border"
+			placeholder="Untitled ranking"
+			hx-post={ fmt.Sprintf("/r/%s", props.RankingUUID) }
+			hx-target="#ranking-meta"
+			hx-swap="outerHTML"
+			hx-trigger="change"
+		/>
+		<input
+			name="description"
+			value={ props.Description }
+			aria-label="Ranking description"
+			class="w-full text-sm text-muted outline-none placeholder:text-subtle"
+			placeholder="What are you ranking?"
+			hx-post={ fmt.Sprintf("/r/%s", props.RankingUUID) }
+			hx-target="#ranking-meta"
+			hx-swap="outerHTML"
+			hx-trigger="change"
+		/>
+	</div>
+}
+
+// boardVersionMenu is a native <details> disclosure listing every version
+// of the ranking — no JS needed for a dropdown this simple.
+templ boardVersionMenu(versions []BoardVersionOption) {
+	<details class="relative text-right">
+		<summary class="cursor-pointer list-none rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-text-muted hover:bg-surface-hover">
+			Versions
+		</summary>
+		<ul class="absolute right-0 z-10 mt-1 w-56 rounded-md border border-border bg-surface py-1 text-left shadow-md">
+			for _, v := range versions {
+				<li>
+					if v.Current {
+						<span class="block px-3 py-1.5 text-sm font-medium text-text" aria-current="true">{ v.Label }</span>
+					} else {
+						<a href={ templ.URL(v.URL) } class="block px-3 py-1.5 text-sm text-text-muted hover:bg-surface-hover">{ v.Label }</a>
+					}
+				</li>
+			}
+		</ul>
+	</details>
+}
