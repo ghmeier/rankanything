@@ -2,13 +2,13 @@ package app
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/ghmeier/rankanything/internal/auth"
 	"github.com/ghmeier/rankanything/internal/constants"
+	"github.com/ghmeier/rankanything/internal/render"
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/google/uuid"
 )
@@ -398,14 +398,29 @@ func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("HX-Redirect", "/")
-	w.WriteHeader(http.StatusNoContent)
+	target := "/"
+	if next != "" && isSiteRelativePath(next) {
+		target = next
+	}
+
+	if render.IsHTMXRequest(r) {
+		w.Header().Set("HX-Redirect", target)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, target, http.StatusSeeOther)
+}
+
+// isSiteRelativePath reports whether next is safe to redirect to: a path on
+// this site, not an absolute or protocol-relative URL that could send the
+// user elsewhere (an open redirect).
+func isSiteRelativePath(next string) bool {
+	return strings.HasPrefix(next, "/") && !strings.HasPrefix(next, "//")
 }
 
 func (a *App) renderLoginError(w http.ResponseWriter, r *http.Request, email, next, errMsg string) {
 	base := a.base(r)
 	view := AuthView{BaseView: base, Email: email, Next: next, Error: errMsg}
-	fmt.Println(errMsg)
 	err := a.Render.Partial(w, http.StatusUnauthorized, "pages/login.html", view)
 	if err != nil {
 		a.serverError(w, r, err)
@@ -415,8 +430,12 @@ func (a *App) renderLoginError(w http.ResponseWriter, r *http.Request, email, ne
 // handleLogout is POST /logout.
 func (a *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 	_ = a.UserSvc.Logout(r.Context())
-	w.Header().Set("HX-Redirect", "/")
-	w.WriteHeader(http.StatusNoContent)
+	if render.IsHTMXRequest(r) {
+		w.Header().Set("HX-Redirect", "/")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 // handleMe is GET /me — show signed-in user's saved rankings.

@@ -1,23 +1,30 @@
 {{ define "pages/ranking.html" }}
-<div class="space-y-4">
-  <section class="flex flex-row items-start justify-between gap-2">
-    <form
-      class="flex-1 space-y-2"
-      hx-post="/r/{{ .Ranking.Slug }}"
-      hx-target="#ranking-meta"
-      hx-swap="outerHTML"
-    >
-      {{ template "partials/ranking_meta.html" . }}
-    </form>
-    <form method="post" action="/r/{{ .Ranking.Slug }}/save">
-      <button
-        class="rounded-md bg-primary hover:bg-primary-hover text-background px-4 py-2 text-sm font-semibold"
+  <div class="space-y-4">
+    <section class="flex flex-row items-start justify-between gap-2">
+      <form
+        class="flex-1 space-y-2"
+        hx-post="/r/{{ .Ranking.Slug }}"
+        hx-target="#ranking-meta"
+        hx-swap="outerHTML"
       >
-        Save ranking
-      </button>
-    </form>
-  </section>
+        {{ template "partials/ranking_meta.html" . }}
+      </form>
+      <div class="flex items-center gap-3">
+        {{ if .IsDraft }}
+          <span class="text-xs uppercase tracking-wide text-subtle"
+            >Unsaved draft</span
+          >
+        {{ end }}
+        <form method="post" action="/r/{{ .Ranking.Slug }}/save">
+          <button
+            class="rounded-md bg-primary hover:bg-primary-hover text-background px-4 py-2 text-sm font-semibold"
+          >
+            Save ranking
+          </button>
+        </form>
+      </div>
+    </section>
 
-  <div id="board">{{ template "partials/board.html" . }}</div>
-</div>
+    <div id="board">{{ template "partials/board.html" . }}</div>
+  </div>
 {{ end }}
