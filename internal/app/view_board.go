@@ -176,6 +176,7 @@ func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoa
 		CSRFToken:     base.CSRFToken,
 		LoggedIn:      base.User != nil,
 		Flash:         base.Flash,
+		Theme:         base.Theme,
 		RankingMeta:   rankingMetaProps(rankingUUID, board.Version.ShortUuid, board.Ranking, editable),
 		VersionStatus: boardVersionStatusText(board.Version),
 		Versions:      boardVersionOptions(rankingUUID, versions, board.Version),

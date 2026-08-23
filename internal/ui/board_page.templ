@@ -11,6 +11,7 @@ type BoardPageProps struct {
 	CSRFToken     string
 	LoggedIn      bool
 	Flash         string
+	Theme         string
 	RankingMeta   RankingMetaProps
 	VersionStatus string
 	Versions      []BoardVersionOption
@@ -47,7 +48,7 @@ type RankingMetaProps struct {
 }
 
 templ BoardPage(props BoardPageProps) {
-	@Layout(LayoutProps{Title: cmp.Or(props.RankingMeta.Name, "Untitled ranking"), CSRFToken: props.CSRFToken, LoggedIn: props.LoggedIn, Flash: props.Flash}) {
+	@Layout(LayoutProps{Title: cmp.Or(props.RankingMeta.Name, "Untitled ranking"), CSRFToken: props.CSRFToken, LoggedIn: props.LoggedIn, Flash: props.Flash, Theme: props.Theme}) {
 		<div class="space-y-4">
 			<section class="flex flex-row items-start justify-between gap-2">
 				<form

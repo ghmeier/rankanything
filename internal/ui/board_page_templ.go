@@ -19,6 +19,7 @@ type BoardPageProps struct {
 	CSRFToken     string
 	LoggedIn      bool
 	Flash         string
+	Theme         string
 	RankingMeta   RankingMetaProps
 	VersionStatus string
 	Versions      []BoardVersionOption
@@ -94,7 +95,7 @@ func BoardPage(props BoardPageProps) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/r/%s", props.RankingMeta.RankingUUID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 55, Col: 66}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 56, Col: 66}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 			if templ_7745c5c3_Err != nil {
@@ -137,7 +138,7 @@ func BoardPage(props BoardPageProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.VersionStatus)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 77, Col: 88}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 78, Col: 88}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -162,7 +163,7 @@ func BoardPage(props BoardPageProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.RankingMeta.RankingUUID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 82, Col: 68}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 83, Col: 68}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 			if templ_7745c5c3_Err != nil {
@@ -175,7 +176,7 @@ func BoardPage(props BoardPageProps) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.RankingMeta.VersionShortUUID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 82, Col: 125}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 83, Col: 125}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 			if templ_7745c5c3_Err != nil {
@@ -205,7 +206,7 @@ func BoardPage(props BoardPageProps) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = Layout(LayoutProps{Title: cmp.Or(props.RankingMeta.Name, "Untitled ranking"), CSRFToken: props.CSRFToken, LoggedIn: props.LoggedIn, Flash: props.Flash}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Layout(LayoutProps{Title: cmp.Or(props.RankingMeta.Name, "Untitled ranking"), CSRFToken: props.CSRFToken, LoggedIn: props.LoggedIn, Flash: props.Flash, Theme: props.Theme}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -298,7 +299,7 @@ func BoardVersionActions(props BoardVersionActionsProps) templ.Component {
 			var templ_7745c5c3_Var9 templ.SafeURL
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(props.DraftURL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 126, Col: 38}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 127, Col: 38}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -373,7 +374,7 @@ func RankingMeta(props RankingMetaProps) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 142, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 143, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
 			if templ_7745c5c3_Err != nil {
@@ -386,7 +387,7 @@ func RankingMeta(props RankingMetaProps) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/r/%s", props.RankingUUID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 146, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 147, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
 			if templ_7745c5c3_Err != nil {
@@ -399,7 +400,7 @@ func RankingMeta(props RankingMetaProps) templ.Component {
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.Description)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 153, Col: 29}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 154, Col: 29}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 			if templ_7745c5c3_Err != nil {
@@ -412,7 +413,7 @@ func RankingMeta(props RankingMetaProps) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/r/%s", props.RankingUUID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 157, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 158, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 			if templ_7745c5c3_Err != nil {
@@ -430,7 +431,7 @@ func RankingMeta(props RankingMetaProps) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(cmp.Or(props.Name, "Untitled ranking"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 163, Col: 105}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 164, Col: 105}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -448,7 +449,7 @@ func RankingMeta(props RankingMetaProps) templ.Component {
 				var templ_7745c5c3_Var17 string
 				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(props.Description)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 165, Col: 60}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 166, Col: 60}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 				if templ_7745c5c3_Err != nil {

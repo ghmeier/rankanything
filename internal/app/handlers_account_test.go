@@ -60,6 +60,18 @@ func TestUpdateThemePersistsAcrossPagesUntilChangedAgain(t *testing.T) {
 	assert.Contains(t, Body(me.Body), `data-theme="dark"`, "a page other than /account must also carry the stored preference")
 }
 
+func TestBoardPageCarriesTheStoredThemePreference(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+
+	res := owner.HTMX(http.MethodPost, "/account/theme", url.Values{"theme": {"light"}})
+	require.Equal(t, http.StatusOK, res.Status)
+
+	board := owner.Get("/r/" + owner.Ranking.Uuid.String())
+	require.Equal(t, http.StatusOK, board.Status)
+	assert.Contains(t, Body(board.Body), `data-theme="light"`)
+}
+
 func TestUpdateThemeRejectsAnUnknownValue(t *testing.T) {
 	env := testsupport.NewEnv(t)
 	owner := env.NewOwnerClient()
