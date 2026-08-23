@@ -95,4 +95,3 @@ func TestRankingsIndexShowsAPublishedRankingWithANewerDraftInProgress(t *testing
 	assert.Contains(t, body, "published", "the last publish must still be visible")
 	assert.Contains(t, body, "draft in progress", "the newer draft on top of the publish must be visible too")
 }
-

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/ghmeier/rankanything/internal/db"
+	"github.com/ghmeier/rankanything/internal/render"
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/ghmeier/rankanything/internal/ui"
 )
@@ -71,4 +72,29 @@ func formatPublishedAt(v db.RankingVersion) string {
 		return ""
 	}
 	return v.PublishedAt.Time.Format("Jan 2")
+}
+
+// handleNew is POST /new — create a fresh ranking for the signed-in user,
+// with its draft version seeded from the default tier palette. RequireUser
+// gates it, so the signed-out check lives there rather than being repeated
+// here. It's a POST rather than the prototype's GET because a GET carries no
+// CSRF check (the middleware deliberately skips GET/HEAD/OPTIONS) and is
+// fair game for link prefetch or a stray navigation — neither should mint a
+// ranking.
+func (a *App) handleNew(w http.ResponseWriter, r *http.Request) {
+	userID := a.Sessions.UserID(r.Context())
+
+	ranking, err := a.RankingSvc.CreateForUser(r.Context(), services.CreateForUserRequest{UserID: userID})
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+
+	target := "/r/" + ranking.Uuid.String()
+	if render.IsHTMXRequest(r) {
+		w.Header().Set("HX-Redirect", target)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, target, http.StatusSeeOther)
 }
