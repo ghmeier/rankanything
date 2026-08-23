@@ -78,7 +78,6 @@ func run(logger *slog.Logger) error {
 		VerificationSvc: &services.VerificationService{
 			Queries:  q,
 			Sender:   emailSvc,
-			DB:       p,
 			Sessions: s,
 			BaseURL:  cfg.BaseURL,
 		},

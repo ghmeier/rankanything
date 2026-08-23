@@ -101,3 +101,17 @@ func (q *Queries) TouchLastLogin(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, touchLastLogin, id)
 	return err
 }
+
+const updateUserPasswordHash = `-- name: UpdateUserPasswordHash :exec
+UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1
+`
+
+type UpdateUserPasswordHashParams struct {
+	ID           int64
+	PasswordHash string
+}
+
+func (q *Queries) UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPasswordHashParams) error {
+	_, err := q.db.Exec(ctx, updateUserPasswordHash, arg.ID, arg.PasswordHash)
+	return err
+}

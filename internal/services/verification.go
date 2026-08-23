@@ -11,7 +11,6 @@ import (
 	"github.com/ghmeier/rankanything/internal/email"
 	"github.com/ghmeier/rankanything/internal/token"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -21,26 +20,11 @@ import (
 // contract — so a caller can't fish for information by trying a token twice.
 var ErrTokenInvalid = errors.New("This link has expired or was already used.")
 
-// updateUserPasswordHash has no sqlc query behind it: db/queries and
-// internal/db belong to another branch for the duration of this wave, and
-// the users table already has every column this needs. Once that branch
-// merges, this should become a generated query like the rest of the
-// package's writes.
-const updateUserPasswordHash = `UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2`
-
-// passwordUpdater is the minimal capability VerificationService needs to run
-// updateUserPasswordHash directly. *pgxpool.Pool and pgx.Tx both satisfy it,
-// so tests can pass the same transaction they pass as Queries.
-type passwordUpdater interface {
-	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
-}
-
 // VerificationService implements email verification and password reset:
 // minting tokens, mailing them, and redeeming them.
 type VerificationService struct {
 	Queries *db.Queries
 	Sender  email.Sender
-	DB      passwordUpdater
 
 	// Sessions is needed only to invalidate an account's sessions when its
 	// password is reset.
@@ -178,7 +162,10 @@ func (s *VerificationService) RedeemPasswordReset(ctx context.Context, plaintext
 		return fmt.Errorf("password reset: redeem token: %w", err)
 	}
 
-	if _, err := s.DB.Exec(ctx, updateUserPasswordHash, passwordHash, row.UserID); err != nil {
+	if err := s.Queries.UpdateUserPasswordHash(ctx, db.UpdateUserPasswordHashParams{
+		ID:           row.UserID,
+		PasswordHash: passwordHash,
+	}); err != nil {
 		return fmt.Errorf("password reset: update password: %w", err)
 	}
 

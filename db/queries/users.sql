@@ -15,3 +15,6 @@ UPDATE users SET last_login_at = now(), updated_at = now() WHERE id = $1;
 -- name: MarkUserEmailVerified :one
 UPDATE users SET email_verified = true, updated_at = now() WHERE id = $1
 RETURNING *;
+
+-- name: UpdateUserPasswordHash :exec
+UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1;
