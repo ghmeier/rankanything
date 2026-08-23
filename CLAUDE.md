@@ -10,7 +10,7 @@ Rankanything is a server-rendered tier-list builder: create a ranking, add items
 
 ```bash
 make dev            # air (Go hot reload) + tailwind --watch, together
-make test           # rtk go test ./... -race, with TEST_DATABASE_URL exported
+make test           # go test ./... -race, with TEST_DATABASE_URL loaded from .env
 make migrate        # goose up against $DATABASE_URL
 make migrate-down   # goose down one step
 make templ          # regenerate *_templ.go from .templ sources; the generated files are committed, so run this and commit the result after any .templ change, or CI's drift check fails
@@ -23,7 +23,9 @@ go test ./internal/app -run TestOwnedRankingsAreNotReadableByOthers -race
 npx prettier --write 'assets/templates/**/*.html'   # go-template-aware formatting
 ```
 
-`.env` (gitignored) supplies `DATABASE_URL`; `config.Load` hard-fails if `.env` is missing or the URL is empty. `PORT` defaults to `:8001`, `APP_ENV` to `development` (production flips the Secure cookie flag). `make seed` references a `./cmd/seed` that does not exist.
+`.env` (gitignored) supplies `DATABASE_URL`; `config.Load` hard-fails if `.env` is missing or the URL is empty. The Makefile loads it with `-include`, so a checkout without one (CI) can still run `make css` and `make templ` — but note that an unset `TEST_DATABASE_URL` makes every database test *skip* and `make test` exit 0. `PORT` defaults to `:8001`, `APP_ENV` to `development` (production flips the Secure cookie flag). `make seed` references a `./cmd/seed` that does not exist.
+
+The MVP rewrote `db/migrations` from scratch and reused numbers 00003 and 00004 for different tables, so a database created against the prototype cannot be migrated forward — goose reports those versions as applied and then collides on `00005_rankings.sql`. Point at a fresh database rather than trying to reconcile an old one.
 
 ## Architecture
 
@@ -43,4 +45,4 @@ npx prettier --write 'assets/templates/**/*.html'   # go-template-aware formatti
 
 ## Tests
 
-`internal/testsupport` boots the real app — real templates, real Postgres, in-memory session store — behind an `httptest.Server`. Each test gets a transaction that rolls back on cleanup, so tests are isolated and parallel-safe; migrations run once per process. Tests **skip** (not fail) when `TEST_DATABASE_URL` is unset. The `Client` helper keeps a cookie jar, does not follow redirects (assert on `Location`), scrapes the CSRF token out of returned HTML and attaches it, and offers `HTMX(method, path, form)` for fragment requests plus `FormWithBogusCSRF` for rejection tests. `Env.NewOwnerClient()` registers a fresh user and creates a ranking for them (draft version seeded with the default tiers, same as `GET /new`) — the fixture most ranking tests need now that every ranking requires a signed-in owner. Handler tests live in `internal/app` and drive the app through HTTP; service tests bypass HTTP and call the service directly.
+`internal/testsupport` boots the real app — real templates, real Postgres, in-memory session store — behind an `httptest.Server`. Each test gets a transaction that rolls back on cleanup, so tests are isolated and parallel-safe; migrations run once per process. Tests **skip** (not fail) when `TEST_DATABASE_URL` is unset. The `Client` helper keeps a cookie jar, does not follow redirects (assert on `Location`), scrapes the CSRF token out of returned HTML and attaches it, and offers `HTMX(method, path, form)` for fragment requests plus `FormWithBogusCSRF` for rejection tests. `Env.NewOwnerClient()` registers a fresh user and creates a ranking for them (draft version seeded with the default tiers, same as `POST /new`) — the fixture most ranking tests need now that every ranking requires a signed-in owner. Handler tests live in `internal/app` and drive the app through HTTP; service tests bypass HTTP and call the service directly.
