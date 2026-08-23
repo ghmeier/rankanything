@@ -1,49 +1,19 @@
--- name: CreateItem :one
-INSERT INTO ranked_items (label, sublabel, source_url, source_image_url, image_url)
-VALUES ($1, $2, $3, $4, $5)
+-- name: CreateRankingItem :one
+INSERT INTO ranking_items (ranking_version_id, title, image_source_url, source_url)
+VALUES ($1, $2, $3, $4)
 RETURNING *;
 
--- name: GetItem :one
-SELECT * from ranked_items where id = $1;
+-- name: ListRankingItemsForVersion :many
+SELECT * FROM ranking_items WHERE ranking_version_id = $1 ORDER BY created_at, id;
 
--- name: AddItemToRanking :exec
-INSERT INTO ranking_items (ranking_id, ranked_item_id)
-VALUES ($1, $2)
-ON CONFLICT DO NOTHING;
+-- name: GetRankingItem :one
+SELECT * FROM ranking_items WHERE id = $1;
 
--- name: RemoveItemFromRanking :exec
-DELETE FROM ranking_items WHERE ranking_id = $1 AND ranked_item_id = $2;
+-- name: UpdateRankingItem :one
+UPDATE ranking_items
+SET title = $2, image_source_url = $3, image_upload_url = $4, source_url = $5, updated_at = now()
+WHERE id = $1
+RETURNING *;
 
--- name: ListRankingItems :many
-SELECT i.* FROM ranked_items i
-JOIN ranking_items ri ON ri.ranked_item_id = i.id
-WHERE ri.ranking_id = $1
-ORDER BY ri.created_at, i.id;
-
--- name: ListRankingTierItems :many
-SELECT i.* FROM ranked_items i
-JOIN ranking_tier_items rti ON rti.ranked_item_id = i.id
-WHERE rti.ranking_tier_id = $1
-ORDER BY rti.created_at, i.id;
-
--- name: ListRankingItemsByPosition :many
-SELECT ti.*
-FROM ranking_tier_items ti
-JOIN ranking_tiers t ON t.id = ti.ranking_tier_id
-WHERE t.ranking_id = $1
-ORDER BY t.position, ti.position;
-
--- name: CountTierItems :one
-SELECT count(*)::int FROM ranking_tier_items WHERE ranking_tier_id = $1;
-
--- name: ClearTierPlacements :exec
-DELETE FROM ranking_tier_items WHERE ranking_tier_id = $1;
-
--- name: RemoveItemFromTiers :exec
-DELETE FROM ranking_tier_items ti
-USING ranking_tiers t
-WHERE ti.ranking_tier_id = t.id AND t.ranking_id = $1 AND ti.ranked_item_id = $2;
-
--- name: AddItemToTier :exec
-INSERT INTO ranking_tier_items (ranking_tier_id, ranked_item_id, position)
-VALUES ($1, $2, $3);
+-- name: DeleteRankingItem :exec
+DELETE FROM ranking_items WHERE id = $1;

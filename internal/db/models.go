@@ -5,53 +5,146 @@
 package db
 
 import (
+	"database/sql/driver"
+	"fmt"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type RankedItem struct {
-	ID             int64
-	Label          string
-	Sublabel       string
-	SourceUrl      string
-	SourceImageUrl string
-	ImageUrl       string
-	CreatedAt      pgtype.Timestamptz
-	UpdatedAt      pgtype.Timestamptz
+type RankingShareRole string
+
+const (
+	RankingShareRoleOWNER  RankingShareRole = "OWNER"
+	RankingShareRoleEDITOR RankingShareRole = "EDITOR"
+	RankingShareRoleREADER RankingShareRole = "READER"
+)
+
+func (e *RankingShareRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RankingShareRole(s)
+	case string:
+		*e = RankingShareRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RankingShareRole: %T", src)
+	}
+	return nil
+}
+
+type NullRankingShareRole struct {
+	RankingShareRole RankingShareRole
+	Valid            bool // Valid is true if RankingShareRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRankingShareRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.RankingShareRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RankingShareRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRankingShareRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RankingShareRole), nil
+}
+
+type EmailVerification struct {
+	ID         int64
+	CreatedAt  pgtype.Timestamptz
+	SentAt     pgtype.Timestamptz
+	ExpiresAt  pgtype.Timestamptz
+	TokenHash  string
+	IsVerified bool
+	UserID     int64
+}
+
+type PasswordReset struct {
+	ID        int64
+	CreatedAt pgtype.Timestamptz
+	SentAt    pgtype.Timestamptz
+	ExpiresAt pgtype.Timestamptz
+	TokenHash string
+	IsUsed    bool
+	UserID    int64
 }
 
 type Ranking struct {
 	ID          int64
-	Slug        uuid.UUID
-	UserID      *int64
-	Title       string
-	Description string
+	Uuid        uuid.UUID
 	CreatedAt   pgtype.Timestamptz
 	UpdatedAt   pgtype.Timestamptz
+	Name        string
+	Description string
+	UserID      int64
+}
+
+type RankingInvite struct {
+	ID             int64
+	CreatedAt      pgtype.Timestamptz
+	SentAt         pgtype.Timestamptz
+	ExpiresAt      pgtype.Timestamptz
+	Token          string
+	UserID         int64
+	InvitedUserID  *int64
+	InvitedEmail   *string
+	RankingShareID int64
 }
 
 type RankingItem struct {
-	RankingID    int64
-	RankedItemID int64
-	CreatedAt    pgtype.Timestamptz
+	ID               int64
+	CreatedAt        pgtype.Timestamptz
+	UpdatedAt        pgtype.Timestamptz
+	RankingVersionID int64
+	Title            string
+	ImageSourceUrl   *string
+	ImageUploadUrl   *string
+	SourceUrl        *string
+}
+
+type RankingItemTier struct {
+	ID               int64
+	Position         int16
+	RankingItemID    int64
+	RankingTierID    int64
+	RankingVersionID int64
+}
+
+type RankingShare struct {
+	ID         int64
+	CreatedAt  pgtype.Timestamptz
+	Role       RankingShareRole
+	IsPublic   bool
+	PublicSlug *string
+	UserID     *int64
+	Email      *string
+	RankingID  int64
 }
 
 type RankingTier struct {
-	ID            int64
-	RankingID     int64
-	Label         string
-	Position      int32
-	Color         string
-	AllowMultiple bool
-	CreatedAt     pgtype.Timestamptz
-	UpdatedAt     pgtype.Timestamptz
+	ID               int64
+	CreatedAt        pgtype.Timestamptz
+	UpdatedAt        pgtype.Timestamptz
+	Position         int16
+	RankingVersionID int64
+	RankingID        int64
+	Title            string
+	ColorHex         string
 }
 
-type RankingTierItem struct {
-	RankingTierID int64
-	RankedItemID  int64
-	Position      int32
-	CreatedAt     pgtype.Timestamptz
+type RankingVersion struct {
+	ID          int64
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	ShortUuid   string
+	RankingID   int64
+	PublishedAt pgtype.Timestamptz
 }
 
 type Session struct {

@@ -73,6 +73,26 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 	return i, err
 }
 
+const markUserEmailVerified = `-- name: MarkUserEmailVerified :one
+UPDATE users SET email_verified = true, updated_at = now() WHERE id = $1
+RETURNING id, email, password_hash, email_verified, created_at, updated_at, last_login_at
+`
+
+func (q *Queries) MarkUserEmailVerified(ctx context.Context, id int64) (User, error) {
+	row := q.db.QueryRow(ctx, markUserEmailVerified, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.EmailVerified,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastLoginAt,
+	)
+	return i, err
+}
+
 const touchLastLogin = `-- name: TouchLastLogin :exec
 UPDATE users SET last_login_at = now(), updated_at = now() WHERE id = $1
 `

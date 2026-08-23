@@ -11,171 +11,66 @@ import (
 	"github.com/google/uuid"
 )
 
-const claimRankings = `-- name: ClaimRankings :many
-UPDATE rankings
-SET user_id = $1, updated_at = now()
-WHERE slug = ANY($2::uuid[]) AND user_id IS NULL
-RETURNING id, slug, user_id, title, description, created_at, updated_at
-`
-
-type ClaimRankingsParams struct {
-	UserID *int64
-	Slugs  []uuid.UUID
-}
-
-func (q *Queries) ClaimRankings(ctx context.Context, arg ClaimRankingsParams) ([]Ranking, error) {
-	rows, err := q.db.Query(ctx, claimRankings, arg.UserID, arg.Slugs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Ranking
-	for rows.Next() {
-		var i Ranking
-		if err := rows.Scan(
-			&i.ID,
-			&i.Slug,
-			&i.UserID,
-			&i.Title,
-			&i.Description,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const createRanking = `-- name: CreateRanking :one
-INSERT INTO rankings (title, user_id)
-VALUES ($1, $2)
-RETURNING id, slug, user_id, title, description, created_at, updated_at
+INSERT INTO rankings (name, description, user_id)
+VALUES ($1, $2, $3)
+RETURNING id, uuid, created_at, updated_at, name, description, user_id
 `
 
 type CreateRankingParams struct {
-	Title  string
-	UserID *int64
+	Name        string
+	Description string
+	UserID      int64
 }
 
 func (q *Queries) CreateRanking(ctx context.Context, arg CreateRankingParams) (Ranking, error) {
-	row := q.db.QueryRow(ctx, createRanking, arg.Title, arg.UserID)
+	row := q.db.QueryRow(ctx, createRanking, arg.Name, arg.Description, arg.UserID)
 	var i Ranking
 	err := row.Scan(
 		&i.ID,
-		&i.Slug,
-		&i.UserID,
-		&i.Title,
+		&i.Uuid,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
 		&i.Description,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
 
-const createTier = `-- name: CreateTier :one
-INSERT INTO ranking_tiers (ranking_id, label, position, color, allow_multiple)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, ranking_id, label, position, color, allow_multiple, created_at, updated_at
+const deleteRanking = `-- name: DeleteRanking :exec
+DELETE FROM rankings WHERE id = $1
 `
 
-type CreateTierParams struct {
-	RankingID     int64
-	Label         string
-	Position      int32
-	Color         string
-	AllowMultiple bool
-}
-
-func (q *Queries) CreateTier(ctx context.Context, arg CreateTierParams) (RankingTier, error) {
-	row := q.db.QueryRow(ctx, createTier,
-		arg.RankingID,
-		arg.Label,
-		arg.Position,
-		arg.Color,
-		arg.AllowMultiple,
-	)
-	var i RankingTier
-	err := row.Scan(
-		&i.ID,
-		&i.RankingID,
-		&i.Label,
-		&i.Position,
-		&i.Color,
-		&i.AllowMultiple,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const deleteStaleDrafts = `-- name: DeleteStaleDrafts :exec
-DELETE FROM rankings
-WHERE user_id IS NULL AND created_at < now() - interval '30 days'
-`
-
-func (q *Queries) DeleteStaleDrafts(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, deleteStaleDrafts)
+func (q *Queries) DeleteRanking(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, deleteRanking, id)
 	return err
 }
 
-const deleteTier = `-- name: DeleteTier :exec
-DELETE FROM ranking_tiers WHERE id = $1
+const getRankingByUUID = `-- name: GetRankingByUUID :one
+SELECT id, uuid, created_at, updated_at, name, description, user_id FROM rankings WHERE uuid = $1
 `
 
-func (q *Queries) DeleteTier(ctx context.Context, id int64) error {
-	_, err := q.db.Exec(ctx, deleteTier, id)
-	return err
-}
-
-const getRankingBySlug = `-- name: GetRankingBySlug :one
-SELECT id, slug, user_id, title, description, created_at, updated_at FROM rankings WHERE slug = $1
-`
-
-func (q *Queries) GetRankingBySlug(ctx context.Context, slug uuid.UUID) (Ranking, error) {
-	row := q.db.QueryRow(ctx, getRankingBySlug, slug)
+func (q *Queries) GetRankingByUUID(ctx context.Context, argUuid uuid.UUID) (Ranking, error) {
+	row := q.db.QueryRow(ctx, getRankingByUUID, argUuid)
 	var i Ranking
 	err := row.Scan(
 		&i.ID,
-		&i.Slug,
-		&i.UserID,
-		&i.Title,
+		&i.Uuid,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
 		&i.Description,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const getTier = `-- name: GetTier :one
-SELECT id, ranking_id, label, position, color, allow_multiple, created_at, updated_at FROM ranking_tiers WHERE id = $1
-`
-
-func (q *Queries) GetTier(ctx context.Context, id int64) (RankingTier, error) {
-	row := q.db.QueryRow(ctx, getTier, id)
-	var i RankingTier
-	err := row.Scan(
-		&i.ID,
-		&i.RankingID,
-		&i.Label,
-		&i.Position,
-		&i.Color,
-		&i.AllowMultiple,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }
 
 const listRankingsByUser = `-- name: ListRankingsByUser :many
-SELECT id, slug, user_id, title, description, created_at, updated_at FROM rankings WHERE user_id = $1 ORDER BY updated_at DESC
+SELECT id, uuid, created_at, updated_at, name, description, user_id FROM rankings WHERE user_id = $1 ORDER BY updated_at DESC
 `
 
-func (q *Queries) ListRankingsByUser(ctx context.Context, userID *int64) ([]Ranking, error) {
+func (q *Queries) ListRankingsByUser(ctx context.Context, userID int64) ([]Ranking, error) {
 	rows, err := q.db.Query(ctx, listRankingsByUser, userID)
 	if err != nil {
 		return nil, err
@@ -186,12 +81,12 @@ func (q *Queries) ListRankingsByUser(ctx context.Context, userID *int64) ([]Rank
 		var i Ranking
 		if err := rows.Scan(
 			&i.ID,
-			&i.Slug,
-			&i.UserID,
-			&i.Title,
+			&i.Uuid,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Name,
 			&i.Description,
-			&i.CreatedAt,
-			&i.UpdatedAt,
+			&i.UserID,
 		); err != nil {
 			return nil, err
 		}
@@ -201,113 +96,32 @@ func (q *Queries) ListRankingsByUser(ctx context.Context, userID *int64) ([]Rank
 		return nil, err
 	}
 	return items, nil
-}
-
-const listTiers = `-- name: ListTiers :many
-SELECT id, ranking_id, label, position, color, allow_multiple, created_at, updated_at FROM ranking_tiers WHERE ranking_id = $1 ORDER BY position
-`
-
-func (q *Queries) ListTiers(ctx context.Context, rankingID int64) ([]RankingTier, error) {
-	rows, err := q.db.Query(ctx, listTiers, rankingID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []RankingTier
-	for rows.Next() {
-		var i RankingTier
-		if err := rows.Scan(
-			&i.ID,
-			&i.RankingID,
-			&i.Label,
-			&i.Position,
-			&i.Color,
-			&i.AllowMultiple,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const nextTierPosition = `-- name: NextTierPosition :one
-SELECT coalesce(max(position) + 1, 0)::int FROM ranking_tiers WHERE ranking_id = $1
-`
-
-func (q *Queries) NextTierPosition(ctx context.Context, rankingID int64) (int32, error) {
-	row := q.db.QueryRow(ctx, nextTierPosition, rankingID)
-	var column_1 int32
-	err := row.Scan(&column_1)
-	return column_1, err
 }
 
 const updateRanking = `-- name: UpdateRanking :one
 UPDATE rankings
-SET title = $2, description = $3, updated_at = now()
+SET name = $2, description = $3, updated_at = now()
 WHERE id = $1
-RETURNING id, slug, user_id, title, description, created_at, updated_at
+RETURNING id, uuid, created_at, updated_at, name, description, user_id
 `
 
 type UpdateRankingParams struct {
 	ID          int64
-	Title       string
+	Name        string
 	Description string
 }
 
 func (q *Queries) UpdateRanking(ctx context.Context, arg UpdateRankingParams) (Ranking, error) {
-	row := q.db.QueryRow(ctx, updateRanking, arg.ID, arg.Title, arg.Description)
+	row := q.db.QueryRow(ctx, updateRanking, arg.ID, arg.Name, arg.Description)
 	var i Ranking
 	err := row.Scan(
 		&i.ID,
-		&i.Slug,
-		&i.UserID,
-		&i.Title,
+		&i.Uuid,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
 		&i.Description,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const updateTier = `-- name: UpdateTier :one
-UPDATE ranking_tiers
-SET label = $2, color = $3, position = $4, allow_multiple = $5, updated_at = now()
-WHERE id = $1
-RETURNING id, ranking_id, label, position, color, allow_multiple, created_at, updated_at
-`
-
-type UpdateTierParams struct {
-	ID            int64
-	Label         string
-	Color         string
-	Position      int32
-	AllowMultiple bool
-}
-
-func (q *Queries) UpdateTier(ctx context.Context, arg UpdateTierParams) (RankingTier, error) {
-	row := q.db.QueryRow(ctx, updateTier,
-		arg.ID,
-		arg.Label,
-		arg.Color,
-		arg.Position,
-		arg.AllowMultiple,
-	)
-	var i RankingTier
-	err := row.Scan(
-		&i.ID,
-		&i.RankingID,
-		&i.Label,
-		&i.Position,
-		&i.Color,
-		&i.AllowMultiple,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.UserID,
 	)
 	return i, err
 }

@@ -9,208 +9,91 @@ import (
 	"context"
 )
 
-const addItemToRanking = `-- name: AddItemToRanking :exec
-INSERT INTO ranking_items (ranking_id, ranked_item_id)
-VALUES ($1, $2)
-ON CONFLICT DO NOTHING
+const createRankingItem = `-- name: CreateRankingItem :one
+INSERT INTO ranking_items (ranking_version_id, title, image_source_url, source_url)
+VALUES ($1, $2, $3, $4)
+RETURNING id, created_at, updated_at, ranking_version_id, title, image_source_url, image_upload_url, source_url
 `
 
-type AddItemToRankingParams struct {
-	RankingID    int64
-	RankedItemID int64
+type CreateRankingItemParams struct {
+	RankingVersionID int64
+	Title            string
+	ImageSourceUrl   *string
+	SourceUrl        *string
 }
 
-func (q *Queries) AddItemToRanking(ctx context.Context, arg AddItemToRankingParams) error {
-	_, err := q.db.Exec(ctx, addItemToRanking, arg.RankingID, arg.RankedItemID)
-	return err
-}
-
-const addItemToTier = `-- name: AddItemToTier :exec
-INSERT INTO ranking_tier_items (ranking_tier_id, ranked_item_id, position)
-VALUES ($1, $2, $3)
-`
-
-type AddItemToTierParams struct {
-	RankingTierID int64
-	RankedItemID  int64
-	Position      int32
-}
-
-func (q *Queries) AddItemToTier(ctx context.Context, arg AddItemToTierParams) error {
-	_, err := q.db.Exec(ctx, addItemToTier, arg.RankingTierID, arg.RankedItemID, arg.Position)
-	return err
-}
-
-const clearTierPlacements = `-- name: ClearTierPlacements :exec
-DELETE FROM ranking_tier_items WHERE ranking_tier_id = $1
-`
-
-func (q *Queries) ClearTierPlacements(ctx context.Context, rankingTierID int64) error {
-	_, err := q.db.Exec(ctx, clearTierPlacements, rankingTierID)
-	return err
-}
-
-const countTierItems = `-- name: CountTierItems :one
-SELECT count(*)::int FROM ranking_tier_items WHERE ranking_tier_id = $1
-`
-
-func (q *Queries) CountTierItems(ctx context.Context, rankingTierID int64) (int32, error) {
-	row := q.db.QueryRow(ctx, countTierItems, rankingTierID)
-	var column_1 int32
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
-const createItem = `-- name: CreateItem :one
-INSERT INTO ranked_items (label, sublabel, source_url, source_image_url, image_url)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, label, sublabel, source_url, source_image_url, image_url, created_at, updated_at
-`
-
-type CreateItemParams struct {
-	Label          string
-	Sublabel       string
-	SourceUrl      string
-	SourceImageUrl string
-	ImageUrl       string
-}
-
-func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (RankedItem, error) {
-	row := q.db.QueryRow(ctx, createItem,
-		arg.Label,
-		arg.Sublabel,
+func (q *Queries) CreateRankingItem(ctx context.Context, arg CreateRankingItemParams) (RankingItem, error) {
+	row := q.db.QueryRow(ctx, createRankingItem,
+		arg.RankingVersionID,
+		arg.Title,
+		arg.ImageSourceUrl,
 		arg.SourceUrl,
-		arg.SourceImageUrl,
-		arg.ImageUrl,
 	)
-	var i RankedItem
+	var i RankingItem
 	err := row.Scan(
 		&i.ID,
-		&i.Label,
-		&i.Sublabel,
-		&i.SourceUrl,
-		&i.SourceImageUrl,
-		&i.ImageUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RankingVersionID,
+		&i.Title,
+		&i.ImageSourceUrl,
+		&i.ImageUploadUrl,
+		&i.SourceUrl,
 	)
 	return i, err
 }
 
-const getItem = `-- name: GetItem :one
-SELECT id, label, sublabel, source_url, source_image_url, image_url, created_at, updated_at from ranked_items where id = $1
+const deleteRankingItem = `-- name: DeleteRankingItem :exec
+DELETE FROM ranking_items WHERE id = $1
 `
 
-func (q *Queries) GetItem(ctx context.Context, id int64) (RankedItem, error) {
-	row := q.db.QueryRow(ctx, getItem, id)
-	var i RankedItem
+func (q *Queries) DeleteRankingItem(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, deleteRankingItem, id)
+	return err
+}
+
+const getRankingItem = `-- name: GetRankingItem :one
+SELECT id, created_at, updated_at, ranking_version_id, title, image_source_url, image_upload_url, source_url FROM ranking_items WHERE id = $1
+`
+
+func (q *Queries) GetRankingItem(ctx context.Context, id int64) (RankingItem, error) {
+	row := q.db.QueryRow(ctx, getRankingItem, id)
+	var i RankingItem
 	err := row.Scan(
 		&i.ID,
-		&i.Label,
-		&i.Sublabel,
-		&i.SourceUrl,
-		&i.SourceImageUrl,
-		&i.ImageUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.RankingVersionID,
+		&i.Title,
+		&i.ImageSourceUrl,
+		&i.ImageUploadUrl,
+		&i.SourceUrl,
 	)
 	return i, err
 }
 
-const listRankingItems = `-- name: ListRankingItems :many
-SELECT i.id, i.label, i.sublabel, i.source_url, i.source_image_url, i.image_url, i.created_at, i.updated_at FROM ranked_items i
-JOIN ranking_items ri ON ri.ranked_item_id = i.id
-WHERE ri.ranking_id = $1
-ORDER BY ri.created_at, i.id
+const listRankingItemsForVersion = `-- name: ListRankingItemsForVersion :many
+SELECT id, created_at, updated_at, ranking_version_id, title, image_source_url, image_upload_url, source_url FROM ranking_items WHERE ranking_version_id = $1 ORDER BY created_at, id
 `
 
-func (q *Queries) ListRankingItems(ctx context.Context, rankingID int64) ([]RankedItem, error) {
-	rows, err := q.db.Query(ctx, listRankingItems, rankingID)
+func (q *Queries) ListRankingItemsForVersion(ctx context.Context, rankingVersionID int64) ([]RankingItem, error) {
+	rows, err := q.db.Query(ctx, listRankingItemsForVersion, rankingVersionID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []RankedItem
+	var items []RankingItem
 	for rows.Next() {
-		var i RankedItem
+		var i RankingItem
 		if err := rows.Scan(
 			&i.ID,
-			&i.Label,
-			&i.Sublabel,
-			&i.SourceUrl,
-			&i.SourceImageUrl,
-			&i.ImageUrl,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listRankingItemsByPosition = `-- name: ListRankingItemsByPosition :many
-SELECT ti.ranking_tier_id, ti.ranked_item_id, ti.position, ti.created_at
-FROM ranking_tier_items ti
-JOIN ranking_tiers t ON t.id = ti.ranking_tier_id
-WHERE t.ranking_id = $1
-ORDER BY t.position, ti.position
-`
-
-func (q *Queries) ListRankingItemsByPosition(ctx context.Context, rankingID int64) ([]RankingTierItem, error) {
-	rows, err := q.db.Query(ctx, listRankingItemsByPosition, rankingID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []RankingTierItem
-	for rows.Next() {
-		var i RankingTierItem
-		if err := rows.Scan(
-			&i.RankingTierID,
-			&i.RankedItemID,
-			&i.Position,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listRankingTierItems = `-- name: ListRankingTierItems :many
-SELECT i.id, i.label, i.sublabel, i.source_url, i.source_image_url, i.image_url, i.created_at, i.updated_at FROM ranked_items i
-JOIN ranking_tier_items rti ON rti.ranked_item_id = i.id
-WHERE rti.ranking_tier_id = $1
-ORDER BY rti.created_at, i.id
-`
-
-func (q *Queries) ListRankingTierItems(ctx context.Context, rankingTierID int64) ([]RankedItem, error) {
-	rows, err := q.db.Query(ctx, listRankingTierItems, rankingTierID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []RankedItem
-	for rows.Next() {
-		var i RankedItem
-		if err := rows.Scan(
-			&i.ID,
-			&i.Label,
-			&i.Sublabel,
+			&i.RankingVersionID,
+			&i.Title,
+			&i.ImageSourceUrl,
+			&i.ImageUploadUrl,
 			&i.SourceUrl,
-			&i.SourceImageUrl,
-			&i.ImageUrl,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -222,32 +105,39 @@ func (q *Queries) ListRankingTierItems(ctx context.Context, rankingTierID int64)
 	return items, nil
 }
 
-const removeItemFromRanking = `-- name: RemoveItemFromRanking :exec
-DELETE FROM ranking_items WHERE ranking_id = $1 AND ranked_item_id = $2
+const updateRankingItem = `-- name: UpdateRankingItem :one
+UPDATE ranking_items
+SET title = $2, image_source_url = $3, image_upload_url = $4, source_url = $5, updated_at = now()
+WHERE id = $1
+RETURNING id, created_at, updated_at, ranking_version_id, title, image_source_url, image_upload_url, source_url
 `
 
-type RemoveItemFromRankingParams struct {
-	RankingID    int64
-	RankedItemID int64
+type UpdateRankingItemParams struct {
+	ID             int64
+	Title          string
+	ImageSourceUrl *string
+	ImageUploadUrl *string
+	SourceUrl      *string
 }
 
-func (q *Queries) RemoveItemFromRanking(ctx context.Context, arg RemoveItemFromRankingParams) error {
-	_, err := q.db.Exec(ctx, removeItemFromRanking, arg.RankingID, arg.RankedItemID)
-	return err
-}
-
-const removeItemFromTiers = `-- name: RemoveItemFromTiers :exec
-DELETE FROM ranking_tier_items ti
-USING ranking_tiers t
-WHERE ti.ranking_tier_id = t.id AND t.ranking_id = $1 AND ti.ranked_item_id = $2
-`
-
-type RemoveItemFromTiersParams struct {
-	RankingID    int64
-	RankedItemID int64
-}
-
-func (q *Queries) RemoveItemFromTiers(ctx context.Context, arg RemoveItemFromTiersParams) error {
-	_, err := q.db.Exec(ctx, removeItemFromTiers, arg.RankingID, arg.RankedItemID)
-	return err
+func (q *Queries) UpdateRankingItem(ctx context.Context, arg UpdateRankingItemParams) (RankingItem, error) {
+	row := q.db.QueryRow(ctx, updateRankingItem,
+		arg.ID,
+		arg.Title,
+		arg.ImageSourceUrl,
+		arg.ImageUploadUrl,
+		arg.SourceUrl,
+	)
+	var i RankingItem
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.RankingVersionID,
+		&i.Title,
+		&i.ImageSourceUrl,
+		&i.ImageUploadUrl,
+		&i.SourceUrl,
+	)
+	return i, err
 }
