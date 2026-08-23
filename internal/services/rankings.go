@@ -23,6 +23,15 @@ var (
 	// AddRankingItemToTier's explicit ranking_version_id column is designed
 	// to make impossible.
 	ErrInvalidTierPlacement = errors.New("Item cannot be placed on this tier.")
+	// ErrNotPublishable is returned when publishing is attempted on a
+	// version that fails the publish gate (see EvaluatePublishGate). The
+	// UI hides the publish action in this case, so hitting this is either a
+	// stale page or a direct request.
+	ErrNotPublishable = errors.New("This version is not ready to publish.")
+	// ErrDraftAlreadyExists guards ranking_versions_one_draft_idx: a ranking
+	// can hold only one draft at a time, so branching a new one off a
+	// published version fails while a draft is already in progress.
+	ErrDraftAlreadyExists = errors.New("This ranking already has a draft in progress.")
 )
 
 // txBeginner is a database connection that can start transactions (savepoints).
@@ -334,6 +343,179 @@ func (s *RankingsService) AddItemToTier(ctx context.Context, req AddItemToTierRe
 	return item, nil
 }
 
+// itemForVersion fetches an item and confirms it belongs to versionID,
+// translating both "no such item" and "wrong version" into
+// ErrInvalidTierPlacement — the same treatment getTierForVersion gives
+// tiers, so a caller can't distinguish a bad id from someone else's item.
+func itemForVersion(ctx context.Context, q *db.Queries, itemID, versionID int64) (db.RankingItem, error) {
+	item, err := q.GetRankingItem(ctx, itemID)
+	if err != nil {
+		return db.RankingItem{}, ErrInvalidTierPlacement
+	}
+	if item.RankingVersionID != versionID {
+		return db.RankingItem{}, ErrInvalidTierPlacement
+	}
+	return item, nil
+}
+
+// ReorderTierItemsRequest is the input for setting a tier's full item order
+// after a drag — the caller supplies every item that should end up in the
+// tier, in order. An id already placed there is repositioned; any other id
+// is inserted at that position, clearing whatever placement (or lack of
+// one) it held before. This covers reordering within a tier and dragging an
+// item in from another tier or the unranked tray in a single call.
+type ReorderTierItemsRequest struct {
+	VersionID int64
+	TierID    int64
+	ItemIDs   []int64
+}
+
+// ReorderTierItems sets a tier's item order transactionally: the deferred
+// unique index on (ranking_tier_id, position) lets every row move through
+// intermediate, possibly-colliding positions during the loop below, as long
+// as the final positions (0..n-1) are unique when the transaction commits.
+func (s *RankingsService) ReorderTierItems(ctx context.Context, req ReorderTierItemsRequest) ([]db.RankingItem, error) {
+	tier, err := s.getTierForVersion(ctx, req.TierID, req.VersionID)
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.Queries.WithTx(tx)
+
+	existing, err := q.ListRankingItemTiersForTier(ctx, tier.ID)
+	if err != nil {
+		return nil, err
+	}
+	placementByItem := make(map[int64]db.RankingItemTier, len(existing))
+	for _, p := range existing {
+		placementByItem[p.RankingItemID] = p
+	}
+
+	items := make([]db.RankingItem, 0, len(req.ItemIDs))
+	for i, itemID := range req.ItemIDs {
+		item, err := itemForVersion(ctx, q, itemID, req.VersionID)
+		if err != nil {
+			return nil, err
+		}
+
+		if placement, ok := placementByItem[itemID]; ok {
+			if _, err := q.ReorderRankingItemTier(ctx, db.ReorderRankingItemTierParams{
+				ID:       placement.ID,
+				Position: int16(i),
+			}); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := q.RemoveRankingItemFromAllTiers(ctx, item.ID); err != nil {
+				return nil, err
+			}
+			if _, err := q.AddRankingItemToTier(ctx, db.AddRankingItemToTierParams{
+				RankingItemID:    item.ID,
+				RankingTierID:    tier.ID,
+				RankingVersionID: req.VersionID,
+				Position:         int16(i),
+			}); err != nil {
+				return nil, err
+			}
+		}
+		items = append(items, item)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// ReorderTiersRequest is the input for setting a version's tier order after
+// a drag — every tier id, in its new order.
+type ReorderTiersRequest struct {
+	VersionID int64
+	TierIDs   []int64
+}
+
+// ReorderTiers sets every tier's position to match TierIDs, transactionally
+// for the same reason ReorderTierItems is: the deferred unique index on
+// (ranking_version_id, position) allows the loop's intermediate states to
+// collide as long as the final set is unique.
+func (s *RankingsService) ReorderTiers(ctx context.Context, req ReorderTiersRequest) error {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	q := s.Queries.WithTx(tx)
+
+	for i, id := range req.TierIDs {
+		tier, err := q.GetRankingTier(ctx, id)
+		if err != nil {
+			return ErrRankingNotFound
+		}
+		if tier.RankingVersionID != req.VersionID {
+			return ErrRankingNotFound
+		}
+		if _, err := q.UpdateRankingTier(ctx, db.UpdateRankingTierParams{
+			ID:       tier.ID,
+			Title:    tier.Title,
+			ColorHex: tier.ColorHex,
+			Position: int16(i),
+		}); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
+// UnrankItemRequest is the input for returning a single item to the
+// unranked tray — used when drag-and-drop moves an item out of every tier.
+type UnrankItemRequest struct {
+	VersionID int64
+	ItemID    int64
+}
+
+// UnrankItem clears an item's tier placement, if it has one.
+func (s *RankingsService) UnrankItem(ctx context.Context, req UnrankItemRequest) (db.RankingItem, error) {
+	item, err := itemForVersion(ctx, s.Queries, req.ItemID, req.VersionID)
+	if err != nil {
+		return db.RankingItem{}, err
+	}
+	if err := s.Queries.RemoveRankingItemFromAllTiers(ctx, item.ID); err != nil {
+		return db.RankingItem{}, err
+	}
+	return item, nil
+}
+
+// ListUnrankedItems returns every item in a version with no tier placement —
+// the unranked tray's contents.
+func (s *RankingsService) ListUnrankedItems(ctx context.Context, versionID int64) ([]db.RankingItem, error) {
+	items, err := s.Queries.ListRankingItemsForVersion(ctx, versionID)
+	if err != nil {
+		return nil, err
+	}
+	placements, err := s.Queries.ListRankingItemTiersForVersion(ctx, versionID)
+	if err != nil {
+		return nil, err
+	}
+	placed := make(map[int64]bool, len(placements))
+	for _, p := range placements {
+		placed[p.RankingItemID] = true
+	}
+
+	var unranked []db.RankingItem
+	for _, it := range items {
+		if !placed[it.ID] {
+			unranked = append(unranked, it)
+		}
+	}
+	return unranked, nil
+}
+
 // GetBoard fetches everything needed to render one version of a ranking.
 func (s *RankingsService) GetBoard(ctx context.Context, ranking db.Ranking, version db.RankingVersion) (RankingBoard, error) {
 	tiers, err := s.Queries.ListRankingTiersForVersion(ctx, version.ID)
@@ -369,6 +551,181 @@ type ListVersionsRequest struct {
 // first.
 func (s *RankingsService) ListVersions(ctx context.Context, req ListVersionsRequest) ([]db.RankingVersion, error) {
 	return s.Queries.ListRankingVersionsForRanking(ctx, req.RankingID)
+}
+
+// PublishGate reports whether a ranking version has enough structure to
+// publish, and why not when it doesn't. Nothing in the schema expresses
+// this — it's the MVP's schema decision 3: a version is publishable once it
+// has at least one tier, at least one item, and every item placed in at
+// least one tier (placement in more than one counts too; one is enough).
+type PublishGate struct {
+	Publishable bool
+	Reasons     []string
+}
+
+// EvaluatePublishGate computes a version's PublishGate.
+func (s *RankingsService) EvaluatePublishGate(ctx context.Context, versionID int64) (PublishGate, error) {
+	tiers, err := s.Queries.ListRankingTiersForVersion(ctx, versionID)
+	if err != nil {
+		return PublishGate{}, err
+	}
+	items, err := s.Queries.ListRankingItemsForVersion(ctx, versionID)
+	if err != nil {
+		return PublishGate{}, err
+	}
+
+	var reasons []string
+	if len(tiers) == 0 {
+		reasons = append(reasons, "Add at least one tier.")
+	}
+	if len(items) == 0 {
+		reasons = append(reasons, "Add at least one item.")
+	} else {
+		placements, err := s.Queries.ListRankingItemTiersForVersion(ctx, versionID)
+		if err != nil {
+			return PublishGate{}, err
+		}
+		placed := make(map[int64]bool, len(placements))
+		for _, p := range placements {
+			placed[p.RankingItemID] = true
+		}
+		var unplaced int
+		for _, it := range items {
+			if !placed[it.ID] {
+				unplaced++
+			}
+		}
+		if unplaced == 1 {
+			reasons = append(reasons, "Place 1 more item into a tier.")
+		} else if unplaced > 1 {
+			reasons = append(reasons, fmt.Sprintf("Place %d more items into a tier.", unplaced))
+		}
+	}
+
+	return PublishGate{Publishable: len(reasons) == 0, Reasons: reasons}, nil
+}
+
+// PublishVersionRequest is the input for publishing a draft.
+type PublishVersionRequest struct {
+	VersionID int64
+}
+
+// PublishVersion publishes a draft, refusing when it fails the publish
+// gate.
+func (s *RankingsService) PublishVersion(ctx context.Context, req PublishVersionRequest) (db.RankingVersion, error) {
+	gate, err := s.EvaluatePublishGate(ctx, req.VersionID)
+	if err != nil {
+		return db.RankingVersion{}, err
+	}
+	if !gate.Publishable {
+		return db.RankingVersion{}, ErrNotPublishable
+	}
+	return s.Queries.PublishRankingVersion(ctx, req.VersionID)
+}
+
+// CreateVersionFromPublishedRequest is the input for branching a new draft
+// off a published version.
+type CreateVersionFromPublishedRequest struct {
+	RankingID       int64
+	SourceVersionID int64
+}
+
+// CreateVersionFromPublished copies a published version's tiers, items, and
+// tier placements into a fresh draft, so a ranking's owner can keep
+// tweaking a ranking without touching the version that's currently live. A
+// ranking holds only one draft at a time (ranking_versions_one_draft_idx),
+// so this refuses when one already exists.
+func (s *RankingsService) CreateVersionFromPublished(ctx context.Context, req CreateVersionFromPublishedRequest) (db.RankingVersion, error) {
+	versions, err := s.Queries.ListRankingVersionsForRanking(ctx, req.RankingID)
+	if err != nil {
+		return db.RankingVersion{}, err
+	}
+	for _, v := range versions {
+		if !v.PublishedAt.Valid {
+			return db.RankingVersion{}, ErrDraftAlreadyExists
+		}
+	}
+
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return db.RankingVersion{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.Queries.WithTx(tx)
+
+	short, err := newShortUUID()
+	if err != nil {
+		return db.RankingVersion{}, err
+	}
+	version, err := q.CreateRankingVersion(ctx, db.CreateRankingVersionParams{ShortUuid: short, RankingID: req.RankingID})
+	if err != nil {
+		return db.RankingVersion{}, fmt.Errorf("create draft version: %w", err)
+	}
+
+	tiers, err := q.ListRankingTiersForVersion(ctx, req.SourceVersionID)
+	if err != nil {
+		return db.RankingVersion{}, err
+	}
+	tierIDs := make(map[int64]int64, len(tiers))
+	for _, t := range tiers {
+		newTier, err := q.CreateRankingTier(ctx, db.CreateRankingTierParams{
+			RankingVersionID: version.ID,
+			RankingID:        req.RankingID,
+			Title:            t.Title,
+			ColorHex:         t.ColorHex,
+			Position:         t.Position,
+		})
+		if err != nil {
+			return db.RankingVersion{}, fmt.Errorf("copy tier %s: %w", t.Title, err)
+		}
+		tierIDs[t.ID] = newTier.ID
+	}
+
+	items, err := q.ListRankingItemsForVersion(ctx, req.SourceVersionID)
+	if err != nil {
+		return db.RankingVersion{}, err
+	}
+	itemIDs := make(map[int64]int64, len(items))
+	for _, it := range items {
+		newItem, err := q.CreateRankingItem(ctx, db.CreateRankingItemParams{
+			RankingVersionID: version.ID,
+			Title:            it.Title,
+			ImageSourceUrl:   it.ImageSourceUrl,
+			SourceUrl:        it.SourceUrl,
+		})
+		if err != nil {
+			return db.RankingVersion{}, fmt.Errorf("copy item %s: %w", it.Title, err)
+		}
+		itemIDs[it.ID] = newItem.ID
+	}
+
+	placements, err := q.ListRankingItemTiersForVersion(ctx, req.SourceVersionID)
+	if err != nil {
+		return db.RankingVersion{}, err
+	}
+	for _, p := range placements {
+		newTierID, ok := tierIDs[p.RankingTierID]
+		if !ok {
+			continue
+		}
+		newItemID, ok := itemIDs[p.RankingItemID]
+		if !ok {
+			continue
+		}
+		if _, err := q.AddRankingItemToTier(ctx, db.AddRankingItemToTierParams{
+			RankingItemID:    newItemID,
+			RankingTierID:    newTierID,
+			RankingVersionID: version.ID,
+			Position:         p.Position,
+		}); err != nil {
+			return db.RankingVersion{}, fmt.Errorf("copy placement: %w", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return db.RankingVersion{}, err
+	}
+	return version, nil
 }
 
 // DefaultTiers defines the S/A/B/C/D palette every new ranking version is

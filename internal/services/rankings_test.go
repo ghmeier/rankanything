@@ -530,3 +530,317 @@ func twoOwnedRankings(t *testing.T) (*services.RankingsService, context.Context,
 
 	return svc, ctx, versionA, versionB
 }
+
+// ---------------------------------------------------------------------------
+// ReorderTierItems
+// ---------------------------------------------------------------------------
+
+func TestReorderTierItemsChangesOrderWithinATier(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, _, version := newOwnedRanking(t)
+	tiers, err := svc.Queries.ListRankingTiersForVersion(ctx, version.ID)
+	require.NoError(t, err)
+
+	first, err := svc.AddItem(ctx, services.AddItemRequest{VersionID: version.ID, Title: "First"})
+	require.NoError(t, err)
+	second, err := svc.AddItem(ctx, services.AddItemRequest{VersionID: version.ID, Title: "Second"})
+	require.NoError(t, err)
+	_, err = svc.AddItemToTier(ctx, services.AddItemToTierRequest{VersionID: version.ID, TierID: tiers[0].ID, ItemID: first.ID})
+	require.NoError(t, err)
+	_, err = svc.AddItemToTier(ctx, services.AddItemToTierRequest{VersionID: version.ID, TierID: tiers[0].ID, ItemID: second.ID})
+	require.NoError(t, err)
+
+	items, err := svc.ReorderTierItems(ctx, services.ReorderTierItemsRequest{
+		VersionID: version.ID, TierID: tiers[0].ID, ItemIDs: []int64{second.ID, first.ID},
+	})
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+
+	placements, err := svc.Queries.ListRankingItemTiersForTier(ctx, tiers[0].ID)
+	require.NoError(t, err)
+	require.Len(t, placements, 2)
+	assert.Equal(t, second.ID, placements[0].RankingItemID, "the reordered position comes first")
+	assert.Equal(t, first.ID, placements[1].RankingItemID)
+}
+
+func TestReorderTierItemsInsertsAnItemDraggedInFromAnotherTier(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, _, version := newOwnedRanking(t)
+	tiers, err := svc.Queries.ListRankingTiersForVersion(ctx, version.ID)
+	require.NoError(t, err)
+
+	item, err := svc.AddItem(ctx, services.AddItemRequest{VersionID: version.ID, Title: "Migrating"})
+	require.NoError(t, err)
+	_, err = svc.AddItemToTier(ctx, services.AddItemToTierRequest{VersionID: version.ID, TierID: tiers[0].ID, ItemID: item.ID})
+	require.NoError(t, err)
+
+	_, err = svc.ReorderTierItems(ctx, services.ReorderTierItemsRequest{
+		VersionID: version.ID, TierID: tiers[1].ID, ItemIDs: []int64{item.ID},
+	})
+	require.NoError(t, err)
+
+	oldTierPlacements, err := svc.Queries.ListRankingItemTiersForTier(ctx, tiers[0].ID)
+	require.NoError(t, err)
+	assert.Empty(t, oldTierPlacements, "the item leaves its old tier")
+
+	newTierPlacements, err := svc.Queries.ListRankingItemTiersForTier(ctx, tiers[1].ID)
+	require.NoError(t, err)
+	require.Len(t, newTierPlacements, 1)
+	assert.Equal(t, item.ID, newTierPlacements[0].RankingItemID)
+}
+
+func TestReorderTierItemsRejectsAnItemFromAnotherVersion(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, versionA, versionB := twoOwnedRankings(t)
+	tiersA, err := svc.Queries.ListRankingTiersForVersion(ctx, versionA.ID)
+	require.NoError(t, err)
+	itemB, err := svc.AddItem(ctx, services.AddItemRequest{VersionID: versionB.ID, Title: "Elsewhere"})
+	require.NoError(t, err)
+
+	_, err = svc.ReorderTierItems(ctx, services.ReorderTierItemsRequest{
+		VersionID: versionA.ID, TierID: tiersA[0].ID, ItemIDs: []int64{itemB.ID},
+	})
+	assert.ErrorIs(t, err, services.ErrInvalidTierPlacement)
+}
+
+// ---------------------------------------------------------------------------
+// ReorderTiers
+// ---------------------------------------------------------------------------
+
+func TestReorderTiersSetsTheGivenOrder(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, _, version := newOwnedRanking(t)
+	tiers, err := svc.Queries.ListRankingTiersForVersion(ctx, version.ID)
+	require.NoError(t, err)
+	reversed := make([]int64, len(tiers))
+	for i, tier := range tiers {
+		reversed[len(tiers)-1-i] = tier.ID
+	}
+
+	err = svc.ReorderTiers(ctx, services.ReorderTiersRequest{VersionID: version.ID, TierIDs: reversed})
+	require.NoError(t, err)
+
+	reordered, err := svc.Queries.ListRankingTiersForVersion(ctx, version.ID)
+	require.NoError(t, err)
+	require.Len(t, reordered, len(tiers))
+	for i, tier := range reordered {
+		assert.Equal(t, reversed[i], tier.ID)
+	}
+}
+
+func TestReorderTiersRejectsATierFromAnotherVersion(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, versionA, versionB := twoOwnedRankings(t)
+	tiersB, err := svc.Queries.ListRankingTiersForVersion(ctx, versionB.ID)
+	require.NoError(t, err)
+
+	err = svc.ReorderTiers(ctx, services.ReorderTiersRequest{VersionID: versionA.ID, TierIDs: []int64{tiersB[0].ID}})
+	assert.ErrorIs(t, err, services.ErrRankingNotFound)
+}
+
+// ---------------------------------------------------------------------------
+// UnrankItem / ListUnrankedItems
+// ---------------------------------------------------------------------------
+
+func TestUnrankItemClearsItsTierPlacement(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, _, version := newOwnedRanking(t)
+	tiers, err := svc.Queries.ListRankingTiersForVersion(ctx, version.ID)
+	require.NoError(t, err)
+	item, err := svc.AddItem(ctx, services.AddItemRequest{VersionID: version.ID, Title: "Placed"})
+	require.NoError(t, err)
+	_, err = svc.AddItemToTier(ctx, services.AddItemToTierRequest{VersionID: version.ID, TierID: tiers[0].ID, ItemID: item.ID})
+	require.NoError(t, err)
+
+	unranked, err := svc.UnrankItem(ctx, services.UnrankItemRequest{VersionID: version.ID, ItemID: item.ID})
+	require.NoError(t, err)
+	assert.Equal(t, item.ID, unranked.ID)
+
+	placements, err := svc.Queries.ListRankingItemTiersForVersion(ctx, version.ID)
+	require.NoError(t, err)
+	assert.Empty(t, placements)
+}
+
+func TestUnrankItemFromAnotherVersionIsRejected(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, versionA, versionB := twoOwnedRankings(t)
+	itemB, err := svc.AddItem(ctx, services.AddItemRequest{VersionID: versionB.ID, Title: "Elsewhere"})
+	require.NoError(t, err)
+
+	_, err = svc.UnrankItem(ctx, services.UnrankItemRequest{VersionID: versionA.ID, ItemID: itemB.ID})
+	assert.ErrorIs(t, err, services.ErrInvalidTierPlacement)
+}
+
+func TestListUnrankedItemsExcludesPlacedItems(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, _, version := newOwnedRanking(t)
+	tiers, err := svc.Queries.ListRankingTiersForVersion(ctx, version.ID)
+	require.NoError(t, err)
+	placed, err := svc.AddItem(ctx, services.AddItemRequest{VersionID: version.ID, Title: "Placed"})
+	require.NoError(t, err)
+	unplaced, err := svc.AddItem(ctx, services.AddItemRequest{VersionID: version.ID, Title: "Unplaced"})
+	require.NoError(t, err)
+	_, err = svc.AddItemToTier(ctx, services.AddItemToTierRequest{VersionID: version.ID, TierID: tiers[0].ID, ItemID: placed.ID})
+	require.NoError(t, err)
+
+	unranked, err := svc.ListUnrankedItems(ctx, version.ID)
+	require.NoError(t, err)
+	require.Len(t, unranked, 1)
+	assert.Equal(t, unplaced.ID, unranked[0].ID)
+}
+
+// ---------------------------------------------------------------------------
+// EvaluatePublishGate / PublishVersion
+// ---------------------------------------------------------------------------
+
+func TestEvaluatePublishGateBlocksWhenThereAreNoTiers(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, _, version := newOwnedRanking(t)
+	tiers, err := svc.Queries.ListRankingTiersForVersion(ctx, version.ID)
+	require.NoError(t, err)
+	for _, tier := range tiers {
+		require.NoError(t, svc.Queries.DeleteRankingTier(ctx, tier.ID))
+	}
+
+	gate, err := svc.EvaluatePublishGate(ctx, version.ID)
+	require.NoError(t, err)
+
+	assert.False(t, gate.Publishable)
+	assert.Contains(t, gate.Reasons, "Add at least one tier.")
+}
+
+func TestEvaluatePublishGateBlocksWhenThereAreNoItems(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, _, version := newOwnedRanking(t)
+
+	gate, err := svc.EvaluatePublishGate(ctx, version.ID)
+	require.NoError(t, err)
+
+	assert.False(t, gate.Publishable)
+	assert.Contains(t, gate.Reasons, "Add at least one item.")
+}
+
+func TestEvaluatePublishGateBlocksWhenAnItemIsUnplaced(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, _, version := newOwnedRanking(t)
+	tiers, err := svc.Queries.ListRankingTiersForVersion(ctx, version.ID)
+	require.NoError(t, err)
+	placed, err := svc.AddItem(ctx, services.AddItemRequest{VersionID: version.ID, Title: "Placed"})
+	require.NoError(t, err)
+	_, err = svc.AddItem(ctx, services.AddItemRequest{VersionID: version.ID, Title: "Unplaced"})
+	require.NoError(t, err)
+	_, err = svc.AddItemToTier(ctx, services.AddItemToTierRequest{VersionID: version.ID, TierID: tiers[0].ID, ItemID: placed.ID})
+	require.NoError(t, err)
+
+	gate, err := svc.EvaluatePublishGate(ctx, version.ID)
+	require.NoError(t, err)
+
+	assert.False(t, gate.Publishable)
+	assert.Contains(t, gate.Reasons, "Place 1 more item into a tier.")
+}
+
+func TestEvaluatePublishGatePassesWhenEveryItemIsPlaced(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, _, version := newOwnedRanking(t)
+	tiers, err := svc.Queries.ListRankingTiersForVersion(ctx, version.ID)
+	require.NoError(t, err)
+	item, err := svc.AddItem(ctx, services.AddItemRequest{VersionID: version.ID, Title: "Placed"})
+	require.NoError(t, err)
+	_, err = svc.AddItemToTier(ctx, services.AddItemToTierRequest{VersionID: version.ID, TierID: tiers[0].ID, ItemID: item.ID})
+	require.NoError(t, err)
+
+	gate, err := svc.EvaluatePublishGate(ctx, version.ID)
+	require.NoError(t, err)
+
+	assert.True(t, gate.Publishable)
+	assert.Empty(t, gate.Reasons)
+}
+
+func TestPublishVersionSucceedsWhenTheGatePasses(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, _, version := newOwnedRanking(t)
+	tiers, err := svc.Queries.ListRankingTiersForVersion(ctx, version.ID)
+	require.NoError(t, err)
+	item, err := svc.AddItem(ctx, services.AddItemRequest{VersionID: version.ID, Title: "Placed"})
+	require.NoError(t, err)
+	_, err = svc.AddItemToTier(ctx, services.AddItemToTierRequest{VersionID: version.ID, TierID: tiers[0].ID, ItemID: item.ID})
+	require.NoError(t, err)
+
+	published, err := svc.PublishVersion(ctx, services.PublishVersionRequest{VersionID: version.ID})
+	require.NoError(t, err)
+	assert.True(t, published.PublishedAt.Valid)
+}
+
+func TestPublishVersionFailsWhenTheGateBlocks(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, _, version := newOwnedRanking(t)
+
+	_, err := svc.PublishVersion(ctx, services.PublishVersionRequest{VersionID: version.ID})
+	assert.ErrorIs(t, err, services.ErrNotPublishable)
+}
+
+// ---------------------------------------------------------------------------
+// CreateVersionFromPublished
+// ---------------------------------------------------------------------------
+
+func TestCreateVersionFromPublishedCopiesTiersItemsAndPlacements(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, ranking, version := newOwnedRanking(t)
+	tiers, err := svc.Queries.ListRankingTiersForVersion(ctx, version.ID)
+	require.NoError(t, err)
+	item, err := svc.AddItem(ctx, services.AddItemRequest{VersionID: version.ID, Title: "Carried over"})
+	require.NoError(t, err)
+	_, err = svc.AddItemToTier(ctx, services.AddItemToTierRequest{VersionID: version.ID, TierID: tiers[0].ID, ItemID: item.ID})
+	require.NoError(t, err)
+	published, err := svc.PublishVersion(ctx, services.PublishVersionRequest{VersionID: version.ID})
+	require.NoError(t, err)
+
+	draft, err := svc.CreateVersionFromPublished(ctx, services.CreateVersionFromPublishedRequest{
+		RankingID: ranking.ID, SourceVersionID: published.ID,
+	})
+	require.NoError(t, err)
+	assert.False(t, draft.PublishedAt.Valid)
+	assert.NotEqual(t, published.ID, draft.ID)
+
+	draftTiers, err := svc.Queries.ListRankingTiersForVersion(ctx, draft.ID)
+	require.NoError(t, err)
+	require.Len(t, draftTiers, len(tiers))
+	assert.Equal(t, tiers[0].Title, draftTiers[0].Title)
+
+	draftItems, err := svc.Queries.ListRankingItemsForVersion(ctx, draft.ID)
+	require.NoError(t, err)
+	require.Len(t, draftItems, 1)
+	assert.Equal(t, "Carried over", draftItems[0].Title)
+
+	draftPlacements, err := svc.Queries.ListRankingItemTiersForVersion(ctx, draft.ID)
+	require.NoError(t, err)
+	require.Len(t, draftPlacements, 1)
+	assert.Equal(t, draftTiers[0].ID, draftPlacements[0].RankingTierID)
+	assert.Equal(t, draftItems[0].ID, draftPlacements[0].RankingItemID)
+}
+
+func TestCreateVersionFromPublishedRejectsWhenADraftAlreadyExists(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, ranking, version := newOwnedRanking(t)
+
+	_, err := svc.CreateVersionFromPublished(ctx, services.CreateVersionFromPublishedRequest{
+		RankingID: ranking.ID, SourceVersionID: version.ID,
+	})
+	assert.ErrorIs(t, err, services.ErrDraftAlreadyExists, "the seeded draft itself is the conflicting one")
+}

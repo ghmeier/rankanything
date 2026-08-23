@@ -15,8 +15,10 @@ type ItemCardProps struct {
 
 templ ItemCard(props ItemCardProps) {
 	<article
-		class="group flex h-fit w-40 items-center gap-2 rounded-md border border-border bg-surface p-2 text-sm shadow-sm"
+		class="item-card group flex h-fit w-40 cursor-grab items-center gap-2 rounded-md border border-border bg-surface p-2 text-sm shadow-sm"
 		id={ fmt.Sprintf("ranking-item-%d", props.ItemID) }
+		data-item-id={ fmt.Sprintf("%d", props.ItemID) }
+		draggable="true"
 	>
 		if props.ImageURL != "" {
 			<img
@@ -79,10 +81,31 @@ templ ItemTray(props ItemTrayProps) {
 				</button>
 			</form>
 		</div>
-		<div id="tray-items" class="flex min-h-20 flex-wrap gap-2">
-			for _, item := range props.Unassigned {
-				@ItemCard(item)
-			}
-		</div>
+		@TrayItems(TrayItemsProps{RankingUUID: props.RankingUUID, Items: props.Unassigned})
 	</section>
+}
+
+// TrayItemsProps renders the unranked tray's #tray-items drop zone —
+// embedded normally in ItemTray, and rendered standalone (with OOB set) to
+// refresh the tray out-of-band alongside a tier deletion, which returns the
+// deleted tier's items to it.
+type TrayItemsProps struct {
+	RankingUUID string
+	Items       []ItemCardProps
+	OOB         bool
+}
+
+templ TrayItems(props TrayItemsProps) {
+	<div
+		id="tray-items"
+		data-tier-id=""
+		class="tier-dropzone flex min-h-20 flex-wrap gap-2"
+		if props.OOB {
+			hx-swap-oob="true"
+		}
+	>
+		for _, item := range props.Items {
+			@ItemCard(item)
+		}
+	</div>
 }

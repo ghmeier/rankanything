@@ -102,23 +102,67 @@ func boardVersionOptions(rankingUUID string, versions []db.RankingVersion, viewi
 	return options
 }
 
-// boardPageProps assembles the whole board page's props from a fetched
-// RankingBoard plus the ranking's other versions for the dropdown.
-func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoard, versions []db.RankingVersion) ui.BoardPageProps {
+// boardTierItems maps each tier id to the items placed in it, from a
+// board's flat item and placement lists.
+func boardTierItems(board services.RankingBoard) map[int64][]db.RankingItem {
 	byID := make(map[int64]db.RankingItem, len(board.Items))
 	for _, it := range board.Items {
 		byID[it.ID] = it
 	}
-	placed := make(map[int64]bool, len(board.Placements))
 	tierItems := make(map[int64][]db.RankingItem, len(board.Tiers))
 	for _, p := range board.Placements {
 		it, ok := byID[p.RankingItemID]
 		if !ok {
 			continue
 		}
-		placed[p.RankingItemID] = true
 		tierItems[p.RankingTierID] = append(tierItems[p.RankingTierID], it)
 	}
+	return tierItems
+}
+
+// boardUnplacedItems returns the items in a board with no tier placement —
+// the unranked tray's contents.
+func boardUnplacedItems(board services.RankingBoard) []db.RankingItem {
+	placed := make(map[int64]bool, len(board.Placements))
+	for _, p := range board.Placements {
+		placed[p.RankingItemID] = true
+	}
+	var unplaced []db.RankingItem
+	for _, it := range board.Items {
+		if !placed[it.ID] {
+			unplaced = append(unplaced, it)
+		}
+	}
+	return unplaced
+}
+
+// boardVersionActionsProps builds the publish/branch action shown next to
+// the version status: a draft's publish gate, or — for a published
+// version — whether the ranking already has another draft in progress.
+func boardVersionActionsProps(rankingUUID string, version db.RankingVersion, versions []db.RankingVersion, gate services.PublishGate) ui.BoardVersionActionsProps {
+	props := ui.BoardVersionActionsProps{
+		RankingUUID:    rankingUUID,
+		IsDraft:        !version.PublishedAt.Valid,
+		Publishable:    gate.Publishable,
+		BlockedReasons: gate.Reasons,
+	}
+	if props.IsDraft {
+		return props
+	}
+	for _, v := range versions {
+		if !v.PublishedAt.Valid {
+			props.HasOtherDraft = true
+			props.DraftURL = "/r/" + rankingUUID + "/v/" + v.ShortUuid
+			break
+		}
+	}
+	return props
+}
+
+// boardPageProps assembles the whole board page's props from a fetched
+// RankingBoard plus the ranking's other versions for the dropdown.
+func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoard, versions []db.RankingVersion, gate services.PublishGate) ui.BoardPageProps {
+	tierItems := boardTierItems(board)
 
 	props := ui.BoardPageProps{
 		CSRFToken:     base.CSRFToken,
@@ -127,6 +171,7 @@ func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoa
 		RankingMeta:   rankingMetaProps(rankingUUID, board.Ranking),
 		VersionStatus: boardVersionStatusText(board.Version),
 		Versions:      boardVersionOptions(rankingUUID, versions, board.Version),
+		VersionAction: boardVersionActionsProps(rankingUUID, board.Version, versions, gate),
 		TierForm:      ui.TierFormProps{RankingUUID: rankingUUID},
 	}
 	for _, t := range board.Tiers {
@@ -134,10 +179,8 @@ func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoa
 	}
 
 	tray := ui.ItemTrayProps{RankingUUID: rankingUUID}
-	for _, it := range board.Items {
-		if !placed[it.ID] {
-			tray.Unassigned = append(tray.Unassigned, itemCardProps(rankingUUID, it))
-		}
+	for _, it := range boardUnplacedItems(board) {
+		tray.Unassigned = append(tray.Unassigned, itemCardProps(rankingUUID, it))
 	}
 	props.ItemTray = tray
 
@@ -148,12 +191,23 @@ func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoa
 // ranking, including the version-picker dropdown listing every version of
 // the ranking.
 func (a *App) RenderRankingPage(w http.ResponseWriter, r *http.Request, board services.RankingBoard) error {
-	versions, err := a.RankingSvc.ListVersions(r.Context(), services.ListVersionsRequest{RankingID: board.Ranking.ID})
+	ctx := r.Context()
+	versions, err := a.RankingSvc.ListVersions(ctx, services.ListVersionsRequest{RankingID: board.Ranking.ID})
 	if err != nil {
 		return err
 	}
 
+	// The publish gate only matters for a draft; a published version has
+	// nothing to gate, so skip the extra queries it costs to compute.
+	var gate services.PublishGate
+	if !board.Version.PublishedAt.Valid {
+		gate, err = a.RankingSvc.EvaluatePublishGate(ctx, board.Version.ID)
+		if err != nil {
+			return err
+		}
+	}
+
 	rankingUUID := board.Ranking.Uuid.String()
-	props := boardPageProps(a.base(r), rankingUUID, board, versions)
+	props := boardPageProps(a.base(r), rankingUUID, board, versions, gate)
 	return renderComponent(w, r, http.StatusOK, ui.BoardPage(props))
 }

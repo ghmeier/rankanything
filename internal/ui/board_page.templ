@@ -14,6 +14,7 @@ type BoardPageProps struct {
 	RankingMeta   RankingMetaProps
 	VersionStatus string
 	Versions      []BoardVersionOption
+	VersionAction BoardVersionActionsProps
 	Tiers         []TierRowProps
 	TierForm      TierFormProps
 	ItemTray      ItemTrayProps
@@ -48,22 +49,69 @@ templ BoardPage(props BoardPageProps) {
 				>
 					@RankingMeta(props.RankingMeta)
 				</form>
-				<div class="flex shrink-0 flex-col items-end gap-1">
+				<div class="flex shrink-0 flex-col items-end gap-2">
+					<button
+						id="edit-tiers-toggle"
+						type="button"
+						class="rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-text-muted hover:bg-surface-hover"
+					>
+						Edit tiers
+					</button>
 					<span class="text-xs uppercase tracking-wide text-text-muted">{ props.VersionStatus }</span>
 					@boardVersionMenu(props.Versions)
+					@BoardVersionActions(props.VersionAction)
 				</div>
 			</section>
-			<div id="board" class="space-y-4">
-				<div id="tier-rows" class="grid overflow-hidden rounded-lg border border-border divide-y divide-border">
-					for _, tier := range props.Tiers {
-						@TierRow(tier)
-					}
-				</div>
+			<div id="board" data-ranking-uuid={ props.RankingMeta.RankingUUID } class="space-y-4">
+				@TierRows(TierRowsProps{Tiers: props.Tiers})
 				@TierForm(props.TierForm)
 				@ItemTray(props.ItemTray)
 			</div>
+			<script src="/static/js/board.js" defer></script>
 		</div>
 	}
+}
+
+// BoardVersionActionsProps renders the publish/branch action for the
+// version being viewed: a draft shows why publishing is blocked or a
+// working publish button; a published version offers to branch a new draft,
+// unless the ranking already has one in progress.
+type BoardVersionActionsProps struct {
+	RankingUUID    string
+	IsDraft        bool
+	Publishable    bool
+	BlockedReasons []string
+	HasOtherDraft  bool
+	DraftURL       string
+}
+
+templ BoardVersionActions(props BoardVersionActionsProps) {
+	<div class="w-56 text-right">
+		if props.IsDraft {
+			if props.Publishable {
+				@Button(ButtonProps{Variant: ButtonPrimary, Attrs: templ.Attributes{"hx-post": fmt.Sprintf("/r/%s/publish", props.RankingUUID)}}) {
+					Publish
+				}
+			} else {
+				@Notice(NoticeProps{Variant: NoticeError}) {
+					<p class="font-medium">Not ready to publish:</p>
+					<ul class="list-disc pl-4">
+						for _, reason := range props.BlockedReasons {
+							<li>{ reason }</li>
+						}
+					</ul>
+				}
+			}
+		} else if props.HasOtherDraft {
+			<a href={ templ.URL(props.DraftURL) } class="text-xs text-text-muted underline hover:text-text-muted-hover">
+				Continue editing draft
+			</a>
+		} else {
+			@Button(ButtonProps{Variant: ButtonSecondary, Attrs: templ.Attributes{"hx-post": fmt.Sprintf("/r/%s/versions", props.RankingUUID)}}) {
+				Create new version
+			}
+		}
+	</div>
 }
 
 templ RankingMeta(props RankingMetaProps) {
