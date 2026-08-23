@@ -1,4 +1,4 @@
-// Package app wires the HTTP layer: routes, middleware, and handlers.
+// Package app contains all the wiring for routes, middleware, handlers, and services.
 package app
 
 import (
@@ -19,36 +19,19 @@ import (
 	"github.com/ghmeier/rankanything/internal/ui"
 )
 
-// App holds everything the handlers need.
 type App struct {
-	Pool     *pgxpool.Pool
-	Queries  *db.Queries
-	Sessions *auth.Sessions
-	Render   *render.Renderer
-	Logger   *slog.Logger
-	Static   fs.FS
-
-	// IsProduction drives the handful of things that must never run in a
-	// live deployment (right now, just the /components dev route). It's
-	// set once in cmd/rankanything/main.go from config.Config.IsProduction,
-	// so there is exactly one source of truth for "are we in production"
-	// rather than this package re-reading APP_ENV itself.
+	Pool         *pgxpool.Pool
+	Queries      *db.Queries
+	Sessions     *auth.Sessions
+	Render       *render.Renderer
+	Logger       *slog.Logger
+	Static       fs.FS
 	IsProduction bool
 
-	UserSvc    *services.UserService
-	RankingSvc *services.RankingsService
-
-	// Wired to nil until their owning wave 3/4 branch lands. Declaring the
-	// field here means each branch changes its own line rather than every
-	// sibling branch adding a field to this struct in parallel.
-	EmailSvc email.Sender           // feat/auth-flows: verification + password-reset mail
-	ShareSvc *services.ShareService // feat/public-share: is_public / public_slug toggling
-
-	// VerificationSvc implements email verification and password reset on
-	// top of EmailSvc. It's a separate field (rather than folding into
-	// UserSvc) because it's the one place besides EmailSvc itself that this
-	// branch adds to App, and keeping it separate means a sibling branch
-	// never has to touch UserService's constructor call in main.go.
+	UserSvc         *services.UserService
+	RankingSvc      *services.RankingsService
+	EmailSvc        email.Sender
+	ShareSvc        *services.ShareService
 	VerificationSvc *services.VerificationService
 }
 
@@ -82,18 +65,18 @@ func (a *App) Routes() http.Handler {
 	)
 }
 
-// RequireUser gates handlers that only make sense for a signed-in user. The
-// post-login "next" redirect only carries the original path forward when
-// the gated request was itself a GET — after signing in, the browser
-// replays "next" as a GET, so a path that only answers POST (like /new)
-// would be a dead end if it were forwarded.
+// RequireUser ensures a logged in user session for the request. If
+// none is found, redirect to the login page for GET request and return
+// forbidden otherwise.
 func (a *App) RequireUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if a.Sessions.UserID(r.Context()) == 0 {
-			target := "/login"
-			if r.Method == http.MethodGet {
-				target += "?next=" + r.URL.Path
+			if r.Method != http.MethodGet {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
 			}
+
+			target := "/login" + "?next=" + r.URL.Path
 			http.Redirect(w, r, target, http.StatusSeeOther)
 			return
 		}
@@ -102,11 +85,7 @@ func (a *App) RequireUser(next http.Handler) http.Handler {
 }
 
 // RequireRankingAccess parses the ranking uuid from the path, confirms the
-// session's user owns it, and resolves which version the request addresses:
-// the live version for /r/{uuid}, or the version pinned by /r/{uuid}/v/{short}.
-// Both are stashed in the request context under constants.RankingUUIDKey and
-// constants.RankingVersionKey — handlers on these routes read from context,
-// never from PathValue, and can assume access is already granted.
+// session's user owns it, and resolves which version the request addresses.
 func (a *App) RequireRankingAccess(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
