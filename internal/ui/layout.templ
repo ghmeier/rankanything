@@ -14,11 +14,19 @@ type LayoutProps struct {
 	CSRFToken string
 	LoggedIn  bool
 	Flash     string
+	// Theme is a signed-in user's explicit preference: "system", "light",
+	// or "dark". It lands on <html data-theme="..."> in this same response
+	// — not applied by client-side JS after paint — so there's no flash of
+	// the wrong theme. Left empty for a signed-out visitor, which renders
+	// <html> with no data-theme attribute at all so input.css's
+	// prefers-color-scheme media query is the only thing deciding the
+	// palette, exactly as it did before this preference existed.
+	Theme string
 }
 
 templ Layout(props LayoutProps) {
 	<!DOCTYPE html>
-	<html lang="en" class="h-full">
+	<html lang="en" class="h-full" data-theme={ props.Theme }>
 		<head>
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>

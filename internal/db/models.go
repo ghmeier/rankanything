@@ -55,6 +55,49 @@ func (ns NullRankingShareRole) Value() (driver.Value, error) {
 	return string(ns.RankingShareRole), nil
 }
 
+type UserThemePreference string
+
+const (
+	UserThemePreferenceSystem UserThemePreference = "system"
+	UserThemePreferenceLight  UserThemePreference = "light"
+	UserThemePreferenceDark   UserThemePreference = "dark"
+)
+
+func (e *UserThemePreference) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = UserThemePreference(s)
+	case string:
+		*e = UserThemePreference(s)
+	default:
+		return fmt.Errorf("unsupported scan type for UserThemePreference: %T", src)
+	}
+	return nil
+}
+
+type NullUserThemePreference struct {
+	UserThemePreference UserThemePreference
+	Valid               bool // Valid is true if UserThemePreference is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullUserThemePreference) Scan(value interface{}) error {
+	if value == nil {
+		ns.UserThemePreference, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.UserThemePreference.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullUserThemePreference) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.UserThemePreference), nil
+}
+
 type EmailVerification struct {
 	ID         int64
 	CreatedAt  pgtype.Timestamptz
@@ -154,11 +197,12 @@ type Session struct {
 }
 
 type User struct {
-	ID            int64
-	Email         string
-	PasswordHash  string
-	EmailVerified bool
-	CreatedAt     pgtype.Timestamptz
-	UpdatedAt     pgtype.Timestamptz
-	LastLoginAt   pgtype.Timestamptz
+	ID              int64
+	Email           string
+	PasswordHash    string
+	EmailVerified   bool
+	CreatedAt       pgtype.Timestamptz
+	UpdatedAt       pgtype.Timestamptz
+	LastLoginAt     pgtype.Timestamptz
+	ThemePreference UserThemePreference
 }

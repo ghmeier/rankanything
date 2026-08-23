@@ -13,6 +13,7 @@ type RankingsIndexProps struct {
 	CSRFToken          string
 	LoggedIn           bool
 	Flash              string
+	Theme              string
 	VerificationNotice templ.Component
 	Rankings           []RankingsIndexCard
 }
@@ -28,7 +29,7 @@ type RankingsIndexCard struct {
 }
 
 templ RankingsIndexPage(props RankingsIndexProps) {
-	@Layout(LayoutProps{Title: "Your rankings", CSRFToken: props.CSRFToken, LoggedIn: props.LoggedIn, Flash: props.Flash}) {
+	@Layout(LayoutProps{Title: "Your rankings", CSRFToken: props.CSRFToken, LoggedIn: props.LoggedIn, Flash: props.Flash, Theme: props.Theme}) {
 		<div class="space-y-6">
 			if props.VerificationNotice != nil {
 				@props.VerificationNotice

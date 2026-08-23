@@ -97,6 +97,41 @@ func (s *UserService) Logout(ctx context.Context) error {
 	return s.Sessions.LogOut(ctx)
 }
 
+// ErrInvalidThemePreference is returned when UpdateThemePreference is asked
+// to set a value other than "system", "light", or "dark".
+var ErrInvalidThemePreference = &invalidThemePreferenceError{}
+
+type invalidThemePreferenceError struct{}
+
+func (*invalidThemePreferenceError) Error() string { return "invalid theme preference" }
+
+// UpdateThemePreferenceRequest is the input for changing a user's theme
+// preference.
+type UpdateThemePreferenceRequest struct {
+	UserID     int64
+	Preference db.UserThemePreference
+}
+
+// UpdateThemePreference validates and persists a user's explicit theme
+// choice — "system" defers to the visitor's OS setting, "light" and "dark"
+// force a palette regardless of it.
+func (s *UserService) UpdateThemePreference(ctx context.Context, req UpdateThemePreferenceRequest) (*db.User, error) {
+	switch req.Preference {
+	case db.UserThemePreferenceSystem, db.UserThemePreferenceLight, db.UserThemePreferenceDark:
+	default:
+		return nil, ErrInvalidThemePreference
+	}
+
+	user, err := s.Queries.UpdateUserThemePreference(ctx, db.UpdateUserThemePreferenceParams{
+		ID:              req.UserID,
+		ThemePreference: req.Preference,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 // isUniqueViolation reports whether an error is a PostgreSQL unique constraint violation.
 func isUniqueViolation(err error) bool {
 	if err == nil {

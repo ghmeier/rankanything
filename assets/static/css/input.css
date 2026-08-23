@@ -35,7 +35,10 @@
 }
 
 /* The OS-level preference is the default, but loses to an explicit
-   [data-theme] choice from the theme toggle (see internal/ui's gallery). */
+   [data-theme="light"|"dark"] choice. For a signed-in user that attribute
+   comes from their stored theme_preference and is rendered on <html> in the
+   initial response (internal/ui/layout.templ); the component gallery also
+   drives it client-side, purely for previewing components in both palettes. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --app-background: #141414;

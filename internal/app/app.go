@@ -53,6 +53,7 @@ func (a *App) Routes() http.Handler {
 	a.registerAuthRoutes(mux)
 	a.registerRankingRoutes(mux)
 	a.registerPublicRoutes(mux)
+	a.registerAccountRoutes(mux)
 
 	return auth.Chain(mux,
 		auth.Recover(a.Logger),

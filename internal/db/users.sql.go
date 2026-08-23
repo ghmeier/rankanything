@@ -12,7 +12,7 @@ import (
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, password_hash)
 VALUES ($1, $2)
-RETURNING id, email, password_hash, email_verified, created_at, updated_at, last_login_at
+RETURNING id, email, password_hash, email_verified, created_at, updated_at, last_login_at, theme_preference
 `
 
 type CreateUserParams struct {
@@ -31,12 +31,13 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LastLoginAt,
+		&i.ThemePreference,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, email_verified, created_at, updated_at, last_login_at FROM users WHERE email = $1
+SELECT id, email, password_hash, email_verified, created_at, updated_at, last_login_at, theme_preference FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -50,12 +51,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LastLoginAt,
+		&i.ThemePreference,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password_hash, email_verified, created_at, updated_at, last_login_at FROM users WHERE id = $1
+SELECT id, email, password_hash, email_verified, created_at, updated_at, last_login_at, theme_preference FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
@@ -69,13 +71,14 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LastLoginAt,
+		&i.ThemePreference,
 	)
 	return i, err
 }
 
 const markUserEmailVerified = `-- name: MarkUserEmailVerified :one
 UPDATE users SET email_verified = true, updated_at = now() WHERE id = $1
-RETURNING id, email, password_hash, email_verified, created_at, updated_at, last_login_at
+RETURNING id, email, password_hash, email_verified, created_at, updated_at, last_login_at, theme_preference
 `
 
 func (q *Queries) MarkUserEmailVerified(ctx context.Context, id int64) (User, error) {
@@ -89,6 +92,7 @@ func (q *Queries) MarkUserEmailVerified(ctx context.Context, id int64) (User, er
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LastLoginAt,
+		&i.ThemePreference,
 	)
 	return i, err
 }
@@ -114,4 +118,30 @@ type UpdateUserPasswordHashParams struct {
 func (q *Queries) UpdateUserPasswordHash(ctx context.Context, arg UpdateUserPasswordHashParams) error {
 	_, err := q.db.Exec(ctx, updateUserPasswordHash, arg.ID, arg.PasswordHash)
 	return err
+}
+
+const updateUserThemePreference = `-- name: UpdateUserThemePreference :one
+UPDATE users SET theme_preference = $2, updated_at = now() WHERE id = $1
+RETURNING id, email, password_hash, email_verified, created_at, updated_at, last_login_at, theme_preference
+`
+
+type UpdateUserThemePreferenceParams struct {
+	ID              int64
+	ThemePreference UserThemePreference
+}
+
+func (q *Queries) UpdateUserThemePreference(ctx context.Context, arg UpdateUserThemePreferenceParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserThemePreference, arg.ID, arg.ThemePreference)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.EmailVerified,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LastLoginAt,
+		&i.ThemePreference,
+	)
+	return i, err
 }

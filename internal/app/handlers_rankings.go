@@ -32,6 +32,7 @@ func (a *App) handleRankingsIndex(w http.ResponseWriter, r *http.Request) {
 		CSRFToken: base.CSRFToken,
 		LoggedIn:  base.User != nil,
 		Flash:     base.Flash,
+		Theme:     base.Theme,
 		Rankings:  make([]ui.RankingsIndexCard, len(summaries)),
 	}
 	if base.User != nil && !base.User.EmailVerified {

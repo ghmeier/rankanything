@@ -15,6 +15,7 @@ templ NavBar(props NavBarProps) {
 			<nav class="flex items-center gap-4 text-sm">
 				if props.LoggedIn {
 					<a href="/me" class="text-text-muted hover:text-text-muted-hover">Your rankings</a>
+					<a href="/account" class="text-text-muted hover:text-text-muted-hover">Account</a>
 					<button class="text-text-muted hover:text-text-muted-hover" type="button" hx-post="/logout">
 						Sign out
 					</button>

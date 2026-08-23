@@ -40,7 +40,7 @@ func NavBar(props NavBarProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if props.LoggedIn {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<a href=\"/me\" class=\"text-text-muted hover:text-text-muted-hover\">Your rankings</a> <button class=\"text-text-muted hover:text-text-muted-hover\" type=\"button\" hx-post=\"/logout\">Sign out</button>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<a href=\"/me\" class=\"text-text-muted hover:text-text-muted-hover\">Your rankings</a> <a href=\"/account\" class=\"text-text-muted hover:text-text-muted-hover\">Account</a> <button class=\"text-text-muted hover:text-text-muted-hover\" type=\"button\" hx-post=\"/logout\">Sign out</button>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -12,6 +12,10 @@ type BaseView struct {
 	User      *db.User
 	CSRFToken string
 	Flash     string
+	// Theme is User.ThemePreference as a string, or "" for a signed-out
+	// visitor — see LayoutProps.Theme for what that does to the rendered
+	// <html> tag.
+	Theme string
 }
 
 func (a *App) base(r *http.Request) BaseView {
@@ -20,6 +24,7 @@ func (a *App) base(r *http.Request) BaseView {
 	if id := a.Sessions.UserID(ctx); id != 0 {
 		if u, err := a.Queries.GetUserByID(ctx, id); err == nil {
 			v.User = &u
+			v.Theme = string(u.ThemePreference)
 		}
 	}
 	return v
