@@ -7,7 +7,6 @@ import "net/http"
 // all gated by RequireRankingAccess. feat/rankings-index and
 // feat/versioned-board (wave 3) build out the handlers behind these routes.
 func (a *App) registerRankingRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /{$}", a.handleHome)
 	mux.Handle("POST /new", a.RequireUser(http.HandlerFunc(a.handleNew)))
 	mux.Handle("GET /me", a.RequireUser(http.HandlerFunc(a.handleMe)))
 
