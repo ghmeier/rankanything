@@ -23,7 +23,7 @@ var (
 // in this package depends on the exact path, only that Link produces an
 // absolute URL carrying the token.
 const (
-	verifyPath = "/verify-email"
+	verifyPath = "/verify"
 	resetPath  = "/reset-password"
 )
 

@@ -14,7 +14,7 @@ func TestVerificationMessageCarriesTheLink(t *testing.T) {
 	msg, err := VerificationMessage("person@example.com", "https://rankanything.app", "the-token")
 	require.NoError(t, err)
 
-	wantLink := "https://rankanything.app/verify-email?token=the-token"
+	wantLink := "https://rankanything.app/verify?token=the-token"
 	assert.Equal(t, "person@example.com", msg.To)
 	assert.Contains(t, msg.HTML, wantLink)
 	assert.Contains(t, msg.Text, wantLink)

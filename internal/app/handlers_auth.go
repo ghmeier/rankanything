@@ -8,6 +8,7 @@ import (
 	"github.com/ghmeier/rankanything/internal/auth"
 	"github.com/ghmeier/rankanything/internal/render"
 	"github.com/ghmeier/rankanything/internal/services"
+	"github.com/ghmeier/rankanything/internal/ui"
 )
 
 // handleRegisterForm is GET /register.
@@ -32,18 +33,25 @@ func (a *App) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = a.UserSvc.Register(r.Context(), services.RegisterRequest{
+	user, err := a.UserSvc.Register(r.Context(), services.RegisterRequest{
 		Email:    email,
 		Password: password,
 		Next:     next,
 	})
 	if err != nil {
 		if errors.Is(err, services.ErrEmailAlreadyRegistered) {
-			a.renderRegisterError(w, r, email, next, "email already registered")
+			a.renderRegisterConflict(w, r, email, next)
 			return
 		}
 		a.serverError(w, r, err)
 		return
+	}
+
+	// A failed send here shouldn't fail registration itself — the account
+	// still exists, and the rankings index's resend control covers a user
+	// whose first verification mail never arrived.
+	if err := a.VerificationSvc.SendVerificationEmail(r.Context(), user.ID, user.Email); err != nil {
+		a.Logger.Error("send verification email", "err", err, "user_id", user.ID)
 	}
 
 	a.Sessions.Flash(r.Context(), "Account created!")
@@ -61,6 +69,12 @@ func (a *App) handleRegister(w http.ResponseWriter, r *http.Request) {
 func (a *App) renderRegisterError(w http.ResponseWriter, r *http.Request, email, next, errMsg string) {
 	base := a.base(r)
 	view := AuthView{BaseView: base, Email: email, Next: next, Error: errMsg}
+	a.Render.Page(w, http.StatusUnprocessableEntity, "pages/register.html", view)
+}
+
+func (a *App) renderRegisterConflict(w http.ResponseWriter, r *http.Request, email, next string) {
+	base := a.base(r)
+	view := AuthView{BaseView: base, Email: email, Next: next, EmailAlreadyRegistered: true}
 	a.Render.Page(w, http.StatusUnprocessableEntity, "pages/register.html", view)
 }
 
@@ -138,4 +152,161 @@ func (a *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+// handleVerifyEmail is GET /verify — the click-through from a verification
+// email. It's a plain redirect rather than a page of its own: there's
+// nothing for the visitor to do here but land somewhere with a flash
+// explaining what happened.
+func (a *App) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	tok := r.URL.Query().Get("token")
+
+	if tok == "" || a.VerificationSvc.RedeemEmailVerification(ctx, tok) != nil {
+		a.Sessions.Flash(ctx, "That verification link has expired or was already used. You can request a new one from your rankings page.")
+	} else {
+		a.Sessions.Flash(ctx, "Email verified!")
+	}
+
+	// A signed-out visitor (verifying from a different browser than the one
+	// they registered in) would just bounce off RequireUser at /me; sending
+	// them to /login instead means the flash is the first thing they see.
+	target := "/me"
+	if a.Sessions.UserID(ctx) == 0 {
+		target = "/login"
+	}
+	http.Redirect(w, r, target, http.StatusSeeOther)
+}
+
+// handleResendVerification is POST /resend-verification, gated by
+// RequireUser — it always acts on the signed-in user's own address, so
+// there's no neutral-response concern the way there is for forgot-password.
+func (a *App) handleResendVerification(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user, err := a.Queries.GetUserByID(ctx, a.Sessions.UserID(ctx))
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+
+	if !user.EmailVerified {
+		if err := a.VerificationSvc.SendVerificationEmail(ctx, user.ID, user.Email); err != nil {
+			a.Logger.Error("resend verification email", "err", err, "user_id", user.ID)
+		}
+	}
+
+	a.renderVerificationNotice(w, r, user.Email)
+}
+
+func (a *App) renderVerificationNotice(w http.ResponseWriter, r *http.Request, email string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := ui.ResendVerificationSentNotice(email).Render(r.Context(), w); err != nil {
+		a.Logger.Error("render verification notice", "err", err)
+	}
+}
+
+// handleForgotPasswordForm is GET /forgot-password.
+func (a *App) handleForgotPasswordForm(w http.ResponseWriter, r *http.Request) {
+	base := a.base(r)
+	props := ui.ForgotPasswordProps{CSRFToken: base.CSRFToken, LoggedIn: base.User != nil, Flash: base.Flash}
+	a.renderForgotPasswordPage(w, r, http.StatusOK, props)
+}
+
+// handleForgotPassword is POST /forgot-password. Its response is identical
+// whether or not the address has an account — see
+// services.VerificationService.RequestPasswordReset — so nothing here may
+// branch on whether the account existed.
+func (a *App) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
+	base := a.base(r)
+	baseProps := ui.ForgotPasswordProps{CSRFToken: base.CSRFToken, LoggedIn: base.User != nil, Flash: base.Flash}
+
+	emailInput, err := auth.NormalizeEmail(r.FormValue("email"))
+	if err != nil {
+		props := baseProps
+		props.Email = r.FormValue("email")
+		props.Error = err.Error()
+		a.renderForgotPasswordForm(w, r, http.StatusUnprocessableEntity, props)
+		return
+	}
+
+	if err := a.VerificationSvc.RequestPasswordReset(r.Context(), emailInput); err != nil {
+		a.Logger.Error("request password reset", "err", err)
+	}
+
+	props := baseProps
+	props.Sent = true
+	a.renderForgotPasswordForm(w, r, http.StatusOK, props)
+}
+
+func (a *App) renderForgotPasswordPage(w http.ResponseWriter, r *http.Request, status int, props ui.ForgotPasswordProps) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	if err := ui.ForgotPasswordPage(props).Render(r.Context(), w); err != nil {
+		a.Logger.Error("render forgot-password page", "err", err)
+	}
+}
+
+func (a *App) renderForgotPasswordForm(w http.ResponseWriter, r *http.Request, status int, props ui.ForgotPasswordProps) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	if err := ui.ForgotPasswordForm(props).Render(r.Context(), w); err != nil {
+		a.Logger.Error("render forgot-password form", "err", err)
+	}
+}
+
+// handleResetPasswordForm is GET /reset-password?token=...
+func (a *App) handleResetPasswordForm(w http.ResponseWriter, r *http.Request) {
+	base := a.base(r)
+	props := ui.ResetPasswordProps{
+		CSRFToken: base.CSRFToken,
+		LoggedIn:  base.User != nil,
+		Flash:     base.Flash,
+		Token:     r.URL.Query().Get("token"),
+	}
+	a.renderResetPasswordPage(w, r, http.StatusOK, props)
+}
+
+// handleResetPassword is POST /reset-password. Unlike forgot-password, a
+// bad token here doesn't need a neutral response — reaching this endpoint
+// already proves the caller holds a link that was mailed out, so the error
+// can say plainly that it's expired or used rather than staying vague.
+func (a *App) handleResetPassword(w http.ResponseWriter, r *http.Request) {
+	base := a.base(r)
+	tok := r.FormValue("token")
+	baseProps := ui.ResetPasswordProps{CSRFToken: base.CSRFToken, LoggedIn: base.User != nil, Flash: base.Flash, Token: tok}
+
+	passwordHash, err := auth.HashPassword(r.FormValue("password"))
+	if err != nil {
+		props := baseProps
+		props.Error = err.Error()
+		a.renderResetPasswordForm(w, r, http.StatusUnprocessableEntity, props)
+		return
+	}
+
+	if err := a.VerificationSvc.RedeemPasswordReset(r.Context(), tok, passwordHash); err != nil {
+		props := baseProps
+		props.Error = "This link has expired or was already used. Request a new one."
+		a.renderResetPasswordForm(w, r, http.StatusUnprocessableEntity, props)
+		return
+	}
+
+	props := baseProps
+	props.Done = true
+	a.renderResetPasswordForm(w, r, http.StatusOK, props)
+}
+
+func (a *App) renderResetPasswordPage(w http.ResponseWriter, r *http.Request, status int, props ui.ResetPasswordProps) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	if err := ui.ResetPasswordPage(props).Render(r.Context(), w); err != nil {
+		a.Logger.Error("render reset-password page", "err", err)
+	}
+}
+
+func (a *App) renderResetPasswordForm(w http.ResponseWriter, r *http.Request, status int, props ui.ResetPasswordProps) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	if err := ui.ResetPasswordForm(props).Render(r.Context(), w); err != nil {
+		a.Logger.Error("render reset-password form", "err", err)
+	}
 }

@@ -35,6 +35,9 @@ func (a *App) handleRankingsIndex(w http.ResponseWriter, r *http.Request) {
 		Flash:     base.Flash,
 		Rankings:  make([]ui.RankingsIndexCard, len(summaries)),
 	}
+	if base.User != nil && !base.User.EmailVerified {
+		props.VerificationNotice = ui.ResendVerificationNotice(base.User.Email)
+	}
 	for i, summary := range summaries {
 		props.Rankings[i] = ui.RankingsIndexCard{
 			URL:    "/r/" + summary.Ranking.Uuid.String(),

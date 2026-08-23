@@ -17,6 +17,7 @@ import (
 	"github.com/ghmeier/rankanything/internal/auth"
 	"github.com/ghmeier/rankanything/internal/config"
 	"github.com/ghmeier/rankanything/internal/db"
+	"github.com/ghmeier/rankanything/internal/email"
 	"github.com/ghmeier/rankanything/internal/render"
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -61,6 +62,7 @@ func run(logger *slog.Logger) error {
 
 	q := db.New(p)
 	s := auth.NewSessions(sm)
+	emailSvc := email.NewSender(cfg.ResendAPIKey, cfg.EmailFrom, logger)
 
 	application := &app.App{
 		Pool:         p,
@@ -72,6 +74,13 @@ func run(logger *slog.Logger) error {
 		IsProduction: cfg.IsProduction(),
 		UserSvc:      &services.UserService{Queries: q, Sessions: s},
 		RankingSvc:   &services.RankingsService{Queries: q, Pool: p},
+		EmailSvc:     emailSvc,
+		VerificationSvc: &services.VerificationService{
+			Queries: q,
+			Sender:  emailSvc,
+			DB:      p,
+			BaseURL: cfg.BaseURL,
+		},
 	}
 
 	srv := &http.Server{

@@ -35,6 +35,7 @@ import (
 	"github.com/ghmeier/rankanything/internal/auth"
 	"github.com/ghmeier/rankanything/internal/config"
 	"github.com/ghmeier/rankanything/internal/db"
+	"github.com/ghmeier/rankanything/internal/email"
 	"github.com/ghmeier/rankanything/internal/render"
 	"github.com/ghmeier/rankanything/internal/services"
 )
@@ -131,6 +132,11 @@ type Env struct {
 	Tx      pgx.Tx        // test transaction; rolls back on test exit
 	Queries *db.Queries
 	Server  *httptest.Server
+
+	// EmailSink is the DevSink backing App.EmailSvc, so tests can assert on
+	// what a verification or password-reset flow would have mailed without
+	// touching the network.
+	EmailSink *email.DevSink
 }
 
 // NewEnv builds the real app (real templates, real database, in-memory session
@@ -146,27 +152,39 @@ func NewEnv(t *testing.T) *Env {
 	queries := db.New(tx)
 	sm := NewSessionManager()
 	s := auth.NewSessions(sm)
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	// Reading APP_ENV directly (rather than requiring a full config.Load,
 	// which also demands DATABASE_URL) keeps this test environment able to
 	// exercise the same production gating main.go wires from config.Config.
 	isProduction := config.Config{Env: os.Getenv("APP_ENV")}.IsProduction()
+
+	// The dev sink never touches the network: tests assert on what it
+	// captured (Env.EmailSink) instead of hitting Resend.
+	emailSink := email.NewDevSink(logger)
 
 	application := &app.App{
 		Pool:         pool,
 		Queries:      queries.WithTx(tx),
 		Sessions:     s,
 		Render:       renderer,
-		Logger:       slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		Logger:       logger,
 		Static:       assets.Static(),
 		IsProduction: isProduction,
 		UserSvc:      &services.UserService{Queries: queries.WithTx(tx), Sessions: s},
 		RankingSvc:   &services.RankingsService{Queries: queries.WithTx(tx), Pool: tx},
+		EmailSvc:     emailSink,
+		VerificationSvc: &services.VerificationService{
+			Queries: queries.WithTx(tx),
+			Sender:  emailSink,
+			DB:      tx,
+			BaseURL: "https://test.rankanything.app",
+		},
 	}
 
 	srv := httptest.NewServer(application.Routes())
 	t.Cleanup(srv.Close)
 
-	return &Env{T: t, App: application, Pool: pool, Tx: tx, Queries: application.Queries, Server: srv}
+	return &Env{T: t, App: application, Pool: pool, Tx: tx, Queries: application.Queries, Server: srv, EmailSink: emailSink}
 }
 
 // Client is a browser-like client: it keeps cookies and tracks the CSRF token

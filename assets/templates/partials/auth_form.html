@@ -14,11 +14,14 @@
   hx-swap="outerHTML"
 >
   <input type="hidden" name="next" value="{{ $view.Next }}" />
-  {{ if $view.Error }}
-  <p
-    role="alert"
-    class="rounded-md border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200"
-  >
+  {{ if $view.EmailAlreadyRegistered }}
+  <p role="alert" class="rounded-md border border-danger bg-danger-surface px-3 py-2 text-sm text-danger">
+    This email is already registered.
+    <a href="/login" class="underline">Try logging in</a> or
+    <a href="/forgot-password" class="underline">reset your password</a>.
+  </p>
+  {{ else if $view.Error }}
+  <p role="alert" class="rounded-md border border-danger bg-danger-surface px-3 py-2 text-sm text-danger">
     {{ $view.Error }}
   </p>
   {{ end }}

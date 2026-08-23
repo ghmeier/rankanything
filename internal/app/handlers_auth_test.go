@@ -6,10 +6,30 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ghmeier/rankanything/internal/email"
 	"github.com/ghmeier/rankanything/internal/testsupport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// extractToken pulls the plaintext token out of a mailed message's link —
+// the same value a user would copy by clicking it — so a test can feed it
+// back into GET /verify or POST /reset-password without ever touching the
+// stored hash directly.
+func extractToken(t *testing.T, msg email.Message) string {
+	t.Helper()
+	for _, line := range strings.Split(msg.Text, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "http") {
+			continue
+		}
+		u, err := url.Parse(line)
+		require.NoError(t, err)
+		return u.Query().Get("token")
+	}
+	t.Fatal("no link found in mailed message")
+	return ""
+}
 
 func TestRegisterValidation(t *testing.T) {
 	env := testsupport.NewEnv(t)
@@ -59,7 +79,7 @@ func TestRegisterValidation(t *testing.T) {
 	// until rollback, so this runs last — any subtest after it that expects
 	// a clean database would see Postgres's "current transaction is aborted"
 	// instead of the behavior it's testing.
-	t.Run("rejects a duplicate email", func(t *testing.T) {
+	t.Run("rejects a duplicate email with next-step links instead of a bare refusal", func(t *testing.T) {
 		first := env.NewClient()
 		require.Equal(t, http.StatusSeeOther,
 			first.Post("/register", url.Values{"email": {"dup@example.com"}, "password": {"supersecret"}}).Status)
@@ -67,6 +87,145 @@ func TestRegisterValidation(t *testing.T) {
 		res := env.NewClient().Post("/register", url.Values{"email": {"DUP@example.com"}, "password": {"supersecret"}})
 		assert.Equal(t, http.StatusUnprocessableEntity, res.Status)
 		assert.Contains(t, Body(res.Body), "already registered")
+		assert.Contains(t, Body(res.Body), `href="/login"`)
+		assert.Contains(t, Body(res.Body), `href="/forgot-password"`)
+	})
+}
+
+func TestRegisterSendsAVerificationEmail(t *testing.T) {
+	env := testsupport.NewEnv(t)
+
+	res := env.NewClient().Post("/register", url.Values{"email": {"newcomer@example.com"}, "password": {"supersecret"}})
+	require.Equal(t, http.StatusSeeOther, res.Status)
+
+	sent := env.EmailSink.Sent()
+	require.Len(t, sent, 1)
+	assert.Equal(t, "newcomer@example.com", sent[0].To)
+	assert.Contains(t, sent[0].Text, "/verify?token=")
+}
+
+func TestVerifyEmail(t *testing.T) {
+	t.Run("a valid token verifies the user and lands them on their rankings", func(t *testing.T) {
+		env := testsupport.NewEnv(t)
+		c := env.NewClient()
+		require.Equal(t, http.StatusSeeOther, c.Post("/register",
+			url.Values{"email": {"verifyme@example.com"}, "password": {"supersecret"}}).Status)
+
+		token := extractToken(t, env.EmailSink.Sent()[0])
+		res := c.Get("/verify?token=" + token)
+		require.Equal(t, http.StatusSeeOther, res.Status)
+		assert.Equal(t, "/me", res.Location())
+
+		me := c.Get(res.Location())
+		assert.NotContains(t, Body(me.Body), "Resend verification email")
+	})
+
+	t.Run("an unknown token redirects without verifying anyone", func(t *testing.T) {
+		env := testsupport.NewEnv(t)
+		c := env.NewClient()
+		require.Equal(t, http.StatusSeeOther, c.Post("/register",
+			url.Values{"email": {"stillunverified@example.com"}, "password": {"supersecret"}}).Status)
+
+		res := c.Get("/verify?token=not-a-real-token")
+		require.Equal(t, http.StatusSeeOther, res.Status)
+
+		me := c.Get("/me")
+		assert.Contains(t, Body(me.Body), "Resend verification email")
+	})
+}
+
+func TestRankingsIndexShowsAVerificationNoticeUntilVerified(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+
+	res := owner.Get("/me")
+	assert.Contains(t, Body(res.Body), "Resend verification email")
+}
+
+func TestResendVerification(t *testing.T) {
+	t.Run("requires a signed-in user", func(t *testing.T) {
+		env := testsupport.NewEnv(t)
+
+		res := env.NewClient().Post("/resend-verification", nil)
+
+		require.Equal(t, http.StatusSeeOther, res.Status)
+		assert.Equal(t, "/login", res.Location())
+	})
+
+	t.Run("mails a fresh token and confirms it on the page", func(t *testing.T) {
+		env := testsupport.NewEnv(t)
+		owner := env.NewOwnerClient()
+		require.Len(t, env.EmailSink.Sent(), 1, "registering already sent the first verification email")
+
+		res := owner.HTMX(http.MethodPost, "/resend-verification", nil)
+
+		assert.Equal(t, http.StatusOK, res.Status)
+		assert.Contains(t, Body(res.Body), "Verification email sent")
+		assert.Len(t, env.EmailSink.Sent(), 2)
+	})
+}
+
+func TestForgotPassword(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	require.Equal(t, http.StatusSeeOther, env.NewClient().Post("/register",
+		url.Values{"email": {"hasaccount@example.com"}, "password": {"supersecret"}}).Status)
+	sentBeforeRequests := len(env.EmailSink.Sent())
+
+	t.Run("a registered address gets the neutral response and a mailed link", func(t *testing.T) {
+		res := env.NewClient().HTMX(http.MethodPost, "/forgot-password", url.Values{"email": {"hasaccount@example.com"}})
+
+		assert.Equal(t, http.StatusOK, res.Status)
+		assert.Contains(t, Body(res.Body), "If an account exists for that address, we've sent a reset link.")
+		assert.Len(t, env.EmailSink.Sent(), sentBeforeRequests+1)
+	})
+
+	t.Run("an unregistered address gets the identical response and no mail", func(t *testing.T) {
+		res := env.NewClient().HTMX(http.MethodPost, "/forgot-password", url.Values{"email": {"ghost@example.com"}})
+
+		assert.Equal(t, http.StatusOK, res.Status)
+		assert.Contains(t, Body(res.Body), "If an account exists for that address, we've sent a reset link.")
+		assert.Len(t, env.EmailSink.Sent(), sentBeforeRequests+1, "no mail went out for an address with no account")
+	})
+
+	t.Run("a malformed address is rejected before it ever reaches the neutral response", func(t *testing.T) {
+		res := env.NewClient().HTMX(http.MethodPost, "/forgot-password", url.Values{"email": {"nope"}})
+
+		assert.Equal(t, http.StatusUnprocessableEntity, res.Status)
+		assert.Contains(t, Body(res.Body), "Enter a valid email address.")
+	})
+}
+
+func TestResetPassword(t *testing.T) {
+	t.Run("a valid token changes the password and the old one stops working", func(t *testing.T) {
+		env := testsupport.NewEnv(t)
+		require.Equal(t, http.StatusSeeOther, env.NewClient().Post("/register",
+			url.Values{"email": {"resetme@example.com"}, "password": {"supersecret"}}).Status)
+
+		require.Equal(t, http.StatusOK,
+			env.NewClient().HTMX(http.MethodPost, "/forgot-password", url.Values{"email": {"resetme@example.com"}}).Status)
+		sent := env.EmailSink.Sent()
+		token := extractToken(t, sent[len(sent)-1])
+
+		res := env.NewClient().HTMX(http.MethodPost, "/reset-password",
+			url.Values{"token": {token}, "password": {"newpassword123"}})
+		assert.Equal(t, http.StatusOK, res.Status)
+		assert.Contains(t, Body(res.Body), "Password updated.")
+
+		oldPassword := env.NewClient().Post("/login", url.Values{"email": {"resetme@example.com"}, "password": {"supersecret"}})
+		assert.Equal(t, http.StatusUnauthorized, oldPassword.Status)
+
+		newPassword := env.NewClient().Post("/login", url.Values{"email": {"resetme@example.com"}, "password": {"newpassword123"}})
+		assert.Equal(t, http.StatusSeeOther, newPassword.Status)
+	})
+
+	t.Run("an invalid token is rejected without changing anything", func(t *testing.T) {
+		env := testsupport.NewEnv(t)
+
+		res := env.NewClient().HTMX(http.MethodPost, "/reset-password",
+			url.Values{"token": {"not-a-real-token"}, "password": {"newpassword123"}})
+
+		assert.Equal(t, http.StatusUnprocessableEntity, res.Status)
+		assert.Contains(t, Body(res.Body), "expired or was already used")
 	})
 }
 

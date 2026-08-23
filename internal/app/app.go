@@ -43,6 +43,13 @@ type App struct {
 	// sibling branch adding a field to this struct in parallel.
 	EmailSvc email.Sender           // feat/auth-flows: verification + password-reset mail
 	ShareSvc *services.ShareService // feat/public-share: is_public / public_slug toggling
+
+	// VerificationSvc implements email verification and password reset on
+	// top of EmailSvc. It's a separate field (rather than folding into
+	// UserSvc) because it's the one place besides EmailSvc itself that this
+	// branch adds to App, and keeping it separate means a sibling branch
+	// never has to touch UserService's constructor call in main.go.
+	VerificationSvc *services.VerificationService
 }
 
 // Routes builds the fully wrapped handler for the app.
