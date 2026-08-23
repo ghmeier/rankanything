@@ -1,6 +1,9 @@
 package ui
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 // TierRowProps renders one tier row: its label (or edit form, via
 // TierRowLabelProps) and the items placed in it. A mutation handler renders
@@ -36,7 +39,7 @@ templ TierRow(props TierRowProps) {
 	<section
 		id={ fmt.Sprintf("tier-row-%d", props.TierID) }
 		data-tier-id={ fmt.Sprintf("%d", props.TierID) }
-		draggable?={ props.Editable }
+		draggable={ strconv.FormatBool(props.Editable) }
 		class="tier-row flex items-stretch gap-2 bg-surface"
 	>
 		@TierRowLabel(TierRowLabelProps{RankingUUID: props.RankingUUID, VersionShortUUID: props.VersionShortUUID, TierID: props.TierID, Title: props.Title, ColorHex: props.ColorHex, BoardEditable: props.Editable})

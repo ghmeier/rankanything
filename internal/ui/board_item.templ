@@ -1,6 +1,9 @@
 package ui
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 // ItemCardProps renders one ranking item, in the tray or in a tier. It
 // carries RankingUUID rather than relying on an ancestor for it because a
@@ -22,7 +25,7 @@ templ ItemCard(props ItemCardProps) {
 		class="item-card group flex h-fit w-40 cursor-grab items-center gap-2 rounded-md border border-border bg-surface p-2 text-sm shadow-sm"
 		id={ fmt.Sprintf("ranking-item-%d", props.ItemID) }
 		data-item-id={ fmt.Sprintf("%d", props.ItemID) }
-		draggable?={ props.Editable }
+		draggable={ strconv.FormatBool(props.Editable) }
 	>
 		if props.ImageURL != "" {
 			<img

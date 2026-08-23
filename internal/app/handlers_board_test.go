@@ -595,6 +595,31 @@ func TestRenameTierDoesNotCarryThePublishActionOutOfBand(t *testing.T) {
 // Published versions hide editing controls
 // ---------------------------------------------------------------------------
 
+// The browser treats draggable as an enumerated attribute, not a boolean
+// one: a bare `draggable` is invalid and falls back to "auto", which leaves
+// an <article> or <section> undraggable. board.js delegates dragstart from
+// the board container and so depends entirely on the browser honouring the
+// attribute, which makes the explicit value the whole feature rests on.
+func TestBoardRendersDraggableWithAnExplicitValue(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	ctx := context.Background()
+	slug := owner.Ranking.Uuid
+
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/items", url.Values{"label": {"Pretzels"}})
+
+	draft := Body(owner.Get("/r/" + slug.String() + "/v/" + owner.Draft.ShortUuid).Body)
+	assert.Contains(t, draft, `draggable="true"`)
+	assert.NotRegexp(t, `draggable[\s>]`, draft, "a bare draggable attribute reads as auto, not true")
+
+	published, err := env.Queries.PublishRankingVersion(ctx, owner.Draft.ID)
+	require.NoError(t, err)
+
+	locked := Body(owner.Get("/r/" + slug.String() + "/v/" + published.ShortUuid).Body)
+	assert.Contains(t, locked, `draggable="false"`)
+	assert.NotContains(t, locked, `draggable="true"`)
+}
+
 func TestPublishedVersionPageHidesEditingControls(t *testing.T) {
 	env := testsupport.NewEnv(t)
 	owner := env.NewOwnerClient()
