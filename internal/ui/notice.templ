@@ -1,0 +1,28 @@
+package ui
+
+// NoticeVariant selects a Notice's tone.
+type NoticeVariant string
+
+const (
+	NoticeSuccess NoticeVariant = "success"
+	NoticeError   NoticeVariant = "error"
+)
+
+type NoticeProps struct {
+	Variant NoticeVariant
+	Attrs   templ.Attributes
+}
+
+templ Notice(props NoticeProps) {
+	<div role="status" class={ noticeClass(props.Variant) } { props.Attrs... }>
+		{ children... }
+	</div>
+}
+
+func noticeClass(variant NoticeVariant) string {
+	const base = "rounded-md border px-4 py-2 text-sm"
+	if variant == NoticeError {
+		return base + " border-danger bg-danger-surface text-danger"
+	}
+	return base + " border-success bg-success-surface text-success"
+}

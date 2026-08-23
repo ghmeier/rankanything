@@ -1,0 +1,45 @@
+package ui
+
+import "cmp"
+
+// InputProps configures Input. Type defaults to "text". When Error is set,
+// the field border switches to the danger token and the message renders
+// beneath it.
+type InputProps struct {
+	Name        string
+	Type        string
+	Label       string
+	Placeholder string
+	Value       string
+	Required    bool
+	Error       string
+	Attrs       templ.Attributes
+}
+
+templ Input(props InputProps) {
+	<label class="block space-y-1">
+		if props.Label != "" {
+			<span class="text-xs uppercase tracking-wide text-text-muted">{ props.Label }</span>
+		}
+		<input
+			type={ cmp.Or(props.Type, "text") }
+			name={ props.Name }
+			value={ props.Value }
+			placeholder={ props.Placeholder }
+			required?={ props.Required }
+			class={ inputClass(props.Error != "") }
+			{ props.Attrs... }
+		/>
+		if props.Error != "" {
+			<span class="block text-xs text-danger">{ props.Error }</span>
+		}
+	</label>
+}
+
+func inputClass(hasError bool) string {
+	const base = "w-full rounded-md border bg-surface px-3 py-2 text-sm text-text outline-none transition-colors focus:bg-surface-hover"
+	if hasError {
+		return base + " border-danger"
+	}
+	return base + " border-border"
+}

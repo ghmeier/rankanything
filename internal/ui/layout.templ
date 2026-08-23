@@ -1,0 +1,50 @@
+package ui
+
+import (
+	"cmp"
+	"fmt"
+)
+
+// LayoutProps configures the page shell: the <html>/<head> boilerplate, the
+// NavBar, an optional flash notice, and a <main> the caller's content renders
+// into. Ported from assets/templates/layout.html — the CSRF token still rides
+// on body's hx-headers so every htmx mutation carries X-CSRF-Token.
+type LayoutProps struct {
+	Title     string
+	CSRFToken string
+	LoggedIn  bool
+	Flash     string
+}
+
+templ Layout(props LayoutProps) {
+	<!DOCTYPE html>
+	<html lang="en" class="h-full">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ cmp.Or(props.Title, "Rank Anything") }</title>
+			<meta
+				name="description"
+				content="Drag anything into tiers. Start ranking instantly, sign in only when you want to keep it."
+			/>
+			<link rel="stylesheet" href="/static/css/app.css"/>
+			<script src="/static/js/htmx.min.js"></script>
+		</head>
+		<body
+			class="min-h-full bg-background text-text antialiased"
+			hx-headers={ fmt.Sprintf(`{"X-CSRF-Token": "%s"}`, props.CSRFToken) }
+		>
+			@NavBar(NavBarProps{LoggedIn: props.LoggedIn})
+			if props.Flash != "" {
+				<div class="mx-auto mt-4 max-w-6xl px-6">
+					@Notice(NoticeProps{Variant: NoticeSuccess}) {
+						{ props.Flash }
+					}
+				</div>
+			}
+			<main class="mx-auto max-w-6xl px-6 py-4">
+				{ children... }
+			</main>
+		</body>
+	</html>
+}

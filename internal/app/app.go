@@ -6,7 +6,9 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"os"
 	"slices"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,6 +18,7 @@ import (
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/render"
 	"github.com/ghmeier/rankanything/internal/services"
+	"github.com/ghmeier/rankanything/internal/ui"
 )
 
 // App holds everything the handlers need.
@@ -51,6 +54,11 @@ func (a *App) Routes() http.Handler {
 
 	mux.Handle("GET /me", a.RequireUser(http.HandlerFunc(a.handleMe)))
 
+	// The component gallery is a development tool; it never runs in production.
+	if !isProductionEnv() {
+		mux.HandleFunc("GET /components", ui.ComponentsHandler)
+	}
+
 	// Auth.
 	mux.HandleFunc("GET /register", a.handleRegisterForm)
 	mux.HandleFunc("POST /register", a.handleRegister)
@@ -73,6 +81,13 @@ func (a *App) Routes() http.Handler {
 		a.Sessions.LoadAndSave,
 		auth.CSRF(a.Sessions),
 	)
+}
+
+// isProductionEnv mirrors config.Config.IsProduction without pulling in the
+// whole config package (which requires a loaded .env and DATABASE_URL) just
+// to gate one dev-only route.
+func isProductionEnv() bool {
+	return strings.EqualFold(os.Getenv("APP_ENV"), "production")
 }
 
 // RequireUser gates handlers that only make sense for a signed-in user.

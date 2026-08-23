@@ -4,7 +4,7 @@ export
 
 TEST_DATABASE_URL ?= postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
 
-.PHONY: dev run migrate migrate-down sqlc css css-watch test tidy seed
+.PHONY: dev run migrate migrate-down sqlc css css-watch templ templ-watch test tidy seed
 
 tidy:
 	go mod tidy
@@ -12,10 +12,17 @@ tidy:
 dev:
 	@trap 'kill 0' INT TERM EXIT; \
 	$(MAKE) watch & \
+	$(MAKE) templ-watch & \
 	$(MAKE) css-watch
 
 watch:
 	air
+
+templ:
+	go tool templ generate
+
+templ-watch:
+	go tool templ generate --watch
 
 run:
 	go run cmd/rankanything/main.go

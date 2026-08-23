@@ -1,0 +1,34 @@
+package ui
+
+import "cmp"
+
+// IconButtonProps configures IconButton. Label is required — it is the only
+// accessible name the button has, since its content is a bare icon.
+type IconButtonProps struct {
+	Label    string
+	Variant  ButtonVariant
+	Type     string
+	Disabled bool
+	Attrs    templ.Attributes
+}
+
+templ IconButton(props IconButtonProps) {
+	<button
+		type={ cmp.Or(props.Type, "button") }
+		aria-label={ props.Label }
+		title={ props.Label }
+		disabled?={ props.Disabled }
+		class={ iconButtonClass(props.Variant) }
+		{ props.Attrs... }
+	>
+		{ children... }
+	</button>
+}
+
+func iconButtonClass(variant ButtonVariant) string {
+	const base = "inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-surface-hover disabled:opacity-50 disabled:pointer-events-none"
+	if variant == ButtonDestructive {
+		return base + " text-danger hover:text-danger-hover"
+	}
+	return base + " text-text-muted hover:text-text-muted-hover"
+}

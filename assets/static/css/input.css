@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 @source '../../templates';
+@source '../../../internal/ui';
 
 :root {
   --app-background: #f8f8f7;
@@ -23,10 +24,20 @@
   --app-text-muted-hover: #242424;
   --app-text-subtle: #969692;
   --app-text-subtle-hover: #6b6b68;
+
+  --app-success: #2f6f4f;
+  --app-success-hover: #24573e;
+  --app-success-surface: #eaf3ee;
+
+  --app-danger: #a3342c;
+  --app-danger-hover: #832822;
+  --app-danger-surface: #f6e9e8;
 }
 
+/* The OS-level preference is the default, but loses to an explicit
+   [data-theme] choice from the theme toggle (see internal/ui's gallery). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --app-background: #141414;
     --app-surface: #1e1e1e;
     --app-surface-hover: #282828;
@@ -47,7 +58,77 @@
     --app-text-hover: #ffffff;
     --app-text-muted-hover: #f2f2f2;
     --app-text-subtle-hover: #a8a8a3;
+
+    --app-success: #6bab85;
+    --app-success-hover: #8ec2a3;
+    --app-success-surface: #1b2b22;
+
+    --app-danger: #e08278;
+    --app-danger-hover: #e89e96;
+    --app-danger-surface: #34201e;
   }
+}
+
+:root[data-theme="light"] {
+  --app-background: #f8f8f7;
+  --app-surface: #ffffff;
+  --app-surface-hover: #f0f0ef;
+  --app-surface-muted: #f0f0ef;
+  --app-surface-muted-hover: #e5e5e3;
+
+  --app-primary: #242424;
+  --app-primary-hover: #111111;
+
+  --app-secondary: #6b6b68;
+  --app-secondary-hover: #575754;
+
+  --app-border: #dededc;
+
+  --app-text: #242424;
+  --app-text-hover: #111111;
+  --app-text-muted: #6b6b68;
+  --app-text-muted-hover: #242424;
+  --app-text-subtle: #969692;
+  --app-text-subtle-hover: #6b6b68;
+
+  --app-success: #2f6f4f;
+  --app-success-hover: #24573e;
+  --app-success-surface: #eaf3ee;
+
+  --app-danger: #a3342c;
+  --app-danger-hover: #832822;
+  --app-danger-surface: #f6e9e8;
+}
+
+:root[data-theme="dark"] {
+  --app-background: #141414;
+  --app-surface: #1e1e1e;
+  --app-surface-hover: #282828;
+  --app-surface-muted: #282828;
+  --app-surface-muted-hover: #333333;
+
+  --app-primary: #f2f2f2;
+  --app-primary-hover: #ffffff;
+
+  --app-secondary: #a8a8a3;
+  --app-secondary-hover: #c5c5c0;
+
+  --app-border: #383838;
+
+  --app-text: #f2f2f2;
+  --app-text-muted: #a8a8a3;
+  --app-text-subtle: #777773;
+  --app-text-hover: #ffffff;
+  --app-text-muted-hover: #f2f2f2;
+  --app-text-subtle-hover: #a8a8a3;
+
+  --app-success: #6bab85;
+  --app-success-hover: #8ec2a3;
+  --app-success-surface: #1b2b22;
+
+  --app-danger: #e08278;
+  --app-danger-hover: #e89e96;
+  --app-danger-surface: #34201e;
 }
 
 @theme {
@@ -72,4 +153,12 @@
   --color-text-muted-hover: var(--app-text-muted-hover);
   --color-text-subtle: var(--app-text-subtle);
   --color-text-subtle-hover: var(--app-text-subtle-hover);
+
+  --color-success: var(--app-success);
+  --color-success-hover: var(--app-success-hover);
+  --color-success-surface: var(--app-success-surface);
+
+  --color-danger: var(--app-danger);
+  --color-danger-hover: var(--app-danger-hover);
+  --color-danger-surface: var(--app-danger-surface);
 }
