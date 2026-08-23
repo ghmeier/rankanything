@@ -22,7 +22,10 @@ func (a *App) base(r *http.Request) BaseView {
 	ctx := r.Context()
 	v := BaseView{CSRFToken: a.Sessions.CSRFToken(ctx), Flash: a.Sessions.PopFlash(ctx)}
 	if id := a.Sessions.UserID(ctx); id != 0 {
-		if u, err := a.Queries.GetUserByID(ctx, id); err == nil {
+		u, err := a.Queries.GetUserByID(ctx, id)
+		if err != nil {
+			a.Logger.Error("Failed to get user by id", err)
+		} else {
 			v.User = &u
 			v.Theme = string(u.ThemePreference)
 		}

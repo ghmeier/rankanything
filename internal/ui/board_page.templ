@@ -85,7 +85,9 @@ templ BoardPage(props BoardPageProps) {
 				if props.Editable {
 					@TierForm(props.TierForm)
 				}
-				@ItemTray(props.ItemTray)
+				if props.Editable || len(props.ItemTray.Unassigned) != 0 {
+					@ItemTray(props.ItemTray)
+				}
 			</div>
 			<script src="/static/js/board.js" defer></script>
 		</div>
