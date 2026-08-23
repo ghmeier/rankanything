@@ -1,0 +1,9 @@
+We received a request to reset the password for {{.Email}}.
+
+Click the link below to choose a new password. This link expires in one
+hour.
+
+{{.Link}}
+
+If you didn't request this, you can ignore this message — your password
+won't change.

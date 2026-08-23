@@ -1,0 +1,8 @@
+Welcome to Rank Anything.
+
+Confirm your email address by visiting the link below. This link expires in
+one hour.
+
+{{.Link}}
+
+If you didn't create an account, you can ignore this message.

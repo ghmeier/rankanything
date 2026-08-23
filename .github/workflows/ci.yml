@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    # Postgres 18, matching the version the app targets (see CLAUDE.md).
+    # TEST_DATABASE_URL below points internal/testsupport at it — without
+    # that var set, every database-backed suite skips silently instead of
+    # running, which would leave this workflow green without actually
+    # exercising anything.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      # assets/assets.go embeds assets/static/css/app.css, which is
+      # gitignored and only exists after this build — the embed test in
+      # assets/assets_test.go fails without it, so this has to run before
+      # `go test`.
+      - name: Build Tailwind CSS
+        run: npx @tailwindcss/cli -i assets/static/css/input.css -o assets/static/css/app.css --minify
+
+      # *_templ.go is gitignored (feat/templ-components, same wave), so
+      # there is normally nothing tracked for the next step to diff against.
+      # It exists to catch the one case that would slip past that: a
+      # generated file that got committed by accident despite the
+      # gitignore, and is now stale relative to its .templ source.
+      - name: Generate templ files
+        run: go tool templ generate
+
+      - name: Fail on generated-file drift
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Generated files differ from their checked-in source. If a *_templ.go file is tracked, it's stale — run 'go tool templ generate' locally and commit the result:"
+            git status --porcelain
+            git diff
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./... -race
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # golangci-lint type-checks the module, which needs the generated
+      # templ code to exist even though this job never runs the app.
+      - name: Generate templ files
+        run: go tool templ generate
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13.1
+          # Only fail on issues introduced by this change, not the
+          # pre-existing lint debt elsewhere in the codebase — landing this
+          # workflow shouldn't require fixing every other wave-1 branch's
+          # code first.
+          only-new-issues: true
