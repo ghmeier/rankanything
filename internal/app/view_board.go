@@ -183,11 +183,10 @@ func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoa
 		VersionAction: boardVersionActionsProps(rankingUUID, board.Version, versions, gate),
 		Editable:      editable,
 		TierForm:      ui.TierFormProps{RankingUUID: rankingUUID, VersionShortUUID: board.Version.ShortUuid},
-		// ShareControl and ExportControl are nil until feat/public-share and
-		// feat/csv-export land theirs; BoardPage renders nothing for a nil
-		// slot.
+		// ShareControl is nil until feat/public-share lands theirs;
+		// BoardPage renders nothing for a nil slot.
 		ShareControl:  nil,
-		ExportControl: nil,
+		ExportControl: ui.BoardExport(ui.BoardExportProps{RankingUUID: rankingUUID, VersionShortUUID: board.Version.ShortUuid}),
 	}
 	for _, t := range board.Tiers {
 		props.Tiers = append(props.Tiers, tierRowProps(rankingUUID, board.Version.ShortUuid, t, tierItems[t.ID], editable))

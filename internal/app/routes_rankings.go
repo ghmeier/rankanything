@@ -25,6 +25,8 @@ func (a *App) registerRankingRoutes(mux *http.ServeMux) {
 
 	mux.Handle("GET /r/{uuid}", a.RequireRankingAccess(http.HandlerFunc(a.handleViewRanking)))
 	mux.Handle("GET /r/{uuid}/v/{short}", a.RequireRankingAccess(http.HandlerFunc(a.handleViewRanking)))
+	mux.Handle("GET /r/{uuid}/export", a.RequireRankingAccess(http.HandlerFunc(a.handleExportBoard)))
+	mux.Handle("GET /r/{uuid}/v/{short}/export", a.RequireRankingAccess(http.HandlerFunc(a.handleExportBoard)))
 	mux.Handle("POST /r/{uuid}", a.RequireRankingAccess(http.HandlerFunc(a.handleUpdateRanking)))
 	mux.Handle("POST /r/{uuid}/v/{short}/items", mutable(a.handleAddItem))
 	mux.Handle("DELETE /r/{uuid}/v/{short}/items/{itemID}", mutable(a.handleDeleteItem))

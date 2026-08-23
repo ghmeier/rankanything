@@ -1,0 +1,25 @@
+package ui
+
+import "fmt"
+
+// BoardExportProps configures the CSV export control. It always links to the
+// pinned form of the URL (/v/{short}) rather than the bare /r/{uuid} route,
+// so the download matches whichever version the board is currently showing
+// — live or pinned — rather than whatever happens to be live by the time
+// the browser follows the link.
+type BoardExportProps struct {
+	RankingUUID      string
+	VersionShortUUID string
+}
+
+// BoardExport is a plain link rather than an htmx control: a file download
+// is native browser behavior driven by the response's Content-Disposition
+// header, not a fragment swap.
+templ BoardExport(props BoardExportProps) {
+	<a
+		href={ templ.URL(fmt.Sprintf("/r/%s/v/%s/export", props.RankingUUID, props.VersionShortUUID)) }
+		class="rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-text-muted hover:bg-surface-hover"
+	>
+		Export CSV
+	</a>
+}
