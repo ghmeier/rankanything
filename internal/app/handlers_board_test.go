@@ -114,7 +114,7 @@ func TestViewRankingWithNoVersionInPathLoadsTheLiveVersion(t *testing.T) {
 	res := owner.Get("/r/" + owner.Ranking.Uuid.String())
 
 	require.Equal(t, http.StatusOK, res.Status)
-	assert.Contains(t, Body(res.Body), "Draft version")
+	assert.Contains(t, Body(res.Body), "<span>Draft</span>")
 }
 
 func TestViewRankingWithAPinnedShortUUIDLoadsThatVersion(t *testing.T) {
@@ -155,7 +155,17 @@ func TestOwnedRankingsAreNotReadableByOthers(t *testing.T) {
 // Version dropdown
 // ---------------------------------------------------------------------------
 
-func TestBoardShowsPublishedDateForAPublishedVersion(t *testing.T) {
+func TestBoardVersionButtonReadsDraftWhileViewingTheDraft(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+
+	res := owner.Get("/r/" + owner.Ranking.Uuid.String() + "/v/" + owner.Draft.ShortUuid)
+
+	require.Equal(t, http.StatusOK, res.Status)
+	assert.Contains(t, Body(res.Body), "<span>Draft</span>")
+}
+
+func TestBoardVersionButtonCarriesNumberAndPublishDateForAPublishedVersion(t *testing.T) {
 	env := testsupport.NewEnv(t)
 	owner := env.NewOwnerClient()
 	ctx := context.Background()
@@ -166,8 +176,66 @@ func TestBoardShowsPublishedDateForAPublishedVersion(t *testing.T) {
 	res := owner.Get("/r/" + owner.Ranking.Uuid.String() + "/v/" + published.ShortUuid)
 
 	require.Equal(t, http.StatusOK, res.Status)
-	assert.Contains(t, Body(res.Body), "Published "+published.PublishedAt.Time.Format("Jan 2, 2006"))
-	assert.NotContains(t, Body(res.Body), "Draft version")
+	assert.Contains(t, Body(res.Body), "v1 · Published "+published.PublishedAt.Time.Format("Jan 2, 2006"))
+	assert.NotContains(t, Body(res.Body), "<span>Draft</span>")
+}
+
+func TestBoardVersionNumberingFollowsPublishOrderAcrossThreeVersions(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	ctx := context.Background()
+
+	first, err := env.Queries.PublishRankingVersion(ctx, owner.Draft.ID)
+	require.NoError(t, err)
+
+	secondDraft, err := env.Queries.CreateRankingVersion(ctx, db.CreateRankingVersionParams{
+		ShortUuid: uuid.NewString()[:8],
+		RankingID: owner.Ranking.ID,
+	})
+	require.NoError(t, err)
+	second, err := env.Queries.PublishRankingVersion(ctx, secondDraft.ID)
+	require.NoError(t, err)
+
+	thirdDraft, err := env.Queries.CreateRankingVersion(ctx, db.CreateRankingVersionParams{
+		ShortUuid: uuid.NewString()[:8],
+		RankingID: owner.Ranking.ID,
+	})
+	require.NoError(t, err)
+	third, err := env.Queries.PublishRankingVersion(ctx, thirdDraft.ID)
+	require.NoError(t, err)
+
+	// The dropdown lists every version regardless of which one is being
+	// viewed, so any of the three pages carries all three numbers.
+	body := Body(owner.Get("/r/" + owner.Ranking.Uuid.String() + "/v/" + third.ShortUuid).Body)
+	assert.Contains(t, body, "v1 · Published "+first.PublishedAt.Time.Format("Jan 2, 2006"))
+	assert.Contains(t, body, "v2 · Published "+second.PublishedAt.Time.Format("Jan 2, 2006"))
+	assert.Contains(t, body, "v3 · Published "+third.PublishedAt.Time.Format("Jan 2, 2006"))
+}
+
+func TestBoardVersionButtonMatchesThePinnedVersionRatherThanTheLiveOne(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	ctx := context.Background()
+
+	published, err := env.Queries.PublishRankingVersion(ctx, owner.Draft.ID)
+	require.NoError(t, err)
+
+	secondDraft, err := env.Queries.CreateRankingVersion(ctx, db.CreateRankingVersionParams{
+		ShortUuid: uuid.NewString()[:8],
+		RankingID: owner.Ranking.ID,
+	})
+	require.NoError(t, err)
+
+	// /r/{uuid} with no pinned version resolves to the published one per
+	// ResolveLiveRankingVersion, so the button there reads the publish label.
+	onLive := Body(owner.Get("/r/" + owner.Ranking.Uuid.String()).Body)
+	assert.Contains(t, onLive, "v1 · Published "+published.PublishedAt.Time.Format("Jan 2, 2006"))
+	assert.NotContains(t, onLive, "<span>Draft</span>")
+
+	// Pinning the draft's own short uuid makes the button track it instead,
+	// even though it's not the version /r/{uuid} would resolve to.
+	onPinnedDraft := Body(owner.Get("/r/" + owner.Ranking.Uuid.String() + "/v/" + secondDraft.ShortUuid).Body)
+	assert.Contains(t, onPinnedDraft, "<span>Draft</span>")
 }
 
 func TestBoardVersionDropdownListsEveryVersionAndMarksTheOneBeingViewed(t *testing.T) {
@@ -195,7 +263,7 @@ func TestBoardVersionDropdownListsEveryVersionAndMarksTheOneBeingViewed(t *testi
 	// so the draft has to be reached by its own short uuid to become "the
 	// one being viewed".
 	onDraft := owner.Get("/r/" + owner.Ranking.Uuid.String() + "/v/" + secondDraft.ShortUuid).Body
-	assert.Contains(t, Body(onDraft), "Draft version")
+	assert.Contains(t, Body(onDraft), "<span>Draft</span>")
 	assert.Contains(t, Body(onDraft), "/r/"+owner.Ranking.Uuid.String()+"/v/"+published.ShortUuid)
 }
 

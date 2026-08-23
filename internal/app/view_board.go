@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"sort"
 
 	"github.com/a-h/templ"
 	"github.com/ghmeier/rankanything/internal/db"
@@ -75,33 +77,61 @@ func rankingMetaProps(rankingUUID string, versionShortUUID string, ranking db.Ra
 	}
 }
 
-// boardVersionStatusText describes the version being viewed: a draft says
-// so plainly, a published version says when it went live.
-func boardVersionStatusText(v db.RankingVersion) string {
-	if !v.PublishedAt.Valid {
-		return "Draft version"
+// boardVersionNumbers assigns each published version its 1-based publish
+// order (v1 is the first ever published, v2 the next, and so on), keyed by
+// id. A draft has no entry — it hasn't been published yet, so it has no
+// order to show. Derived from the versions already loaded for the dropdown
+// rather than a query of its own: the ranking's version count is small
+// enough that sorting them in memory is cheaper than another round trip.
+func boardVersionNumbers(versions []db.RankingVersion) map[int64]int {
+	published := make([]db.RankingVersion, 0, len(versions))
+	for _, v := range versions {
+		if v.PublishedAt.Valid {
+			published = append(published, v)
+		}
 	}
-	return "Published " + v.PublishedAt.Time.Format("Jan 2, 2006")
+	// Only one draft can exist at a time (ranking_versions_one_draft_idx),
+	// so a version can only be created after its predecessor is published —
+	// id order and publish order always agree. Falling back to id breaks
+	// ties from published_at's clock resolution, which Postgres freezes to
+	// the start of the transaction: two publishes issued moments apart in
+	// the same transaction, as a test does, otherwise get an identical
+	// now().
+	sort.Slice(published, func(i, j int) bool {
+		pi, pj := published[i], published[j]
+		if !pi.PublishedAt.Time.Equal(pj.PublishedAt.Time) {
+			return pi.PublishedAt.Time.Before(pj.PublishedAt.Time)
+		}
+		return pi.ID < pj.ID
+	})
+
+	numbers := make(map[int64]int, len(published))
+	for i, v := range published {
+		numbers[v.ID] = i + 1
+	}
+	return numbers
 }
 
-// boardVersionOptionLabel describes the same state, phrased for a dropdown
-// entry rather than a standalone badge ("Draft" rather than "Draft
-// version" — the menu it sits in already supplies that context).
-func boardVersionOptionLabel(v db.RankingVersion) string {
+// boardVersionLabel names a version for both the dropdown entry and the
+// button that shows the current selection. The draft has no publish order
+// yet, so it's labeled plainly; a published version is numbered by publish
+// order and dated.
+func boardVersionLabel(v db.RankingVersion, number int) string {
 	if !v.PublishedAt.Valid {
 		return "Draft"
 	}
-	return "Published " + v.PublishedAt.Time.Format("Jan 2, 2006")
+	return fmt.Sprintf("v%d · Published %s", number, v.PublishedAt.Time.Format("Jan 2, 2006"))
 }
 
 // boardVersionOptions builds the version-picker dropdown's entries, marking
 // whichever one matches the version being viewed.
 func boardVersionOptions(rankingUUID string, versions []db.RankingVersion, viewing db.RankingVersion) []ui.BoardVersionOption {
+	numbers := boardVersionNumbers(versions)
 	options := make([]ui.BoardVersionOption, len(versions))
 	for i, v := range versions {
 		options[i] = ui.BoardVersionOption{
 			URL:     "/r/" + rankingUUID + "/v/" + v.ShortUuid,
-			Label:   boardVersionOptionLabel(v),
+			Label:   boardVersionLabel(v, numbers[v.ID]),
 			Current: v.ID == viewing.ID,
 		}
 	}
@@ -143,7 +173,7 @@ func boardUnplacedItems(board services.RankingBoard) []db.RankingItem {
 }
 
 // boardVersionActionsProps builds the publish/branch action shown next to
-// the version status: a draft's publish gate, or — for a published
+// the version dropdown: a draft's publish gate, or — for a published
 // version — whether the ranking already has another draft in progress.
 func boardVersionActionsProps(rankingUUID string, version db.RankingVersion, versions []db.RankingVersion, gate services.PublishGate) ui.BoardVersionActionsProps {
 	props := ui.BoardVersionActionsProps{
@@ -178,7 +208,6 @@ func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoa
 		Flash:         base.Flash,
 		Theme:         base.Theme,
 		RankingMeta:   rankingMetaProps(rankingUUID, board.Version.ShortUuid, board.Ranking, editable),
-		VersionStatus: boardVersionStatusText(board.Version),
 		Versions:      boardVersionOptions(rankingUUID, versions, board.Version),
 		VersionAction: boardVersionActionsProps(rankingUUID, board.Version, versions, gate),
 		Editable:      editable,

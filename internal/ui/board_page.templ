@@ -13,7 +13,6 @@ type BoardPageProps struct {
 	Flash         string
 	Theme         string
 	RankingMeta   RankingMetaProps
-	VersionStatus string
 	Versions      []BoardVersionOption
 	VersionAction BoardVersionActionsProps
 	// Editable is false while viewing a published version: a version is
@@ -75,7 +74,6 @@ templ BoardPage(props BoardPageProps) {
 					if props.ExportControl != nil {
 						@props.ExportControl
 					}
-					<span class="text-xs uppercase tracking-wide text-text-muted">{ props.VersionStatus }</span>
 					@boardVersionMenu(props.Versions)
 					@BoardVersionActions(props.VersionAction)
 				</div>
