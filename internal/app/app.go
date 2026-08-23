@@ -75,11 +75,19 @@ func (a *App) Routes() http.Handler {
 	)
 }
 
-// RequireUser gates handlers that only make sense for a signed-in user.
+// RequireUser gates handlers that only make sense for a signed-in user. The
+// post-login "next" redirect only carries the original path forward when
+// the gated request was itself a GET — after signing in, the browser
+// replays "next" as a GET, so a path that only answers POST (like /new)
+// would be a dead end if it were forwarded.
 func (a *App) RequireUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if a.Sessions.UserID(r.Context()) == 0 {
-			http.Redirect(w, r, "/login?next="+r.URL.Path, http.StatusSeeOther)
+			target := "/login"
+			if r.Method == http.MethodGet {
+				target += "?next=" + r.URL.Path
+			}
+			http.Redirect(w, r, target, http.StatusSeeOther)
 			return
 		}
 		next.ServeHTTP(w, r)

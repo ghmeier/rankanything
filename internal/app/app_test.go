@@ -138,9 +138,15 @@ func TestRegisterValidation(t *testing.T) {
 
 	t.Run("next carries the signed-up user onward when it's site-relative", func(t *testing.T) {
 		c := env.NewClient()
-		res := c.Post("/register", url.Values{"email": {"next@example.com"}, "password": {"supersecret"}, "next": {"/new"}})
+		// The target must be something a GET can land on: a redirect's
+		// follow-up request is always a GET, which rules out /new now that
+		// it only answers POST (see TestNewRankingRequiresSignIn). /me is
+		// also register's default with no "next" at all, so this uses
+		// /components instead to prove "next" actually overrides that
+		// default rather than happening to match it.
+		res := c.Post("/register", url.Values{"email": {"next@example.com"}, "password": {"supersecret"}, "next": {"/components"}})
 		require.Equal(t, http.StatusSeeOther, res.Status)
-		assert.Equal(t, "/new", res.Location())
+		assert.Equal(t, "/components", res.Location())
 	})
 
 	t.Run("an off-site next is refused", func(t *testing.T) {
@@ -224,9 +230,46 @@ func TestSignedOutUsersCannotReachAccount(t *testing.T) {
 func TestNewRankingRequiresSignIn(t *testing.T) {
 	env := testsupport.NewEnv(t)
 
-	res := env.NewClient().Get("/new")
+	res := env.NewClient().Post("/new", nil)
+
 	require.Equal(t, http.StatusSeeOther, res.Status)
-	assert.Equal(t, "/login?next=/new", res.Location())
+	// No "next" is carried forward: it's a POST, and the redirect's
+	// follow-up request would be a GET, which /new does not answer.
+	assert.Equal(t, "/login", res.Location())
+}
+
+func TestNewRankingRejectsAPlainGET(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+
+	res := owner.Get("/new")
+
+	assert.Equal(t, http.StatusMethodNotAllowed, res.Status)
+}
+
+func TestNewRankingCreatesARankingForTheSignedInOwner(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+
+	before, err := env.Queries.ListRankingsByUser(context.Background(), owner.Ranking.UserID)
+	require.NoError(t, err)
+
+	res := owner.Post("/new", nil)
+	require.Equal(t, http.StatusSeeOther, res.Status)
+	assert.True(t, strings.HasPrefix(res.Location(), "/r/"))
+
+	after, err := env.Queries.ListRankingsByUser(context.Background(), owner.Ranking.UserID)
+	require.NoError(t, err)
+	assert.Len(t, after, len(before)+1)
+}
+
+func TestNewRankingRequiresCSRF(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+
+	res := owner.FormWithBogusCSRF(http.MethodPost, "/new", nil)
+
+	assert.Equal(t, http.StatusForbidden, res.Status)
 }
 
 func TestOwnedRankingsAreNotReadableByOthers(t *testing.T) {

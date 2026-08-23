@@ -32,21 +32,29 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleNew is GET /new — create a fresh ranking for a signed-in user, with
-// its draft version seeded from the default tier palette.
+// handleNew is POST /new — create a fresh ranking for the signed-in user,
+// with its draft version seeded from the default tier palette. RequireUser
+// gates it, so the signed-out check lives there rather than being repeated
+// here. It's a POST rather than the prototype's GET because a GET carries no
+// CSRF check (the middleware deliberately skips GET/HEAD/OPTIONS) and is
+// fair game for link prefetch or a stray navigation — neither should mint a
+// ranking.
 func (a *App) handleNew(w http.ResponseWriter, r *http.Request) {
 	userID := a.Sessions.UserID(r.Context())
-	if userID == 0 {
-		http.Redirect(w, r, "/login?next=/new", http.StatusSeeOther)
-		return
-	}
 
 	ranking, err := a.RankingSvc.CreateForUser(r.Context(), services.CreateForUserRequest{UserID: userID})
 	if err != nil {
 		a.serverError(w, r, err)
 		return
 	}
-	http.Redirect(w, r, "/r/"+ranking.Uuid.String(), http.StatusSeeOther)
+
+	target := "/r/" + ranking.Uuid.String()
+	if render.IsHTMXRequest(r) {
+		w.Header().Set("HX-Redirect", target)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
 // handleViewRanking is GET /r/{uuid} or GET /r/{uuid}/v/{short} — render the
