@@ -24,7 +24,7 @@ func (a *App) base(r *http.Request) BaseView {
 	if id := a.Sessions.UserID(ctx); id != 0 {
 		u, err := a.Queries.GetUserByID(ctx, id)
 		if err != nil {
-			a.Logger.Error("Failed to get user by id", err)
+			a.Logger.Error("Failed to get user by id", "err", err)
 		} else {
 			v.User = &u
 			v.Theme = string(u.ThemePreference)
