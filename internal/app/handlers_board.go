@@ -42,6 +42,7 @@ func (a *App) handleViewRanking(w http.ResponseWriter, r *http.Request) {
 func (a *App) handleUpdateRanking(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
+	rankingVersion := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
 
 	updated, err := a.RankingSvc.UpdateRanking(ctx, services.UpdateRankingRequest{
 		UUID:        rankingUUID,
@@ -53,13 +54,13 @@ func (a *App) handleUpdateRanking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := rankingMetaProps(rankingUUID.String(), updated)
+	props := rankingMetaProps(rankingUUID.String(), rankingVersion.ShortUuid, updated)
 	if err := renderComponent(w, r, http.StatusOK, ui.RankingMeta(props)); err != nil {
 		a.serverError(w, r, err)
 	}
 }
 
-// handleAddItem is POST /r/{uuid}/items — add a new item to the version
+// handleAddItem is POST /r/{uuid}/v/{short}/items — add a new item to the version
 // being viewed.
 func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -68,7 +69,7 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 	title := strings.TrimSpace(r.FormValue("label"))
 
 	if title == "" {
-		empty(w, http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
@@ -82,31 +83,33 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = renderComponent(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), item))); err != nil {
+	if err = renderComponent(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item))); err != nil {
 		a.serverError(w, r, err)
 	}
 }
 
-// handleDeleteItem is DELETE /r/{uuid}/items/{itemID}.
+// handleDeleteItem is DELETE /r/{uuid}/v/{short}/items/{itemID}.
 func (a *App) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
 
 	id, err := strconv.ParseInt(r.PathValue("itemID"), 10, 64)
+	a.Logger.Info("parsing item", "itemID", id, "err", err)
 	if err != nil {
 		a.notFound(w, r)
 		return
 	}
 
 	if err := a.RankingSvc.DeleteItem(ctx, services.DeleteItemRequest{VersionID: version.ID, ItemID: id}); err != nil {
+		a.Logger.Info("error deleting item", "err", err)
 		rankError(a, w, r, err)
 		return
 	}
 
-	empty(w, http.StatusAccepted)
+	w.WriteHeader(http.StatusAccepted)
 }
 
-// handleAddTier is POST /r/{uuid}/tiers — add a new tier.
+// handleAddTier is POST /r/{uuid}/v/{short}/tiers — add a new tier.
 func (a *App) handleAddTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
@@ -123,12 +126,12 @@ func (a *App) handleAddTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := renderComponent(w, r, http.StatusOK, ui.TierRow(tierRowProps(rankingUUID.String(), tier, nil))); err != nil {
+	if err := renderComponent(w, r, http.StatusOK, ui.TierRow(tierRowProps(rankingUUID.String(), version.ShortUuid, tier, nil))); err != nil {
 		a.serverError(w, r, err)
 	}
 }
 
-// handleEditTier is POST /r/{uuid}/tiers/{tierID}/edit — enable editing a tier.
+// handleEditTier is POST /r/{uuid}/v/{short}/tiers/{tierID}/edit — enable editing a tier.
 func (a *App) handleEditTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
@@ -146,13 +149,13 @@ func (a *App) handleEditTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := tierRowLabelProps(rankingUUID.String(), tier, true)
+	props := tierRowLabelProps(rankingUUID.String(), version.ShortUuid, tier, true)
 	if err := renderComponent(w, r, http.StatusAccepted, ui.TierRowLabel(props)); err != nil {
 		a.serverError(w, r, err)
 	}
 }
 
-// handleUpdateTier is PUT /r/{uuid}/tiers/{tierID} — rename or recolor.
+// handleUpdateTier is PUT /r/{uuid}/v/{short}/tiers/{tierID} — rename or recolor.
 func (a *App) handleUpdateTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
@@ -175,13 +178,13 @@ func (a *App) handleUpdateTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := tierRowLabelProps(rankingUUID.String(), tier, false)
+	props := tierRowLabelProps(rankingUUID.String(), version.ShortUuid, tier, false)
 	if err := renderComponent(w, r, http.StatusOK, ui.TierRowLabel(props)); err != nil {
 		a.serverError(w, r, err)
 	}
 }
 
-// handleDeleteTier is DELETE /r/{uuid}/tiers/{tierID} — remove a tier. Its
+// handleDeleteTier is DELETE /r/{uuid}/v/{short}/tiers/{tierID} — remove a tier. Its
 // items return to the unassigned tray rather than being deleted: the empty
 // response removes the tier row (hx-target="closest .tier-row" on the
 // button), and the out-of-band #tray-items block refreshes the tray in the
@@ -210,14 +213,14 @@ func (a *App) handleDeleteTier(w http.ResponseWriter, r *http.Request) {
 
 	tray := ui.TrayItemsProps{RankingUUID: rankingUUID.String(), OOB: true}
 	for _, it := range unranked {
-		tray.Items = append(tray.Items, itemCardProps(rankingUUID.String(), it))
+		tray.Items = append(tray.Items, itemCardProps(rankingUUID.String(), version.ShortUuid, it))
 	}
 	if err := renderComponent(w, r, http.StatusAccepted, ui.TrayItems(tray)); err != nil {
 		a.serverError(w, r, err)
 	}
 }
 
-// handleAddItemToTier is POST /r/{uuid}/tiers/{tierID}/items — place an item
+// handleAddItemToTier is POST /r/{uuid}/v/{short}/tiers/{tierID}/items — place an item
 // in a tier, via drag-and-drop.
 func (a *App) handleAddItemToTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -242,19 +245,19 @@ func (a *App) handleAddItemToTier(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidTierPlacement) {
-			empty(w, http.StatusConflict)
+			w.WriteHeader(http.StatusConflict)
 			return
 		}
 		rankError(a, w, r, err)
 		return
 	}
 
-	if err = renderComponent(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), item))); err != nil {
+	if err = renderComponent(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item))); err != nil {
 		a.serverError(w, r, err)
 	}
 }
 
-// handleReorderTierItems is POST /r/{uuid}/tiers/{tierID}/items/reorder —
+// handleReorderTierItems is POST /r/{uuid}/v/{short}/tiers/{tierID}/items/reorder —
 // drag-and-drop sets a tier's full item order in one call. The dragged item
 // may be arriving from another tier or the tray; either way it's inserted
 // at the position it landed. The response is the tier's item container,
@@ -277,7 +280,7 @@ func (a *App) handleReorderTierItems(w http.ResponseWriter, r *http.Request) {
 	}
 	itemIDs, err := parseIDList(r.Form["item_id"])
 	if err != nil {
-		empty(w, http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
@@ -288,7 +291,7 @@ func (a *App) handleReorderTierItems(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidTierPlacement) {
-			empty(w, http.StatusConflict)
+			w.WriteHeader(http.StatusConflict)
 			return
 		}
 		rankError(a, w, r, err)
@@ -297,14 +300,14 @@ func (a *App) handleReorderTierItems(w http.ResponseWriter, r *http.Request) {
 
 	props := ui.TierItemsProps{RankingUUID: rankingUUID.String(), TierID: tierID}
 	for _, it := range items {
-		props.Items = append(props.Items, itemCardProps(rankingUUID.String(), it))
+		props.Items = append(props.Items, itemCardProps(rankingUUID.String(), version.ShortUuid, it))
 	}
 	if err := renderComponent(w, r, http.StatusOK, ui.TierItems(props)); err != nil {
 		a.serverError(w, r, err)
 	}
 }
 
-// handleReorderTiers is POST /r/{uuid}/tiers/reorder — drag-and-drop sets
+// handleReorderTiers is POST /r/{uuid}/v/{short}/tiers/reorder — drag-and-drop sets
 // the tier order in one call. The response re-renders every tier row so the
 // client can swap the whole #tier-rows container.
 func (a *App) handleReorderTiers(w http.ResponseWriter, r *http.Request) {
@@ -318,7 +321,7 @@ func (a *App) handleReorderTiers(w http.ResponseWriter, r *http.Request) {
 	}
 	tierIDs, err := parseIDList(r.Form["tier_id"])
 	if err != nil {
-		empty(w, http.StatusBadRequest)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
@@ -341,14 +344,14 @@ func (a *App) handleReorderTiers(w http.ResponseWriter, r *http.Request) {
 	tierItems := boardTierItems(board)
 	rowsProps := ui.TierRowsProps{}
 	for _, t := range board.Tiers {
-		rowsProps.Tiers = append(rowsProps.Tiers, tierRowProps(rankingUUID.String(), t, tierItems[t.ID]))
+		rowsProps.Tiers = append(rowsProps.Tiers, tierRowProps(rankingUUID.String(), version.ShortUuid, t, tierItems[t.ID]))
 	}
 	if err := renderComponent(w, r, http.StatusOK, ui.TierRows(rowsProps)); err != nil {
 		a.serverError(w, r, err)
 	}
 }
 
-// handleUnrankItem is POST /r/{uuid}/items/{itemID}/unrank — drag-and-drop
+// handleUnrankItem is POST /r/{uuid}/v/{short}/items/{itemID}/unrank — drag-and-drop
 // dropping an item back on the tray clears its tier placement.
 func (a *App) handleUnrankItem(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -364,14 +367,14 @@ func (a *App) handleUnrankItem(w http.ResponseWriter, r *http.Request) {
 	item, err := a.RankingSvc.UnrankItem(ctx, services.UnrankItemRequest{VersionID: version.ID, ItemID: itemID})
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidTierPlacement) {
-			empty(w, http.StatusConflict)
+			w.WriteHeader(http.StatusConflict)
 			return
 		}
 		rankError(a, w, r, err)
 		return
 	}
 
-	if err := renderComponent(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), item))); err != nil {
+	if err := renderComponent(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item))); err != nil {
 		a.serverError(w, r, err)
 	}
 }
@@ -391,7 +394,7 @@ func (a *App) handlePublishVersion(w http.ResponseWriter, r *http.Request) {
 	published, err := a.RankingSvc.PublishVersion(ctx, services.PublishVersionRequest{VersionID: version.ID})
 	if err != nil {
 		if errors.Is(err, services.ErrNotPublishable) {
-			empty(w, http.StatusConflict)
+			w.WriteHeader(http.StatusConflict)
 			return
 		}
 		rankError(a, w, r, err)
@@ -413,7 +416,7 @@ func (a *App) handleCreateVersion(w http.ResponseWriter, r *http.Request) {
 	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
 
 	if !version.PublishedAt.Valid {
-		empty(w, http.StatusConflict)
+		w.WriteHeader(http.StatusConflict)
 		return
 	}
 
@@ -423,7 +426,7 @@ func (a *App) handleCreateVersion(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, services.ErrDraftAlreadyExists) {
-			empty(w, http.StatusConflict)
+			w.WriteHeader(http.StatusConflict)
 			return
 		}
 		rankError(a, w, r, err)

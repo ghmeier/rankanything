@@ -13,10 +13,7 @@ tidy:
 	go mod tidy
 
 dev:
-	@trap 'kill 0' INT TERM EXIT; \
-	$(MAKE) watch & \
-	$(MAKE) templ-watch & \
-	$(MAKE) css-watch
+	air --proxy.enabled=true --proxy.app_port="${PORT}"
 
 watch:
 	air

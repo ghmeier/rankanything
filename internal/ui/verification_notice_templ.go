@@ -51,7 +51,7 @@ func ResendVerificationNotice(email string) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"flex flex-wrap items-center justify-between gap-3\"><span>Verify ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"flex flex-wrap w-full items-center justify-between gap-3\"><span>Verify ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -174,7 +174,7 @@ func ResendVerificationSentNotice(email string) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = Notice(NoticeProps{Variant: NoticeSuccess}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = Notice(NoticeProps{Variant: NoticeSuccess, Dismissable: true, ID: "verification-sent"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -9,51 +9,55 @@ import (
 )
 
 // itemCardProps builds the props for one item card.
-func itemCardProps(rankingUUID string, item db.RankingItem) ui.ItemCardProps {
+func itemCardProps(rankingUUID string, versionShortUUID string, item db.RankingItem) ui.ItemCardProps {
 	imageURL := ""
 	if item.ImageSourceUrl != nil {
 		imageURL = *item.ImageSourceUrl
 	}
 	return ui.ItemCardProps{
-		RankingUUID: rankingUUID,
-		ItemID:      item.ID,
-		Title:       item.Title,
-		ImageURL:    imageURL,
+		RankingUUID:      rankingUUID,
+		VersionShortUUID: versionShortUUID,
+		ItemID:           item.ID,
+		Title:            item.Title,
+		ImageURL:         imageURL,
 	}
 }
 
 // tierRowProps builds the props for one tier row, including its items.
-func tierRowProps(rankingUUID string, tier db.RankingTier, items []db.RankingItem) ui.TierRowProps {
+func tierRowProps(rankingUUID string, versionShortUUID string, tier db.RankingTier, items []db.RankingItem) ui.TierRowProps {
 	props := ui.TierRowProps{
-		RankingUUID: rankingUUID,
-		TierID:      tier.ID,
-		Title:       tier.Title,
-		ColorHex:    tier.ColorHex,
+		RankingUUID:      rankingUUID,
+		VersionShortUUID: versionShortUUID,
+		TierID:           tier.ID,
+		Title:            tier.Title,
+		ColorHex:         tier.ColorHex,
 	}
 	for _, it := range items {
-		props.Items = append(props.Items, itemCardProps(rankingUUID, it))
+		props.Items = append(props.Items, itemCardProps(rankingUUID, versionShortUUID, it))
 	}
 	return props
 }
 
 // tierRowLabelProps builds the props for a tier's label, in either its
 // display or editable form.
-func tierRowLabelProps(rankingUUID string, tier db.RankingTier, editable bool) ui.TierRowLabelProps {
+func tierRowLabelProps(rankingUUID string, versionShortUUID string, tier db.RankingTier, editable bool) ui.TierRowLabelProps {
 	return ui.TierRowLabelProps{
-		RankingUUID: rankingUUID,
-		TierID:      tier.ID,
-		Title:       tier.Title,
-		ColorHex:    tier.ColorHex,
-		Editable:    editable,
+		RankingUUID:      rankingUUID,
+		VersionShortUUID: versionShortUUID,
+		TierID:           tier.ID,
+		Title:            tier.Title,
+		ColorHex:         tier.ColorHex,
+		Editable:         editable,
 	}
 }
 
 // rankingMetaProps builds the props for the title/description fields.
-func rankingMetaProps(rankingUUID string, ranking db.Ranking) ui.RankingMetaProps {
+func rankingMetaProps(rankingUUID string, versionShortUUID string, ranking db.Ranking) ui.RankingMetaProps {
 	return ui.RankingMetaProps{
-		RankingUUID: rankingUUID,
-		Name:        ranking.Name,
-		Description: ranking.Description,
+		RankingUUID:      rankingUUID,
+		VersionShortUUID: versionShortUUID,
+		Name:             ranking.Name,
+		Description:      ranking.Description,
 	}
 }
 
@@ -129,10 +133,11 @@ func boardUnplacedItems(board services.RankingBoard) []db.RankingItem {
 // version — whether the ranking already has another draft in progress.
 func boardVersionActionsProps(rankingUUID string, version db.RankingVersion, versions []db.RankingVersion, gate services.PublishGate) ui.BoardVersionActionsProps {
 	props := ui.BoardVersionActionsProps{
-		RankingUUID:    rankingUUID,
-		IsDraft:        !version.PublishedAt.Valid,
-		Publishable:    gate.Publishable,
-		BlockedReasons: gate.Reasons,
+		RankingUUID:      rankingUUID,
+		VersionShortUUID: version.ShortUuid,
+		IsDraft:          !version.PublishedAt.Valid,
+		Publishable:      gate.Publishable,
+		BlockedReasons:   gate.Reasons,
 	}
 	if props.IsDraft {
 		return props
@@ -156,19 +161,19 @@ func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoa
 		CSRFToken:     base.CSRFToken,
 		LoggedIn:      base.User != nil,
 		Flash:         base.Flash,
-		RankingMeta:   rankingMetaProps(rankingUUID, board.Ranking),
+		RankingMeta:   rankingMetaProps(rankingUUID, board.Version.ShortUuid, board.Ranking),
 		VersionStatus: boardVersionStatusText(board.Version),
 		Versions:      boardVersionOptions(rankingUUID, versions, board.Version),
 		VersionAction: boardVersionActionsProps(rankingUUID, board.Version, versions, gate),
-		TierForm:      ui.TierFormProps{RankingUUID: rankingUUID},
+		TierForm:      ui.TierFormProps{RankingUUID: rankingUUID, VersionShortUUID: board.Version.ShortUuid},
 	}
 	for _, t := range board.Tiers {
-		props.Tiers = append(props.Tiers, tierRowProps(rankingUUID, t, tierItems[t.ID]))
+		props.Tiers = append(props.Tiers, tierRowProps(rankingUUID, board.Version.ShortUuid, t, tierItems[t.ID]))
 	}
 
-	tray := ui.ItemTrayProps{RankingUUID: rankingUUID}
+	tray := ui.ItemTrayProps{RankingUUID: rankingUUID, VersionShortUUID: board.Version.ShortUuid}
 	for _, it := range boardUnplacedItems(board) {
-		tray.Unassigned = append(tray.Unassigned, itemCardProps(rankingUUID, it))
+		tray.Unassigned = append(tray.Unassigned, itemCardProps(rankingUUID, board.Version.ShortUuid, it))
 	}
 	props.ItemTray = tray
 

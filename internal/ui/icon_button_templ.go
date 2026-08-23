@@ -10,8 +10,7 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import "cmp"
 
-// IconButtonProps configures IconButton. Label is required — it is the only
-// accessible name the button has, since its content is a bare icon.
+// IconButtonProps configures IconButton. Label is required for accessibility
 type IconButtonProps struct {
 	Label    string
 	Variant  ButtonVariant
@@ -53,7 +52,7 @@ func IconButton(props IconButtonProps) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(cmp.Or(props.Type, "button"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/icon_button.templ`, Line: 17, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/icon_button.templ`, Line: 16, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 		if templ_7745c5c3_Err != nil {
@@ -66,7 +65,7 @@ func IconButton(props IconButtonProps) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.Label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/icon_button.templ`, Line: 18, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/icon_button.templ`, Line: 17, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -79,7 +78,7 @@ func IconButton(props IconButtonProps) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.Label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/icon_button.templ`, Line: 19, Col: 21}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/icon_button.templ`, Line: 18, Col: 21}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -133,11 +132,14 @@ func IconButton(props IconButtonProps) templ.Component {
 }
 
 func iconButtonClass(variant ButtonVariant) string {
-	const base = "inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors hover:bg-surface-hover disabled:opacity-50 disabled:pointer-events-none"
+	const base = "inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
 	if variant == ButtonDestructive {
-		return base + " text-danger hover:text-danger-hover"
+		return base + " text-danger hover:bg-surface-hover hover:text-danger-hover"
 	}
-	return base + " text-text-muted hover:text-text-muted-hover"
+	if variant == ButtonTertiary {
+		return base + " text-text-muted hover:text-text-muted-hover"
+	}
+	return base + " text-text-muted hover:bg-surface-hover hover:text-text-muted-hover"
 }
 
 var _ = templruntime.GeneratedTemplate

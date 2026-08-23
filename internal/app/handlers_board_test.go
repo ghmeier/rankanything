@@ -19,7 +19,7 @@ func TestAddItemReturnsBoardFragment(t *testing.T) {
 	env := testsupport.NewEnv(t)
 	owner := env.NewOwnerClient()
 
-	res := owner.HTMX(http.MethodPost, "/r/"+owner.Ranking.Uuid.String()+"/items", url.Values{"label": {"Pretzels"}})
+	res := owner.HTMX(http.MethodPost, "/r/"+owner.Ranking.Uuid.String()+"/v/"+owner.Draft.ShortUuid+"/items", url.Values{"label": {"Pretzels"}})
 
 	require.Equal(t, http.StatusOK, res.Status)
 	assert.Contains(t, Body(res.Body), "Pretzels")
@@ -30,7 +30,7 @@ func TestAddItemRequiresLabel(t *testing.T) {
 	env := testsupport.NewEnv(t)
 	owner := env.NewOwnerClient()
 
-	res := owner.HTMX(http.MethodPost, "/r/"+owner.Ranking.Uuid.String()+"/items", url.Values{"label": {"   "}})
+	res := owner.HTMX(http.MethodPost, "/r/"+owner.Ranking.Uuid.String()+"/v/"+owner.Draft.ShortUuid+"/items", url.Values{"label": {"   "}})
 
 	assert.Equal(t, http.StatusBadRequest, res.Status)
 }
@@ -41,8 +41,8 @@ func TestAddItemsToTier(t *testing.T) {
 	ctx := context.Background()
 	slug := owner.Ranking.Uuid
 
-	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/items", url.Values{"label": {"Pretzels"}})
-	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/items", url.Values{"label": {"Olives"}})
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/items", url.Values{"label": {"Pretzels"}})
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/items", url.Values{"label": {"Olives"}})
 
 	tiers, err := env.Queries.ListRankingTiersForVersion(ctx, owner.Draft.ID)
 	require.NoError(t, err)
@@ -51,11 +51,11 @@ func TestAddItemsToTier(t *testing.T) {
 	require.Len(t, items, 2)
 
 	form := url.Values{"item_id": {strconv.FormatInt(items[0].ID, 10)}}
-	res := owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/tiers/"+strconv.FormatInt(tiers[0].ID, 10)+"/items", form)
+	res := owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers/"+strconv.FormatInt(tiers[0].ID, 10)+"/items", form)
 	require.Equal(t, http.StatusOK, res.Status)
 
 	form = url.Values{"item_id": {strconv.FormatInt(items[1].ID, 10)}}
-	res = owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/tiers/"+strconv.FormatInt(tiers[0].ID, 10)+"/items", form)
+	res = owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers/"+strconv.FormatInt(tiers[0].ID, 10)+"/items", form)
 	require.Equal(t, http.StatusOK, res.Status)
 
 	placements, err := env.Queries.ListRankingItemTiersForTier(ctx, tiers[0].ID)
@@ -69,7 +69,7 @@ func TestCustomTierLifecycle(t *testing.T) {
 	ctx := context.Background()
 	slug := owner.Ranking.Uuid
 
-	res := owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/tiers", url.Values{"label": {"F"}, "color": {"#111111"}})
+	res := owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers", url.Values{"label": {"F"}, "color": {"#111111"}})
 	require.Equal(t, http.StatusOK, res.Status)
 	assert.Contains(t, Body(res.Body), "F")
 
@@ -81,12 +81,12 @@ func TestCustomTierLifecycle(t *testing.T) {
 	assert.Equal(t, "F", last.Title)
 	assert.Equal(t, "#111111", last.ColorHex)
 
-	renamed := owner.HTMX(http.MethodPut, "/r/"+slug.String()+"/tiers/"+strconv.FormatInt(last.ID, 10),
+	renamed := owner.HTMX(http.MethodPut, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers/"+strconv.FormatInt(last.ID, 10),
 		url.Values{"label": {"Trash"}, "color": {"#222222"}})
 	require.Equal(t, http.StatusOK, renamed.Status)
 	assert.Contains(t, Body(renamed.Body), "Trash")
 
-	deleted := owner.HTMX(http.MethodDelete, "/r/"+slug.String()+"/tiers/"+strconv.FormatInt(last.ID, 10), nil)
+	deleted := owner.HTMX(http.MethodDelete, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers/"+strconv.FormatInt(last.ID, 10), nil)
 	require.Equal(t, http.StatusAccepted, deleted.Status)
 	assert.NotContains(t, Body(deleted.Body), "Trash")
 }
@@ -209,15 +209,15 @@ func TestReorderTierItemsPersistsTheGivenOrder(t *testing.T) {
 	ctx := context.Background()
 	slug := owner.Ranking.Uuid
 
-	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/items", url.Values{"label": {"First"}})
-	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/items", url.Values{"label": {"Second"}})
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/items", url.Values{"label": {"First"}})
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/items", url.Values{"label": {"Second"}})
 	tiers, err := env.Queries.ListRankingTiersForVersion(ctx, owner.Draft.ID)
 	require.NoError(t, err)
 	items, err := env.Queries.ListRankingItemsForVersion(ctx, owner.Draft.ID)
 	require.NoError(t, err)
 	require.Len(t, items, 2)
 
-	tierPath := "/r/" + slug.String() + "/tiers/" + strconv.FormatInt(tiers[0].ID, 10)
+	tierPath := "/r/" + slug.String() + "/v/" + owner.Draft.ShortUuid + "/tiers/" + strconv.FormatInt(tiers[0].ID, 10)
 	owner.HTMX(http.MethodPost, tierPath+"/items", url.Values{"item_id": {strconv.FormatInt(items[0].ID, 10)}})
 	owner.HTMX(http.MethodPost, tierPath+"/items", url.Values{"item_id": {strconv.FormatInt(items[1].ID, 10)}})
 
@@ -239,17 +239,17 @@ func TestReorderTierItemsMovesAnItemFromAnotherTier(t *testing.T) {
 	ctx := context.Background()
 	slug := owner.Ranking.Uuid
 
-	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/items", url.Values{"label": {"Migrating"}})
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/items", url.Values{"label": {"Migrating"}})
 	tiers, err := env.Queries.ListRankingTiersForVersion(ctx, owner.Draft.ID)
 	require.NoError(t, err)
 	items, err := env.Queries.ListRankingItemsForVersion(ctx, owner.Draft.ID)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
 
-	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/tiers/"+strconv.FormatInt(tiers[0].ID, 10)+"/items",
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers/"+strconv.FormatInt(tiers[0].ID, 10)+"/items",
 		url.Values{"item_id": {strconv.FormatInt(items[0].ID, 10)}})
 
-	res := owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/tiers/"+strconv.FormatInt(tiers[1].ID, 10)+"/items/reorder",
+	res := owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers/"+strconv.FormatInt(tiers[1].ID, 10)+"/items/reorder",
 		url.Values{"item_id": {strconv.FormatInt(items[0].ID, 10)}})
 	require.Equal(t, http.StatusOK, res.Status)
 
@@ -276,7 +276,7 @@ func TestReorderTiersPersistsTheGivenOrder(t *testing.T) {
 		reversed["tier_id"] = append(reversed["tier_id"], strconv.FormatInt(tiers[i].ID, 10))
 	}
 
-	res := owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/tiers/reorder", reversed)
+	res := owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers/reorder", reversed)
 	require.Equal(t, http.StatusOK, res.Status)
 	assert.NotContains(t, Body(res.Body), "<html")
 
@@ -294,15 +294,15 @@ func TestUnrankItemClearsItsTierPlacement(t *testing.T) {
 	ctx := context.Background()
 	slug := owner.Ranking.Uuid
 
-	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/items", url.Values{"label": {"Placed"}})
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/items", url.Values{"label": {"Placed"}})
 	tiers, err := env.Queries.ListRankingTiersForVersion(ctx, owner.Draft.ID)
 	require.NoError(t, err)
 	items, err := env.Queries.ListRankingItemsForVersion(ctx, owner.Draft.ID)
 	require.NoError(t, err)
-	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/tiers/"+strconv.FormatInt(tiers[0].ID, 10)+"/items",
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers/"+strconv.FormatInt(tiers[0].ID, 10)+"/items",
 		url.Values{"item_id": {strconv.FormatInt(items[0].ID, 10)}})
 
-	res := owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/items/"+strconv.FormatInt(items[0].ID, 10)+"/unrank", nil)
+	res := owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/items/"+strconv.FormatInt(items[0].ID, 10)+"/unrank", nil)
 	require.Equal(t, http.StatusOK, res.Status)
 	assert.Contains(t, Body(res.Body), "Placed")
 
@@ -317,19 +317,19 @@ func TestDeleteTierReturnsItsItemsToTheTrayOutOfBand(t *testing.T) {
 	ctx := context.Background()
 	slug := owner.Ranking.Uuid
 
-	tierRes := owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/tiers", url.Values{"label": {"Doomed"}})
+	tierRes := owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers", url.Values{"label": {"Doomed"}})
 	require.Equal(t, http.StatusOK, tierRes.Status)
 	tiers, err := env.Queries.ListRankingTiersForVersion(ctx, owner.Draft.ID)
 	require.NoError(t, err)
 	doomed := tiers[len(tiers)-1]
 
-	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/items", url.Values{"label": {"Stranded"}})
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/items", url.Values{"label": {"Stranded"}})
 	items, err := env.Queries.ListRankingItemsForVersion(ctx, owner.Draft.ID)
 	require.NoError(t, err)
-	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/tiers/"+strconv.FormatInt(doomed.ID, 10)+"/items",
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers/"+strconv.FormatInt(doomed.ID, 10)+"/items",
 		url.Values{"item_id": {strconv.FormatInt(items[0].ID, 10)}})
 
-	res := owner.HTMX(http.MethodDelete, "/r/"+slug.String()+"/tiers/"+strconv.FormatInt(doomed.ID, 10), nil)
+	res := owner.HTMX(http.MethodDelete, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers/"+strconv.FormatInt(doomed.ID, 10), nil)
 	require.Equal(t, http.StatusAccepted, res.Status)
 	assert.Contains(t, Body(res.Body), `id="tray-items"`)
 	assert.Contains(t, Body(res.Body), `hx-swap-oob="true"`)
@@ -348,7 +348,7 @@ func TestPublishIsBlockedUntilTheGatePasses(t *testing.T) {
 	env := testsupport.NewEnv(t)
 	owner := env.NewOwnerClient()
 
-	res := owner.Post("/r/"+owner.Ranking.Uuid.String()+"/publish", nil)
+	res := owner.Post("/r/"+owner.Ranking.Uuid.String()+"/v/"+owner.Draft.ShortUuid+"/publish", nil)
 	assert.Equal(t, http.StatusConflict, res.Status)
 }
 
@@ -358,15 +358,15 @@ func TestPublishSucceedsAndRedirectsToThePublishedVersion(t *testing.T) {
 	ctx := context.Background()
 	slug := owner.Ranking.Uuid
 
-	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/items", url.Values{"label": {"Ready"}})
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/items", url.Values{"label": {"Ready"}})
 	tiers, err := env.Queries.ListRankingTiersForVersion(ctx, owner.Draft.ID)
 	require.NoError(t, err)
 	items, err := env.Queries.ListRankingItemsForVersion(ctx, owner.Draft.ID)
 	require.NoError(t, err)
-	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/tiers/"+strconv.FormatInt(tiers[0].ID, 10)+"/items",
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers/"+strconv.FormatInt(tiers[0].ID, 10)+"/items",
 		url.Values{"item_id": {strconv.FormatInt(items[0].ID, 10)}})
 
-	res := owner.Post("/r/"+slug.String()+"/publish", nil)
+	res := owner.Post("/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/publish", nil)
 	require.Equal(t, http.StatusOK, res.Status)
 	redirect := res.Header.Get("HX-Redirect")
 	require.NotEmpty(t, redirect)
@@ -391,14 +391,14 @@ func TestCreateVersionFromAPublishedVersionCopiesItsBoard(t *testing.T) {
 	ctx := context.Background()
 	slug := owner.Ranking.Uuid
 
-	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/items", url.Values{"label": {"Carried over"}})
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/items", url.Values{"label": {"Carried over"}})
 	tiers, err := env.Queries.ListRankingTiersForVersion(ctx, owner.Draft.ID)
 	require.NoError(t, err)
 	items, err := env.Queries.ListRankingItemsForVersion(ctx, owner.Draft.ID)
 	require.NoError(t, err)
-	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/tiers/"+strconv.FormatInt(tiers[0].ID, 10)+"/items",
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers/"+strconv.FormatInt(tiers[0].ID, 10)+"/items",
 		url.Values{"item_id": {strconv.FormatInt(items[0].ID, 10)}})
-	require.Equal(t, http.StatusOK, owner.Post("/r/"+slug.String()+"/publish", nil).Status)
+	require.Equal(t, http.StatusOK, owner.Post("/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/publish", nil).Status)
 
 	res := owner.Post("/r/"+slug.String()+"/versions", nil)
 	require.Equal(t, http.StatusOK, res.Status)
@@ -430,14 +430,14 @@ func TestCreateVersionFailsWhenADraftAlreadyExists(t *testing.T) {
 	ctx := context.Background()
 	slug := owner.Ranking.Uuid
 
-	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/items", url.Values{"label": {"Ready"}})
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/items", url.Values{"label": {"Ready"}})
 	tiers, err := env.Queries.ListRankingTiersForVersion(ctx, owner.Draft.ID)
 	require.NoError(t, err)
 	items, err := env.Queries.ListRankingItemsForVersion(ctx, owner.Draft.ID)
 	require.NoError(t, err)
-	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/tiers/"+strconv.FormatInt(tiers[0].ID, 10)+"/items",
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers/"+strconv.FormatInt(tiers[0].ID, 10)+"/items",
 		url.Values{"item_id": {strconv.FormatInt(items[0].ID, 10)}})
-	require.Equal(t, http.StatusOK, owner.Post("/r/"+slug.String()+"/publish", nil).Status)
+	require.Equal(t, http.StatusOK, owner.Post("/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/publish", nil).Status)
 	require.Equal(t, http.StatusOK, owner.Post("/r/"+slug.String()+"/versions", nil).Status)
 
 	res := owner.Post("/r/"+slug.String()+"/versions", nil)

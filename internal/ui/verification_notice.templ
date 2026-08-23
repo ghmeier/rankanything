@@ -9,7 +9,7 @@ package ui
 templ ResendVerificationNotice(email string) {
 	<div id="verification-notice">
 		@Notice(NoticeProps{Variant: NoticeError}) {
-			<div class="flex flex-wrap items-center justify-between gap-3">
+			<div class="flex flex-wrap w-full items-center justify-between gap-3">
 				<span>Verify { email } to make sure you never lose access to your rankings.</span>
 				@Button(ButtonProps{
 					Variant: ButtonSecondary,
@@ -31,7 +31,7 @@ templ ResendVerificationNotice(email string) {
 // requiring a full page reload.
 templ ResendVerificationSentNotice(email string) {
 	<div id="verification-notice">
-		@Notice(NoticeProps{Variant: NoticeSuccess}) {
+		@Notice(NoticeProps{Variant: NoticeSuccess, Dismissable: true, ID: "verification-sent"}) {
 			Verification email sent to { email } — check your inbox.
 		}
 	</div>

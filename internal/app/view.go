@@ -25,26 +25,17 @@ func (a *App) base(r *http.Request) BaseView {
 	return v
 }
 
-// renderComponent writes the status line and renders a templ component
-// straight to w. templ.Component.Render has no notion of a status code, so
-// the header has to be set first — the same ordering render.Renderer.exec
-// uses for html/template partials.
+// renderComponent writes the appropriate header and status, then renders the templ component.
 func renderComponent(w http.ResponseWriter, r *http.Request, status int, c templ.Component) error {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	return c.Render(r.Context(), w)
 }
 
-// isHTMXRequest reports whether the request wants a fragment rather than a
-// whole page.
+// isHTMXRequest helps know if the request was initiated from HTMX or plain HTML so
+// we can support progressive enhancement.
 func isHTMXRequest(r *http.Request) bool {
 	return r.Header.Get("HX-Request") == "true"
-}
-
-// empty answers with a status and no body — what a deletion or a refused
-// mutation returns to htmx.
-func empty(w http.ResponseWriter, status int) {
-	w.WriteHeader(status)
 }
 
 func (a *App) notFound(w http.ResponseWriter, _ *http.Request) {

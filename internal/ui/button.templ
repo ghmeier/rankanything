@@ -36,7 +36,8 @@ templ Button(props ButtonProps) {
 // components (NavBar's button-styled links, for instance) can match Button's
 // look without wrapping a non-<button> element in one.
 func ButtonClass(variant ButtonVariant) string {
-	const base = "inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none"
+	base := "inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 disabled:pointer-events-none"
+
 	switch variant {
 	case ButtonSecondary:
 		return base + " border border-border bg-surface-muted text-text hover:bg-surface-muted-hover"

@@ -31,7 +31,7 @@ func Load(logger *slog.Logger) (Config, error) {
 
 	c := Config{
 		DatabaseURL:    os.Getenv("DATABASE_URL"),
-		Addr:           envOr("PORT", ":8001"),
+		Addr:           ":" + envOr("PORT", "8001"),
 		Env:            envOr("APP_ENV", "development"),
 		SessionTimeout: 30 * 24 * time.Hour,
 		ResendAPIKey:   os.Getenv("RESEND_API_KEY"),

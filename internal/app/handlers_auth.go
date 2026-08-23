@@ -81,6 +81,13 @@ func (a *App) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if next != "" && isSiteRelativePath(next) {
 		target = next
 	}
+
+	if isHTMXRequest(r) {
+		w.Header().Set("HX-Redirect", target)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 

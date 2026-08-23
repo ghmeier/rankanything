@@ -32,7 +32,7 @@ func TestCSRFIsEnforced(t *testing.T) {
 	env := testsupport.NewEnv(t)
 	owner := env.NewOwnerClient()
 
-	res := owner.FormWithBogusCSRF(http.MethodPost, "/r/"+owner.Ranking.Uuid.String()+"/items", url.Values{"label": {"Pretzels"}})
+	res := owner.FormWithBogusCSRF(http.MethodPost, "/r/"+owner.Ranking.Uuid.String()+"/v/"+owner.Draft.ShortUuid+"/items", url.Values{"label": {"Pretzels"}})
 	assert.Equal(t, http.StatusForbidden, res.Status)
 }
 

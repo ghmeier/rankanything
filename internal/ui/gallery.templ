@@ -26,7 +26,6 @@ templ ComponentsGallery() {
 					} catch (e) {}
 				}
 			</script>
-
 			<div class="flex items-center justify-between">
 				<h1 class="text-2xl font-bold tracking-tight">Component gallery</h1>
 				<button
@@ -38,7 +37,6 @@ templ ComponentsGallery() {
 					Toggle theme
 				</button>
 			</div>
-
 			<section class="space-y-4">
 				<h2 class="text-lg font-semibold">Button</h2>
 				<div class="flex flex-wrap items-center gap-3">
@@ -59,7 +57,6 @@ templ ComponentsGallery() {
 					}
 				</div>
 			</section>
-
 			<section class="space-y-4">
 				<h2 class="text-lg font-semibold">IconButton</h2>
 				<div class="flex flex-wrap items-center gap-3">
@@ -74,24 +71,22 @@ templ ComponentsGallery() {
 					}
 				</div>
 			</section>
-
 			<section class="space-y-4">
 				<h2 class="text-lg font-semibold">Input</h2>
 				<div class="grid max-w-sm gap-4">
 					@Input(InputProps{Label: "Email", Name: "email", Type: "email", Placeholder: "you@example.com"})
 					@Input(InputProps{
-						Label:    "Password",
-						Name:     "password",
-						Type:     "password",
-						Error:    "Password must be at least 8 characters",
+						Label: "Password",
+						Name:  "password",
+						Type:  "password",
+						Error: "Password must be at least 8 characters",
 					})
 				</div>
 			</section>
-
 			<section class="space-y-4">
 				<h2 class="text-lg font-semibold">Notice</h2>
 				<div class="grid max-w-sm gap-4">
-					@Notice(NoticeProps{Variant: NoticeSuccess}) {
+					@Notice(NoticeProps{Variant: NoticeSuccess, Dismissable: true, ID: "ranking-saved"}) {
 						Ranking saved.
 					}
 					@Notice(NoticeProps{Variant: NoticeError}) {
@@ -99,7 +94,6 @@ templ ComponentsGallery() {
 					}
 				</div>
 			</section>
-
 			<section class="space-y-4">
 				<h2 class="text-lg font-semibold">NavBar</h2>
 				<p class="text-sm text-text-muted">Signed out</p>

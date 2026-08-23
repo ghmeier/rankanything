@@ -13,12 +13,13 @@
   if (!board) return;
 
   const rankingUUID = board.dataset.rankingUuid;
+  const versionUUID = board.dataset.versionUuid;
 
   // --- CSRF -----------------------------------------------------------
   // The layout puts the session's CSRF token in <body>'s hx-headers so
   // every htmx mutation carries it automatically; a plain fetch() has to
   // read it out itself.
-  function csrfToken() {
+function csrfToken() {
     try {
       const headers = JSON.parse(document.body.getAttribute("hx-headers") || "{}");
       return headers["X-CSRF-Token"] || "";
@@ -137,7 +138,7 @@
     const tierId = zone.dataset.tierId;
     if (!tierId) {
       replaceWithResponse(`ranking-item-${item.dataset.itemId}`, () =>
-        postForm(`/r/${rankingUUID}/items/${item.dataset.itemId}/unrank`, null),
+        postForm(`/r/${rankingUUID}/v/${versionUUID}/items/${item.dataset.itemId}/unrank`, null),
       );
       return;
     }
@@ -146,7 +147,7 @@
     const body = new URLSearchParams();
     itemIds.forEach((id) => body.append("item_id", id));
     replaceWithResponse(`tier-items-${tierId}`, () =>
-      postForm(`/r/${rankingUUID}/tiers/${tierId}/items/reorder`, body),
+      postForm(`/r/${rankingUUID}/v/${versionUUID}/tiers/${tierId}/items/reorder`, body),
     );
   }
 
@@ -154,7 +155,7 @@
     const tierIds = [...document.querySelectorAll("#tier-rows .tier-row")].map((row) => row.dataset.tierId);
     const body = new URLSearchParams();
     tierIds.forEach((id) => body.append("tier_id", id));
-    replaceWithResponse("tier-rows", () => postForm(`/r/${rankingUUID}/tiers/reorder`, body));
+    replaceWithResponse("tier-rows", () => postForm(`/r/${rankingUUID}/v/${versionUUID}/tiers/reorder`, body));
   }
 
   function postForm(url, body) {

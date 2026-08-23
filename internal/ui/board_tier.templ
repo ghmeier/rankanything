@@ -7,11 +7,12 @@ import "fmt"
 // this standalone as an htmx swap target, so it carries RankingUUID rather
 // than depending on an ancestor for it.
 type TierRowProps struct {
-	RankingUUID string
-	TierID      int64
-	Title       string
-	ColorHex    string
-	Items       []ItemCardProps
+	RankingUUID      string
+	VersionShortUUID string
+	TierID           int64
+	Title            string
+	ColorHex         string
+	Items            []ItemCardProps
 }
 
 // TierRows renders the whole stack of tier rows — BoardPage's normal view,
@@ -35,7 +36,7 @@ templ TierRow(props TierRowProps) {
 		draggable="true"
 		class="tier-row flex items-stretch gap-2 bg-surface"
 	>
-		@TierRowLabel(TierRowLabelProps{RankingUUID: props.RankingUUID, TierID: props.TierID, Title: props.Title, ColorHex: props.ColorHex})
+		@TierRowLabel(TierRowLabelProps{RankingUUID: props.RankingUUID, VersionShortUUID: props.VersionShortUUID, TierID: props.TierID, Title: props.Title, ColorHex: props.ColorHex})
 		@TierItems(TierItemsProps{RankingUUID: props.RankingUUID, TierID: props.TierID, Items: props.Items})
 	</section>
 }
@@ -67,17 +68,18 @@ templ TierItems(props TierItemsProps) {
 // forms share the same #tier-container-{id} id, so an htmx swap of either
 // lands in the same slot.
 type TierRowLabelProps struct {
-	RankingUUID string
-	TierID      int64
-	Title       string
-	ColorHex    string
-	Editable    bool
+	RankingUUID      string
+	VersionShortUUID string
+	TierID           int64
+	Title            string
+	ColorHex         string
+	Editable         bool
 }
 
 templ TierRowLabel(props TierRowLabelProps) {
 	if props.Editable {
 		<form
-			hx-put={ fmt.Sprintf("/r/%s/tiers/%d", props.RankingUUID, props.TierID) }
+			hx-put={ fmt.Sprintf("/r/%s/v/%s/tiers/%d", props.RankingUUID, props.VersionShortUUID, props.TierID) }
 			hx-target={ fmt.Sprintf("#tier-container-%d", props.TierID) }
 			hx-swap="outerHTML"
 			hx-trigger="submit"
@@ -104,7 +106,7 @@ templ TierRowLabel(props TierRowLabelProps) {
 			/>
 			<button
 				class="text-[10px] tracking-wide text-slate-500 hover:text-rose-400"
-				hx-delete={ fmt.Sprintf("/r/%s/tiers/%d", props.RankingUUID, props.TierID) }
+				hx-delete={ fmt.Sprintf("/r/%s/v/%s/tiers/%d", props.RankingUUID, props.VersionShortUUID, props.TierID) }
 				hx-target="closest .tier-row"
 				hx-swap="outerHTML"
 			>
@@ -128,7 +130,7 @@ templ TierRowLabel(props TierRowLabelProps) {
 			<button
 				data-tier-edit-only
 				class="absolute right-2 top-2 h-fit cursor-pointer"
-				hx-post={ fmt.Sprintf("/r/%s/tiers/%d/edit", props.RankingUUID, props.TierID) }
+				hx-post={ fmt.Sprintf("/r/%s/v/%s/tiers/%d/edit", props.RankingUUID, props.VersionShortUUID, props.TierID) }
 				hx-target={ fmt.Sprintf("#tier-container-%d", props.TierID) }
 				hx-swap="outerHTML"
 				aria-label="Edit Tier"
@@ -158,13 +160,14 @@ templ DragHandleIcon() {
 
 // TierFormProps renders the "add a tier" form at the bottom of the board.
 type TierFormProps struct {
-	RankingUUID string
+	RankingUUID      string
+	VersionShortUUID string
 }
 
 templ TierForm(props TierFormProps) {
 	<form
 		class="flex gap-2"
-		hx-post={ fmt.Sprintf("/r/%s/tiers", props.RankingUUID) }
+		hx-post={ fmt.Sprintf("/r/%s/v/%s/tiers", props.RankingUUID, props.VersionShortUUID) }
 		hx-target="#tier-rows"
 		hx-swap="beforeend"
 		hx-on::after-request="this.reset()"

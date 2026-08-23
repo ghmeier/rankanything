@@ -9,7 +9,7 @@ Rankanything is a server-rendered tier-list builder: create a ranking, add items
 ## Commands
 
 ```bash
-make dev            # air (Go hot reload) + tailwind --watch, together
+make watch          # server + tailwind + templ running with hot reload
 make test           # go test ./... -race, with TEST_DATABASE_URL loaded from .env
 make migrate        # goose up against $DATABASE_URL
 make migrate-down   # goose down one step

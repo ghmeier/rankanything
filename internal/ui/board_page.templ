@@ -24,9 +24,10 @@ type BoardPageProps struct {
 // both inside BoardPage and standalone as the htmx swap target when a field
 // is edited, so it carries RankingUUID itself.
 type RankingMetaProps struct {
-	RankingUUID string
-	Name        string
-	Description string
+	RankingUUID      string
+	VersionShortUUID string
+	Name             string
+	Description      string
 }
 
 // BoardVersionOption is one entry in the version-picker dropdown: every
@@ -62,7 +63,7 @@ templ BoardPage(props BoardPageProps) {
 					@BoardVersionActions(props.VersionAction)
 				</div>
 			</section>
-			<div id="board" data-ranking-uuid={ props.RankingMeta.RankingUUID } class="space-y-4">
+			<div id="board" data-ranking-uuid={ props.RankingMeta.RankingUUID } data-version-uuid={ props.RankingMeta.VersionShortUUID } class="space-y-4">
 				@TierRows(TierRowsProps{Tiers: props.Tiers})
 				@TierForm(props.TierForm)
 				@ItemTray(props.ItemTray)
@@ -77,30 +78,20 @@ templ BoardPage(props BoardPageProps) {
 // working publish button; a published version offers to branch a new draft,
 // unless the ranking already has one in progress.
 type BoardVersionActionsProps struct {
-	RankingUUID    string
-	IsDraft        bool
-	Publishable    bool
-	BlockedReasons []string
-	HasOtherDraft  bool
-	DraftURL       string
+	RankingUUID      string
+	VersionShortUUID string
+	IsDraft          bool
+	Publishable      bool
+	BlockedReasons   []string
+	HasOtherDraft    bool
+	DraftURL         string
 }
 
 templ BoardVersionActions(props BoardVersionActionsProps) {
 	<div class="w-56 text-right">
 		if props.IsDraft {
-			if props.Publishable {
-				@Button(ButtonProps{Variant: ButtonPrimary, Attrs: templ.Attributes{"hx-post": fmt.Sprintf("/r/%s/publish", props.RankingUUID)}}) {
-					Publish
-				}
-			} else {
-				@Notice(NoticeProps{Variant: NoticeError}) {
-					<p class="font-medium">Not ready to publish:</p>
-					<ul class="list-disc pl-4">
-						for _, reason := range props.BlockedReasons {
-							<li>{ reason }</li>
-						}
-					</ul>
-				}
+			@Button(ButtonProps{Variant: ButtonPrimary, Attrs: templ.Attributes{"hx-post": fmt.Sprintf("/r/%s/v/%s/publish", props.RankingUUID, props.VersionShortUUID)}, Disabled: !props.Publishable}) {
+				Publish
 			}
 		} else if props.HasOtherDraft {
 			<a href={ templ.URL(props.DraftURL) } class="text-xs text-text-muted underline hover:text-text-muted-hover">

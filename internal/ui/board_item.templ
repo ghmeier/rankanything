@@ -7,10 +7,11 @@ import "fmt"
 // mutation handler renders this component standalone as an htmx swap
 // target, with no surrounding page.
 type ItemCardProps struct {
-	RankingUUID string
-	ItemID      int64
-	Title       string
-	ImageURL    string
+	RankingUUID      string
+	VersionShortUUID string
+	ItemID           int64
+	Title            string
+	ImageURL         string
 }
 
 templ ItemCard(props ItemCardProps) {
@@ -32,7 +33,7 @@ templ ItemCard(props ItemCardProps) {
 			<p class="truncate font-medium text-text">{ props.Title }</p>
 		</div>
 		<button
-			hx-delete={ fmt.Sprintf("/r/%s/items/%d", props.RankingUUID, props.ItemID) }
+			hx-delete={ fmt.Sprintf("/r/%s/v/%s/items/%d", props.RankingUUID, props.VersionShortUUID, props.ItemID) }
 			hx-target={ fmt.Sprintf("#ranking-item-%d", props.ItemID) }
 			hx-swap="outerHTML"
 			aria-label={ "Remove " + props.Title }
@@ -46,8 +47,9 @@ templ ItemCard(props ItemCardProps) {
 // ItemTrayProps renders the unranked item tray: its add-item form and every
 // item that isn't yet placed in a tier.
 type ItemTrayProps struct {
-	RankingUUID string
-	Unassigned  []ItemCardProps
+	RankingUUID      string
+	VersionShortUUID string
+	Unassigned       []ItemCardProps
 }
 
 templ ItemTray(props ItemTrayProps) {
@@ -58,7 +60,7 @@ templ ItemTray(props ItemTrayProps) {
 			</h2>
 			<form
 				class="flex gap-2"
-				hx-post={ fmt.Sprintf("/r/%s/items", props.RankingUUID) }
+				hx-post={ fmt.Sprintf("/r/%s/v/%s/items", props.RankingUUID, props.VersionShortUUID) }
 				hx-target="#tray-items"
 				hx-swap="beforeend"
 				hx-on::after-request="this.reset()"

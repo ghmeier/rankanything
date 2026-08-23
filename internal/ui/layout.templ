@@ -37,7 +37,7 @@ templ Layout(props LayoutProps) {
 			@NavBar(NavBarProps{LoggedIn: props.LoggedIn})
 			if props.Flash != "" {
 				<div class="mx-auto mt-4 max-w-6xl px-6">
-					@Notice(NoticeProps{Variant: NoticeSuccess}) {
+					@Notice(NoticeProps{Variant: NoticeSuccess, Dismissable: true, ID: "flash"}) {
 						{ props.Flash }
 					}
 				</div>

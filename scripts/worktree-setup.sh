@@ -43,7 +43,7 @@ fi
 	echo "$marker"
 	echo "DATABASE_URL=postgres://${user}:${PGPASSWORD}@${host}:${port_pg}/${db_name}?sslmode=disable"
 	echo "TEST_DATABASE_URL=postgres://${user}:${PGPASSWORD}@${host}:${port_pg}/${db_name}_test?sslmode=disable"
-	echo "PORT=:${port}"
+	echo "PORT=${port}"
 } >>"$env_file"
 
 echo "worktree-setup: .env points at ${db_name}, dev server on :${port}"
