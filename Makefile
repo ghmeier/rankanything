@@ -1,5 +1,12 @@
 SHELL := /bin/bash
 
+# Optional so the make targets CI calls (css, templ) still work where no
+# .env exists. Locally it is what points each worktree at its own database
+# and port; without it the database-backed tests skip and make test passes
+# vacuously.
+-include .env
+export
+
 .PHONY: dev run migrate migrate-down sqlc css css-watch templ templ-watch test tidy seed
 
 tidy:
