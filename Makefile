@@ -39,4 +39,4 @@ css-watch:
 	npx @tailwindcss/cli -i assets/static/css/input.css -o assets/static/css/app.css --watch
 
 test:
-	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" rtk go test ./... -race
+	go test ./... -race
