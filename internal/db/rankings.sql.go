@@ -47,6 +47,27 @@ func (q *Queries) DeleteRanking(ctx context.Context, id int64) error {
 	return err
 }
 
+const getRankingByID = `-- name: GetRankingByID :one
+SELECT id, uuid, created_at, updated_at, name, description, user_id FROM rankings WHERE id = $1
+`
+
+// The public share route resolves a ranking_shares row by public_slug,
+// which only carries the ranking's internal id, not its external uuid.
+func (q *Queries) GetRankingByID(ctx context.Context, id int64) (Ranking, error) {
+	row := q.db.QueryRow(ctx, getRankingByID, id)
+	var i Ranking
+	err := row.Scan(
+		&i.ID,
+		&i.Uuid,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Name,
+		&i.Description,
+		&i.UserID,
+	)
+	return i, err
+}
+
 const getRankingByUUID = `-- name: GetRankingByUUID :one
 SELECT id, uuid, created_at, updated_at, name, description, user_id FROM rankings WHERE uuid = $1
 `

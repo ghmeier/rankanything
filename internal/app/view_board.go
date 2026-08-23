@@ -183,7 +183,10 @@ func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoa
 		VersionAction: boardVersionActionsProps(rankingUUID, board.Version, versions, gate),
 		Editable:      editable,
 		TierForm:      ui.TierFormProps{RankingUUID: rankingUUID, VersionShortUUID: board.Version.ShortUuid},
-		// ShareControl is nil until feat/public-share lands theirs;
+
+		// ShareControl is filled in by RenderRankingPage, which needs an
+		// extra couple of queries this function doesn't otherwise make.
+		// ExportControl stays nil until feat/csv-export lands its own;
 		// BoardPage renders nothing for a nil slot.
 		ShareControl:  nil,
 		ExportControl: ui.BoardExport(ui.BoardExportProps{RankingUUID: rankingUUID, VersionShortUUID: board.Version.ShortUuid}),
@@ -199,6 +202,18 @@ func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoa
 	props.ItemTray = tray
 
 	return props
+}
+
+// shareControlProps builds the props for the board's share control from a
+// ranking's ShareGate and its current public-link state.
+func shareControlProps(rankingUUID string, gate services.ShareGate, link services.LinkShare) ui.ShareControlProps {
+	return ui.ShareControlProps{
+		RankingUUID: rankingUUID,
+		Shareable:   gate.Shareable,
+		Reasons:     gate.Reasons,
+		IsPublic:    link.IsPublic,
+		PublicURL:   link.URL,
+	}
 }
 
 // RenderRankingPage renders the whole board page for one version of a
@@ -221,8 +236,21 @@ func (a *App) RenderRankingPage(w http.ResponseWriter, r *http.Request, board se
 		}
 	}
 
+	// The share control's own gate is independent of which version is
+	// being viewed — it cares whether the ranking has ever published
+	// anything, not whether this particular request landed on a draft.
+	shareGate, err := a.ShareSvc.EvaluateShareGate(ctx, board.Ranking)
+	if err != nil {
+		return err
+	}
+	link, err := a.ShareSvc.GetLinkShare(ctx, board.Ranking.ID)
+	if err != nil {
+		return err
+	}
+
 	rankingUUID := board.Ranking.Uuid.String()
 	props := boardPageProps(a.base(r), rankingUUID, board, versions, gate)
+	props.ShareControl = ui.ShareControl(shareControlProps(rankingUUID, shareGate, link))
 	return renderComponent(w, r, http.StatusOK, ui.BoardPage(props))
 }
 

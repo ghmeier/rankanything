@@ -68,6 +68,7 @@ func run(logger *slog.Logger) error {
 		UserSvc:      &services.UserService{Queries: q, Sessions: s},
 		RankingSvc:   &services.RankingsService{Queries: q, Pool: p},
 		EmailSvc:     emailSvc,
+		ShareSvc:     &services.ShareService{Queries: q, BaseURL: cfg.BaseURL},
 		VerificationSvc: &services.VerificationService{
 			Queries:  q,
 			Sender:   emailSvc,

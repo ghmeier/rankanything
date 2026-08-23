@@ -1,0 +1,52 @@
+package ui
+
+// PublicBoardPageProps configures PublicBoardPage — the read-only view of a
+// ranking's live published version served at GET /s/{public_slug}. It
+// carries none of BoardPageProps' editing plumbing (TierForm, ItemTray's
+// add form, the version menu, publish/branch actions, the share control
+// itself): a public visitor gets exactly the tiers, items, and title/
+// description, nothing that implies they can change any of it.
+type PublicBoardPageProps struct {
+	CSRFToken string
+	LoggedIn  bool
+	Flash     string
+	Theme     string
+	// Title and Description feed both <title>/meta description and the
+	// Open Graph tags — a shared tier list is the app's best organic
+	// acquisition surface, so its own preview matters more than most
+	// pages'.
+	Title        string
+	Description  string
+	CanonicalURL string
+	RankingMeta  RankingMetaProps
+	Tiers        []TierRowProps
+	ItemTray     ItemTrayProps
+}
+
+templ PublicBoardPage(props PublicBoardPageProps) {
+	@Layout(LayoutProps{
+		Title:       props.Title,
+		Description: props.Description,
+		CSRFToken:   props.CSRFToken,
+		LoggedIn:    props.LoggedIn,
+		Flash:       props.Flash,
+		Theme:       props.Theme,
+		OpenGraph: &OpenGraphProps{
+			Title:       props.Title,
+			Description: props.Description,
+			Type:        "website",
+			URL:         props.CanonicalURL,
+		},
+	}) {
+		<div class="space-y-4">
+			<section class="space-y-2">
+				@RankingMeta(props.RankingMeta)
+				<p class="text-xs uppercase tracking-wide text-text-muted">Shared read-only view · live published version</p>
+			</section>
+			<div class="space-y-4">
+				@TierRows(TierRowsProps{Tiers: props.Tiers})
+				@ItemTray(props.ItemTray)
+			</div>
+		</div>
+	}
+}

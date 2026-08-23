@@ -3,15 +3,16 @@ package app
 import "net/http"
 
 // registerPublicRoutes mounts routes with no ownership check: the "/"
-// landing/dispatch route, and the SEO files (sitemap.xml, robots.txt). It
-// will also carry the read-only public view once feat/public-share (wave 4)
-// lands at GET /s/{public_slug} — that route must not run through
-// RequireRankingAccess, since a public link has different access rules and
-// must carry no edit affordances.
+// landing/dispatch route, the SEO files (sitemap.xml, robots.txt), and the
+// read-only public share view at GET /s/{public_slug}. That route
+// deliberately does not run through RequireRankingAccess — a public link
+// has different access rules (anyone with the slug, not just the owner)
+// and renders a page with no edit affordances at all.
 func (a *App) registerPublicRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /{$}", a.handleRoot)
 	mux.HandleFunc("GET /robots.txt", a.handleRobotsTxt)
 	mux.HandleFunc("GET /sitemap.xml", a.handleSitemapXML)
+	mux.HandleFunc("GET /s/{public_slug}", a.handlePublicRanking)
 }
 
 // handleRoot is GET / — a signed-in visitor goes straight to their

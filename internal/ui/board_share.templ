@@ -1,0 +1,88 @@
+package ui
+
+import "fmt"
+
+// ShareControlProps configures the board's share control: a "Share"
+// disclosure gated on the ranking having a published version and the
+// owner's email being verified. When either is missing, the control says
+// which — an inert button with no explanation is worse than no control at
+// all.
+type ShareControlProps struct {
+	RankingUUID string
+	// Shareable and Reasons come from services.ShareGate: Shareable is
+	// true only once both conditions hold, and Reasons lists whichever of
+	// them don't.
+	Shareable bool
+	Reasons   []string
+	// IsPublic and PublicURL describe the current ranking_shares row. If
+	// IsPublic is false, PublicURL is meaningless and unused.
+	IsPublic  bool
+	PublicURL string
+	// Open marks the disclosure expanded, for the fragment a toggle's own
+	// hx-post/hx-delete swaps back in — so the panel that just changed
+	// stays visible rather than collapsing shut.
+	Open bool
+}
+
+templ ShareControl(props ShareControlProps) {
+	<details id="share-control" class="relative text-right" open?={ props.Open }>
+		<summary class="cursor-pointer list-none rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-text-muted hover:bg-surface-hover">
+			if props.IsPublic {
+				Shared
+			} else {
+				Share
+			}
+		</summary>
+		<div class="absolute right-0 z-10 mt-1 w-72 space-y-2 rounded-md border border-border bg-surface p-3 text-left text-sm shadow-md">
+			if !props.Shareable {
+				<p class="text-text-muted">Sharing isn't available yet:</p>
+				<ul class="list-disc space-y-1 pl-4 text-xs text-text-muted">
+					for _, reason := range props.Reasons {
+						<li>{ reason }</li>
+					}
+				</ul>
+			} else if props.IsPublic {
+				<p class="text-xs text-text-muted">Anyone with this link can view the ranking's live published version, read-only. It follows whatever you publish next.</p>
+				<input
+					id="share-link-input"
+					type="text"
+					readonly
+					value={ props.PublicURL }
+					aria-label="Public share link"
+					class="w-full rounded-md border border-border bg-surface-muted px-2 py-1 text-xs text-text"
+					onclick="this.select()"
+				/>
+				<button
+					type="button"
+					class={ ButtonClass(ButtonSecondary) + " w-full" }
+					onclick="navigator.clipboard.writeText(document.getElementById('share-link-input').value)"
+				>
+					Copy link
+				</button>
+				<p class="text-xs text-text-muted">Turning this off kills the link for good. Sharing again creates a brand new one — the old link never comes back.</p>
+				@Button(ButtonProps{
+					Variant: ButtonDestructive,
+					Attrs: templ.Attributes{
+						"hx-delete": fmt.Sprintf("/r/%s/share", props.RankingUUID),
+						"hx-target": "#share-control",
+						"hx-swap":   "outerHTML",
+					},
+				}) {
+					Stop sharing
+				}
+			} else {
+				<p class="text-xs text-text-muted">Create a public read-only link to the live published version. Turning it off later kills the link for good — sharing again creates a new one.</p>
+				@Button(ButtonProps{
+					Variant: ButtonPrimary,
+					Attrs: templ.Attributes{
+						"hx-post":   fmt.Sprintf("/r/%s/share", props.RankingUUID),
+						"hx-target": "#share-control",
+						"hx-swap":   "outerHTML",
+					},
+				}) {
+					Create share link
+				}
+			}
+		</div>
+	</details>
+}

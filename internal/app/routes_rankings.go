@@ -40,4 +40,10 @@ func (a *App) registerRankingRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /r/{uuid}/v/{short}/tiers/{tierID}/items/reorder", mutable(a.handleReorderTierItems))
 	mux.Handle("POST /r/{uuid}/v/{short}/publish", mutable(a.handlePublishVersion))
 	mux.Handle("POST /r/{uuid}/versions", a.RequireRankingAccess(http.HandlerFunc(a.handleCreateVersion)))
+
+	// Sharing isn't version-scoped mutation — it toggles a ranking_shares
+	// row independent of which version is currently a draft — so these sit
+	// behind RequireRankingAccess only, not mutable.
+	mux.Handle("POST /r/{uuid}/share", a.RequireRankingAccess(http.HandlerFunc(a.handleEnableShare)))
+	mux.Handle("DELETE /r/{uuid}/share", a.RequireRankingAccess(http.HandlerFunc(a.handleDisableShare)))
 }
