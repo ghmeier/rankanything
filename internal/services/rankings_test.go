@@ -169,8 +169,8 @@ func TestUpdateRanking(t *testing.T) {
 	require.NoError(t, err)
 
 	updated, err := svc.UpdateRanking(ctx, services.UpdateRankingRequest{
-		Slug:        ranking.Slug,
-		Title:       "My Ranking",
+		UUID:        ranking.Slug,
+		Name:        "My Ranking",
 		Description: "A test ranking",
 	})
 	require.NoError(t, err)
@@ -188,8 +188,8 @@ func TestUpdateRankingPartial(t *testing.T) {
 	require.NoError(t, err)
 
 	updated, err := svc.UpdateRanking(ctx, services.UpdateRankingRequest{
-		Slug:  ranking.Slug,
-		Title: "Only the title changed",
+		UUID: ranking.Slug,
+		Name: "Only the title changed",
 	})
 	require.NoError(t, err)
 
@@ -615,8 +615,8 @@ func TestUpdateRankingNotFound(t *testing.T) {
 	svc, ctx := svcWithCtx(t)
 
 	_, err := svc.UpdateRanking(ctx, services.UpdateRankingRequest{
-		Slug:  uuid.New(),
-		Title: "Nope",
+		UUID: uuid.New(),
+		Name: "Nope",
 	})
 	assert.Error(t, err)
 }

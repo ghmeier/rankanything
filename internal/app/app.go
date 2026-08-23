@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -117,28 +116,18 @@ func (a *App) RequireRankingAccess(next http.Handler) http.Handler {
 		}
 
 		userID := a.Sessions.UserID(ctx)
-		draftKeys := a.Sessions.Drafts(ctx)
 
 		// Query the ranking to verify access.
-		ranking, err := a.Queries.GetRankingBySlug(ctx, slug)
+		ranking, err := a.Queries.GetRankingByUUID(ctx, slug)
 		if err != nil {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
 
-		// Verify access based on ownership.
-		if ranking.UserID == nil {
-			// Draft: only accessible by the session that created it.
-			if !slices.Contains(draftKeys, slug) {
-				http.Error(w, "not found", http.StatusNotFound)
-				return
-			}
-		} else {
-			// Owned ranking: only accessible by the owner.
-			if userID == 0 || *ranking.UserID != userID {
-				http.Error(w, "not found", http.StatusNotFound)
-				return
-			}
+		// Owned ranking: only accessible by the owner.
+		if userID == 0 || ranking.UserID != userID {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
 		}
 
 		ctx = context.WithValue(ctx, constants.SlugKey, slug)

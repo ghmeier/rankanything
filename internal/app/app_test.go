@@ -42,42 +42,6 @@ func startDraft(t *testing.T, c *testsupport.Client) uuid.UUID {
 	return slug
 }
 
-func TestHomeCreatesAnonymousDraft(t *testing.T) {
-	env := testsupport.NewEnv(t)
-	c := env.NewClient()
-
-	slug := startDraft(t, c)
-
-	page := c.Get("/r/" + slug.String())
-	assert.Equal(t, http.StatusOK, page.Status)
-	assert.Contains(t, Body(page.Body), "Untitled ranking")
-	assert.Contains(t, Body(page.Body), "Unsaved draft")
-	for _, tier := range services.DefaultTiers {
-		assert.Contains(t, Body(page.Body), tier.Label, "default tier %s should render", tier.Label)
-	}
-}
-
-func TestHomeResumesExistingDraft(t *testing.T) {
-	env := testsupport.NewEnv(t)
-	c := env.NewClient()
-
-	first := startDraft(t, c)
-	second := c.Get("/")
-
-	assert.Equal(t, "/r/"+first.String(), second.Location(), "the same session resumes its draft")
-}
-
-func TestDraftsArePrivateToTheirSession(t *testing.T) {
-	env := testsupport.NewEnv(t)
-	owner := env.NewClient()
-	stranger := env.NewClient()
-
-	slug := startDraft(t, owner)
-
-	res := stranger.Get("/r/" + slug.String())
-	assert.Equal(t, http.StatusNotFound, res.Status, "another visitor must not read the draft")
-}
-
 func TestCSRFIsEnforced(t *testing.T) {
 	env := testsupport.NewEnv(t)
 	c := env.NewClient()
@@ -118,7 +82,7 @@ func TestAddItemsToTier(t *testing.T) {
 	c.HTMX(http.MethodPost, "/r/"+slug.String()+"/items", url.Values{"label": {"Pretzels"}})
 	c.HTMX(http.MethodPost, "/r/"+slug.String()+"/items", url.Values{"label": {"Olives"}})
 
-	ranking, err := env.Queries.GetRankingBySlug(ctx, slug)
+	ranking, err := env.Queries.GetRankingByUUID(ctx, slug)
 	require.NoError(t, err)
 	tiers, err := env.Queries.ListTiers(ctx, ranking.ID)
 	require.NoError(t, err)
@@ -150,7 +114,7 @@ func TestCustomTierLifecycle(t *testing.T) {
 	require.Equal(t, http.StatusOK, res.Status)
 	assert.Contains(t, Body(res.Body), "F")
 
-	ranking, err := env.Queries.GetRankingBySlug(ctx, slug)
+	ranking, err := env.Queries.GetRankingByUUID(ctx, slug)
 	require.NoError(t, err)
 	tiers, err := env.Queries.ListTiers(ctx, ranking.ID)
 	require.NoError(t, err)
@@ -180,7 +144,7 @@ func TestSaveRequiresAccountThenClaimsDraft(t *testing.T) {
 	require.Equal(t, http.StatusSeeOther, save.Status)
 	assert.Equal(t, "/register?next=/r/"+slug.String(), save.Location())
 
-	ranking, err := env.Queries.GetRankingBySlug(ctx, slug)
+	ranking, err := env.Queries.GetRankingByUUID(ctx, slug)
 	require.NoError(t, err)
 	assert.True(t, ranking.UserID == nil, "the draft stays unclaimed until sign-up")
 
@@ -192,7 +156,7 @@ func TestSaveRequiresAccountThenClaimsDraft(t *testing.T) {
 	require.Equal(t, http.StatusSeeOther, reg.Status)
 	assert.Equal(t, "/r/"+slug.String(), reg.Location())
 
-	claimed, err := env.Queries.GetRankingBySlug(ctx, slug)
+	claimed, err := env.Queries.GetRankingByUUID(ctx, slug)
 	require.NoError(t, err)
 	require.NotNil(t, claimed.UserID, "signing up claims the draft")
 

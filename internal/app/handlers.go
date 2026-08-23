@@ -28,9 +28,9 @@ func (a *App) handleHome(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, r, err)
 		return
 	}
-	a.Sessions.RememberDraft(r.Context(), ranking.Slug)
+	a.Sessions.RememberDraft(r.Context(), ranking.Uuid)
 
-	http.Redirect(w, r, "/r/"+ranking.Slug.String(), http.StatusSeeOther)
+	http.Redirect(w, r, "/r/"+ranking.Uuid.String(), http.StatusSeeOther)
 }
 
 // handleNew is GET /new — create a fresh ranking for a signed-in user.
@@ -46,7 +46,7 @@ func (a *App) handleNew(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, r, err)
 		return
 	}
-	http.Redirect(w, r, "/r/"+ranking.Slug.String(), http.StatusSeeOther)
+	http.Redirect(w, r, "/r/"+ranking.Uuid.String(), http.StatusSeeOther)
 }
 
 // handleViewRanking is GET /r/{slug} — render the board for a ranking.
@@ -77,8 +77,8 @@ func (a *App) handleUpdateRanking(w http.ResponseWriter, r *http.Request) {
 	desc := r.FormValue("description")
 
 	updated, err := a.RankingSvc.UpdateRanking(ctx, services.UpdateRankingRequest{
-		Slug:        slug,
-		Title:       title,
+		UUID:        slug,
+		Name:        title,
 		Description: desc,
 	})
 	if err != nil {
@@ -87,9 +87,6 @@ func (a *App) handleUpdateRanking(w http.ResponseWriter, r *http.Request) {
 	}
 
 	view := RankingView{Ranking: updated}
-	if updated.UserID == nil {
-		view.IsDraft = true
-	}
 	if err := a.Render.Partial(w, http.StatusOK, "partials/ranking_meta.html", view); err != nil {
 		a.serverError(w, r, err)
 	}
@@ -138,7 +135,7 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = a.Render.Partial(w, http.StatusOK, "partials/item_card.html", RankedItemCard{Item: item, RankingSlug: slug}); err != nil {
+	if err = a.Render.Partial(w, http.StatusOK, "partials/item_card.html", RankingItemCard{Item: item, RankingSlug: slug}); err != nil {
 		a.serverError(w, r, err)
 	}
 }
@@ -181,7 +178,7 @@ func (a *App) handleAddTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items, err := a.RankingSvc.Queries.ListRankingTierItems(ctx, tier.ID)
+	// items, err := a.RankingSvc.Queries.ListRankingTierItems(ctx, tier.ID)
 	if err != nil {
 		rankError(a, w, r, err)
 		return

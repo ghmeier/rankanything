@@ -22,17 +22,17 @@ type RankingView struct {
 	Ranking    db.Ranking
 	IsDraft    bool
 	Tiers      []TierView
-	Unassigned []db.RankedItem
+	Unassigned []db.RankingItem
 }
 
 // TierView pairs a tier with its ordered contents.
 type TierView struct {
 	Tier  db.RankingTier
-	Items []db.RankedItem
+	Items []db.RankingItem
 }
 
-type RankedItemCard struct {
-	Item        db.RankedItem
+type RankingItemCard struct {
+	Item        db.RankingItem
 	TierID      *int64 // nil means unranked.
 	RankingSlug uuid.UUID
 }
@@ -40,7 +40,7 @@ type RankedItemCard struct {
 // TierRowView renders a single tier row with its items (for fine-grained tier swaps).
 type TierRowView struct {
 	Tier        db.RankingTier
-	Items       []db.RankedItem
+	Items       []db.RankingItem
 	RankingSlug uuid.UUID
 }
 type TierRowLabelView struct {
@@ -96,19 +96,19 @@ func (a *App) serverError(w http.ResponseWriter, r *http.Request, err error) {
 func (a *App) RenderRankingPage(w http.ResponseWriter, r *http.Request, ranking services.RankingWithItems) error {
 	base := a.base(r)
 
-	byID := make(map[int64]db.RankedItem, len(ranking.Items))
+	byID := make(map[int64]db.RankingItem, len(ranking.Items))
 	for _, it := range ranking.Items {
 		byID[it.ID] = it
 	}
 	placed := make(map[int64]bool, len(ranking.Placements))
 
-	tierItems := make(map[int64][]db.RankedItem, len(ranking.Tiers))
+	tierItems := make(map[int64][]db.RankingItem, len(ranking.Tiers))
 	for _, p := range ranking.Placements {
-		it, ok := byID[p.RankedItemID]
+		it, ok := byID[p.RankingItemID]
 		if !ok {
 			continue
 		}
-		placed[p.RankedItemID] = true
+		placed[p.RankingItemID] = true
 		tierItems[p.RankingTierID] = append(tierItems[p.RankingTierID], it)
 	}
 
