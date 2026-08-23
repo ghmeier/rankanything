@@ -55,7 +55,7 @@ jobs:
         run: make css
 
       - name: Generate templ files
-        run: make tmpl
+        run: make templ
 
       - name: Fail on generated-file drift
         run: |
