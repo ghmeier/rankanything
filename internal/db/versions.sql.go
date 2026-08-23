@@ -57,6 +57,79 @@ func (q *Queries) GetRankingVersionByShortUUID(ctx context.Context, arg GetRanki
 	return i, err
 }
 
+const listDraftRankingVersionsForRankings = `-- name: ListDraftRankingVersionsForRankings :many
+SELECT id, created_at, updated_at, short_uuid, ranking_id, published_at FROM ranking_versions
+WHERE ranking_id = ANY($1::bigint[]) AND published_at IS NULL
+`
+
+// Feeds the rankings index: the (at most one, per the
+// ranking_versions_one_draft_idx constraint) draft version for each
+// ranking_id, in one query rather than N.
+func (q *Queries) ListDraftRankingVersionsForRankings(ctx context.Context, rankingIds []int64) ([]RankingVersion, error) {
+	rows, err := q.db.Query(ctx, listDraftRankingVersionsForRankings, rankingIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RankingVersion
+	for rows.Next() {
+		var i RankingVersion
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ShortUuid,
+			&i.RankingID,
+			&i.PublishedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLatestPublishedRankingVersionsForRankings = `-- name: ListLatestPublishedRankingVersionsForRankings :many
+SELECT DISTINCT ON (ranking_id) id, created_at, updated_at, short_uuid, ranking_id, published_at
+FROM ranking_versions
+WHERE ranking_id = ANY($1::bigint[]) AND published_at IS NOT NULL
+ORDER BY ranking_id, published_at DESC
+`
+
+// Feeds the rankings index: one row per ranking_id, its most recently
+// published version. DISTINCT ON (ranking_id) with this ordering picks the
+// newest publish per ranking in a single scan, so the index can describe N
+// rankings' live-published state in one query rather than N.
+func (q *Queries) ListLatestPublishedRankingVersionsForRankings(ctx context.Context, rankingIds []int64) ([]RankingVersion, error) {
+	rows, err := q.db.Query(ctx, listLatestPublishedRankingVersionsForRankings, rankingIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RankingVersion
+	for rows.Next() {
+		var i RankingVersion
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ShortUuid,
+			&i.RankingID,
+			&i.PublishedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRankingVersionsForRanking = `-- name: ListRankingVersionsForRanking :many
 SELECT id, created_at, updated_at, short_uuid, ranking_id, published_at FROM ranking_versions WHERE ranking_id = $1 ORDER BY created_at DESC
 `

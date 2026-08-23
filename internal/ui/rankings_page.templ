@@ -1,0 +1,71 @@
+package ui
+
+// RankingsIndexProps configures RankingsIndexPage — the page a signed-in
+// user lands on after logging in or registering, listing their rankings.
+//
+// VerificationNotice is the one seam this page shares with
+// feat/auth-flows, which is building a resend-verification control on a
+// parallel branch and cannot edit this file. This branch only needs to
+// know the contract: render it above the heading when it's non-nil, render
+// nothing when it's nil. The orchestrator wires
+// ui.ResendVerificationNotice(email) into it after both branches merge.
+type RankingsIndexProps struct {
+	CSRFToken          string
+	LoggedIn           bool
+	Flash              string
+	VerificationNotice templ.Component
+	Rankings           []RankingsIndexCard
+}
+
+// RankingsIndexCard is one ranking's card on the index: where it links and
+// a one-line description of its live version's state — "draft",
+// "published Aug 4", or "published Aug 4 · draft in progress" when a newer
+// draft sits on top of the last publish.
+type RankingsIndexCard struct {
+	URL    string
+	Name   string
+	Status string
+}
+
+templ RankingsIndexPage(props RankingsIndexProps) {
+	@Layout(LayoutProps{Title: "Your rankings", CSRFToken: props.CSRFToken, LoggedIn: props.LoggedIn, Flash: props.Flash}) {
+		<div class="space-y-6">
+			if props.VerificationNotice != nil {
+				@props.VerificationNotice
+			}
+			<div class="flex items-center justify-between">
+				<h1 class="text-2xl font-bold tracking-tight">Your rankings</h1>
+				@Button(ButtonProps{Variant: ButtonPrimary, Attrs: templ.Attributes{"hx-post": "/new"}}) {
+					Create ranking
+				}
+			</div>
+			if len(props.Rankings) == 0 {
+				@rankingsIndexEmptyState()
+			} else {
+				@rankingsIndexList(props.Rankings)
+			}
+		</div>
+	}
+}
+
+templ rankingsIndexEmptyState() {
+	<div class="flex flex-col items-center justify-center gap-4 rounded-lg border border-border bg-surface px-6 py-20 text-center">
+		<p class="text-sm text-text-muted">You haven't created a ranking yet.</p>
+		@Button(ButtonProps{Variant: ButtonPrimary, Attrs: templ.Attributes{"hx-post": "/new"}}) {
+			Create your first ranking
+		}
+	</div>
+}
+
+templ rankingsIndexList(cards []RankingsIndexCard) {
+	<ul class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+		for _, card := range cards {
+			<li class="rounded-lg border border-border bg-surface hover:bg-surface-hover">
+				<a href={ templ.URL(card.URL) } class="block px-4 py-4">
+					<p class="font-medium text-text">{ card.Name }</p>
+					<p class="mt-1 text-sm text-text-muted">{ card.Status }</p>
+				</a>
+			</li>
+		}
+	</ul>
+}

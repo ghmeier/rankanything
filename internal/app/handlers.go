@@ -414,31 +414,6 @@ func (a *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
-// handleMe is GET /me — show the signed-in user's rankings.
-func (a *App) handleMe(w http.ResponseWriter, r *http.Request) {
-	userID := a.Sessions.UserID(r.Context())
-	if userID == 0 {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
-	base := a.base(r)
-	rankings, err := a.Queries.ListRankingsByUser(r.Context(), userID)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-	accountRankings := make([]AccountRanking, len(rankings))
-	for i, ranking := range rankings {
-		var formatted string
-		if ranking.UpdatedAt.Valid {
-			formatted = ranking.UpdatedAt.Time.Format("Jan 2, 2006")
-		}
-		accountRankings[i] = AccountRanking{Ranking: ranking, FormattedUpdated: formatted}
-	}
-	view := AccountView{BaseView: base, Rankings: accountRankings}
-	a.Render.Page(w, http.StatusOK, "pages/me.html", view)
-}
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 // rankError maps service errors to HTTP responses.

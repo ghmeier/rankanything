@@ -68,18 +68,6 @@ type AuthView struct {
 	Error string
 }
 
-// AccountView backs /me.
-type AccountView struct {
-	BaseView
-	Rankings []AccountRanking
-}
-
-// AccountRanking is a lightweight wrapper for rankings shown on /me.
-type AccountRanking struct {
-	db.Ranking
-	FormattedUpdated string
-}
-
 func (a *App) base(r *http.Request) BaseView {
 	ctx := r.Context()
 	v := BaseView{CSRFToken: a.Sessions.CSRFToken(ctx), Flash: a.Sessions.PopFlash(ctx)}

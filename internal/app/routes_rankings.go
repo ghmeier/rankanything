@@ -8,7 +8,7 @@ import "net/http"
 // feat/versioned-board (wave 3) build out the handlers behind these routes.
 func (a *App) registerRankingRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /new", a.RequireUser(http.HandlerFunc(a.handleNew)))
-	mux.Handle("GET /me", a.RequireUser(http.HandlerFunc(a.handleMe)))
+	mux.Handle("GET /me", a.RequireUser(http.HandlerFunc(a.handleRankingsIndex)))
 
 	mux.Handle("GET /r/{uuid}", a.RequireRankingAccess(http.HandlerFunc(a.handleViewRanking)))
 	mux.Handle("GET /r/{uuid}/v/{short}", a.RequireRankingAccess(http.HandlerFunc(a.handleViewRanking)))
