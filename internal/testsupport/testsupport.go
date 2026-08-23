@@ -30,6 +30,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/ghmeier/rankanything/assets"
 	"github.com/ghmeier/rankanything/internal/app"
@@ -222,24 +223,84 @@ type OwnerClient struct {
 // NewOwnerClient registers a fresh user and creates a ranking through the
 // same service path GET /new uses, so its draft version comes pre-seeded
 // with the default tiers exactly like the real app.
+//
+// It goes through the services rather than POST /register and POST /new so
+// that a fixture nearly every handler test needs doesn't cost two HTTP round
+// trips; the bcrypt hash alone dominated the suite's runtime. LoginUser then
+// plants the session the real requests would have established.
 func (e *Env) NewOwnerClient() *OwnerClient {
 	e.T.Helper()
 	c := e.NewClient()
 
+	// UserService.Register logs the new user in, and scs panics on a context
+	// that never went through the session middleware, so registration needs a
+	// loaded session even though the one the client actually uses is the one
+	// LoginUser commits below.
+	ctx, err := e.App.Sessions.Load(context.Background(), "")
+	require.NoError(e.T, err)
+
 	email := "owner+" + uuid.NewString() + "@example.com"
-	res := c.Post("/register", url.Values{"email": {email}, "password": {"supersecret"}})
-	require.Equal(e.T, http.StatusSeeOther, res.Status)
-
-	user, err := e.Queries.GetUserByEmail(context.Background(), email)
+	user, err := e.App.UserSvc.Register(ctx, services.RegisterRequest{
+		Email: email, Password: OwnerPasswordHash(e.T),
+	})
 	require.NoError(e.T, err)
 
-	ranking, err := e.App.RankingSvc.CreateForUser(context.Background(), services.CreateForUserRequest{UserID: user.ID})
+	c.LoginUser(user.ID)
+
+	// Sending the verification email is the register handler's job, not the
+	// service's, so bypassing HTTP would otherwise leave the new user in a
+	// state real registration never produces.
+	require.NoError(e.T, e.App.VerificationSvc.SendVerificationEmail(ctx, user.ID, user.Email))
+
+	ranking, err := e.App.RankingSvc.CreateForUser(ctx, services.CreateForUserRequest{UserID: user.ID})
 	require.NoError(e.T, err)
 
-	draft, err := e.Queries.ResolveLiveRankingVersion(context.Background(), ranking.ID)
+	draft, err := e.Queries.ResolveLiveRankingVersion(ctx, ranking.ID)
 	require.NoError(e.T, err)
 
 	return &OwnerClient{Client: c, Ranking: ranking, Draft: draft}
+}
+
+// OwnerPassword is the plaintext behind every NewOwnerClient user, so a test
+// that wants to sign one of them in again over HTTP can.
+const OwnerPassword = "supersecret"
+
+// OwnerPasswordHash hashes OwnerPassword at bcrypt's minimum cost. The stored
+// value is still a real bcrypt hash that auth.CheckPassword accepts, but
+// auth.HashPassword's DefaultCost costs tens of milliseconds per call, which
+// is most of what a fixture this widely used spends.
+func OwnerPasswordHash(t *testing.T) string {
+	t.Helper()
+	h, err := bcrypt.GenerateFromPassword([]byte(OwnerPassword), bcrypt.MinCost)
+	require.NoError(t, err)
+	return string(h)
+}
+
+// LoginUser signs the client in as userID by committing a session directly to
+// the store and putting its token in the cookie jar — the same end state
+// POST /login reaches, without the request.
+func (c *Client) LoginUser(userID int64) {
+	c.t.Helper()
+
+	ctx, err := c.env.App.Sessions.Load(context.Background(), "")
+	require.NoError(c.t, err)
+
+	err = c.env.App.Sessions.LogIn(ctx, userID)
+	require.NoError(c.t, err)
+
+	token, _, err := c.env.App.Sessions.Commit(ctx)
+	require.NoError(c.t, err)
+
+	u, err := url.Parse(c.env.Server.URL)
+	require.NoError(c.t, err)
+
+	c.http.Jar.SetCookies(u, []*http.Cookie{
+		{
+			Name:  c.env.App.Sessions.Cookie.Name,
+			Value: token,
+			Path:  c.env.App.Sessions.Cookie.Path,
+		},
+	})
 }
 
 // Get performs a GET and captures the CSRF token from the response body.
