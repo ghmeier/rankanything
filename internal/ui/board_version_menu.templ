@@ -1,0 +1,30 @@
+package ui
+
+// BoardVersionOption is one entry in the version-picker dropdown: every
+// version of the ranking, its state, and whether it's the one being viewed.
+type BoardVersionOption struct {
+	URL     string
+	Label   string
+	Current bool
+}
+
+// boardVersionMenu is a native <details> disclosure listing every version
+// of the ranking — no JS needed for a dropdown this simple.
+templ boardVersionMenu(versions []BoardVersionOption) {
+	<details class="relative text-right">
+		<summary class="cursor-pointer list-none rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-text-muted hover:bg-surface-hover">
+			Versions
+		</summary>
+		<ul class="absolute right-0 z-10 mt-1 w-56 rounded-md border border-border bg-surface py-1 text-left shadow-md">
+			for _, v := range versions {
+				<li>
+					if v.Current {
+						<span class="block px-3 py-1.5 text-sm font-medium text-text" aria-current="true">{ v.Label }</span>
+					} else {
+						<a href={ templ.URL(v.URL) } class="block px-3 py-1.5 text-sm text-text-muted hover:bg-surface-hover">{ v.Label }</a>
+					}
+				</li>
+			}
+		</ul>
+	</details>
+}

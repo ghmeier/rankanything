@@ -12,6 +12,9 @@ type ItemCardProps struct {
 	ItemID           int64
 	Title            string
 	ImageURL         string
+	// Editable is false while viewing a published version: a published
+	// version is immutable, so the card is neither draggable nor removable.
+	Editable bool
 }
 
 templ ItemCard(props ItemCardProps) {
@@ -19,7 +22,7 @@ templ ItemCard(props ItemCardProps) {
 		class="item-card group flex h-fit w-40 cursor-grab items-center gap-2 rounded-md border border-border bg-surface p-2 text-sm shadow-sm"
 		id={ fmt.Sprintf("ranking-item-%d", props.ItemID) }
 		data-item-id={ fmt.Sprintf("%d", props.ItemID) }
-		draggable="true"
+		draggable?={ props.Editable }
 	>
 		if props.ImageURL != "" {
 			<img
@@ -32,15 +35,17 @@ templ ItemCard(props ItemCardProps) {
 		<div class="min-w-0 flex-1">
 			<p class="truncate font-medium text-text">{ props.Title }</p>
 		</div>
-		<button
-			hx-delete={ fmt.Sprintf("/r/%s/v/%s/items/%d", props.RankingUUID, props.VersionShortUUID, props.ItemID) }
-			hx-target={ fmt.Sprintf("#ranking-item-%d", props.ItemID) }
-			hx-swap="outerHTML"
-			aria-label={ "Remove " + props.Title }
-			class="text-slate-500 opacity-0 transition group-hover:opacity-100 hover:text-rose-400"
-		>
-			&times;
-		</button>
+		if props.Editable {
+			<button
+				hx-delete={ fmt.Sprintf("/r/%s/v/%s/items/%d", props.RankingUUID, props.VersionShortUUID, props.ItemID) }
+				hx-target={ fmt.Sprintf("#ranking-item-%d", props.ItemID) }
+				hx-swap="outerHTML"
+				aria-label={ "Remove " + props.Title }
+				class="text-slate-500 opacity-0 transition group-hover:opacity-100 hover:text-rose-400"
+			>
+				&times;
+			</button>
+		}
 	</article>
 }
 
@@ -50,6 +55,9 @@ type ItemTrayProps struct {
 	RankingUUID      string
 	VersionShortUUID string
 	Unassigned       []ItemCardProps
+	// Editable is false while viewing a published version: the add-item
+	// form is left unrendered rather than merely disabled.
+	Editable bool
 }
 
 templ ItemTray(props ItemTrayProps) {
@@ -58,30 +66,32 @@ templ ItemTray(props ItemTrayProps) {
 			<h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">
 				Unranked items
 			</h2>
-			<form
-				class="flex gap-2"
-				hx-post={ fmt.Sprintf("/r/%s/v/%s/items", props.RankingUUID, props.VersionShortUUID) }
-				hx-target="#tray-items"
-				hx-swap="beforeend"
-				hx-on::after-request="this.reset()"
-			>
-				<input
-					name="label"
-					required
-					placeholder="Add an item"
-					aria-label="Item label"
-					class="rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:bg-surface-hover"
-				/>
-				<input
-					name="image_url"
-					placeholder="Image URL (optional)"
-					aria-label="Item image URL"
-					class="w-48 rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:bg-surface-hover"
-				/>
-				<button class="rounded-md border border-border bg-secondary px-3 py-1.5 text-sm text-background hover:bg-secondary-hover">
-					Add
-				</button>
-			</form>
+			if props.Editable {
+				<form
+					class="flex gap-2"
+					hx-post={ fmt.Sprintf("/r/%s/v/%s/items", props.RankingUUID, props.VersionShortUUID) }
+					hx-target="#tray-items"
+					hx-swap="beforeend"
+					hx-on::after-request="this.reset()"
+				>
+					<input
+						name="label"
+						required
+						placeholder="Add an item"
+						aria-label="Item label"
+						class="rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:bg-surface-hover"
+					/>
+					<input
+						name="image_url"
+						placeholder="Image URL (optional)"
+						aria-label="Item image URL"
+						class="w-48 rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:bg-surface-hover"
+					/>
+					<button class="rounded-md border border-border bg-secondary px-3 py-1.5 text-sm text-background hover:bg-secondary-hover">
+						Add
+					</button>
+				</form>
+			}
 		</div>
 		@TrayItems(TrayItemsProps{RankingUUID: props.RankingUUID, Items: props.Unassigned})
 	</section>

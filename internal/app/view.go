@@ -25,11 +25,21 @@ func (a *App) base(r *http.Request) BaseView {
 	return v
 }
 
-// renderComponent writes the appropriate header and status, then renders the templ component.
-func renderComponent(w http.ResponseWriter, r *http.Request, status int, c templ.Component) error {
+// renderComponent writes the appropriate header and status, then renders
+// each templ component in order. A handler passes more than one when a
+// mutation carries an out-of-band swap alongside its primary fragment (see
+// App.boardVersionActionsOOB) — htmx pulls any hx-swap-oob element out of
+// the combined body regardless of where it falls, so concatenating them is
+// enough.
+func renderComponent(w http.ResponseWriter, r *http.Request, status int, cs ...templ.Component) error {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
-	return c.Render(r.Context(), w)
+	for _, c := range cs {
+		if err := c.Render(r.Context(), w); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // isHTMXRequest helps know if the request was initiated from HTMX or plain HTML so
@@ -40,6 +50,10 @@ func isHTMXRequest(r *http.Request) bool {
 
 func (a *App) notFound(w http.ResponseWriter, _ *http.Request) {
 	http.Error(w, "not found", http.StatusNotFound)
+}
+
+func (a *App) forbidden(w http.ResponseWriter, _ *http.Request, msg string) {
+	http.Error(w, msg, http.StatusForbidden)
 }
 
 func (a *App) serverError(w http.ResponseWriter, r *http.Request, err error) {

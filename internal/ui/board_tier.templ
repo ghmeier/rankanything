@@ -13,6 +13,9 @@ type TierRowProps struct {
 	Title            string
 	ColorHex         string
 	Items            []ItemCardProps
+	// Editable is false while viewing a published version: the row is
+	// neither draggable nor editable, and offers no delete control.
+	Editable bool
 }
 
 // TierRows renders the whole stack of tier rows — BoardPage's normal view,
@@ -33,10 +36,10 @@ templ TierRow(props TierRowProps) {
 	<section
 		id={ fmt.Sprintf("tier-row-%d", props.TierID) }
 		data-tier-id={ fmt.Sprintf("%d", props.TierID) }
-		draggable="true"
+		draggable?={ props.Editable }
 		class="tier-row flex items-stretch gap-2 bg-surface"
 	>
-		@TierRowLabel(TierRowLabelProps{RankingUUID: props.RankingUUID, VersionShortUUID: props.VersionShortUUID, TierID: props.TierID, Title: props.Title, ColorHex: props.ColorHex})
+		@TierRowLabel(TierRowLabelProps{RankingUUID: props.RankingUUID, VersionShortUUID: props.VersionShortUUID, TierID: props.TierID, Title: props.Title, ColorHex: props.ColorHex, BoardEditable: props.Editable})
 		@TierItems(TierItemsProps{RankingUUID: props.RankingUUID, TierID: props.TierID, Items: props.Items})
 	</section>
 }
@@ -74,6 +77,11 @@ type TierRowLabelProps struct {
 	Title            string
 	ColorHex         string
 	Editable         bool
+	// BoardEditable is false while viewing a published version: the drag
+	// handle and edit button are left unrendered entirely, since the inline
+	// edit form (and the tier delete control inside it) is unreachable
+	// either way once the version is immutable.
+	BoardEditable bool
 }
 
 templ TierRowLabel(props TierRowLabelProps) {
@@ -119,24 +127,26 @@ templ TierRowLabel(props TierRowLabelProps) {
 			style={ "background-color: " + props.ColorHex }
 			id={ fmt.Sprintf("tier-container-%d", props.TierID) }
 		>
-			<span
-				data-tier-edit-only
-				aria-hidden="true"
-				title="Drag to reorder tiers"
-				class="absolute left-2 top-2 h-fit cursor-grab select-none text-text-muted"
-			>
-				@DragHandleIcon()
-			</span>
-			<button
-				data-tier-edit-only
-				class="absolute right-2 top-2 h-fit cursor-pointer"
-				hx-post={ fmt.Sprintf("/r/%s/v/%s/tiers/%d/edit", props.RankingUUID, props.VersionShortUUID, props.TierID) }
-				hx-target={ fmt.Sprintf("#tier-container-%d", props.TierID) }
-				hx-swap="outerHTML"
-				aria-label="Edit Tier"
-			>
-				@EditIcon()
-			</button>
+			if props.BoardEditable {
+				<span
+					data-tier-edit-only
+					aria-hidden="true"
+					title="Drag to reorder tiers"
+					class="absolute left-2 top-2 h-fit cursor-grab select-none text-text-muted"
+				>
+					@DragHandleIcon()
+				</span>
+				<button
+					data-tier-edit-only
+					class="absolute right-2 top-2 h-fit cursor-pointer"
+					hx-post={ fmt.Sprintf("/r/%s/v/%s/tiers/%d/edit", props.RankingUUID, props.VersionShortUUID, props.TierID) }
+					hx-target={ fmt.Sprintf("#tier-container-%d", props.TierID) }
+					hx-swap="outerHTML"
+					aria-label="Edit Tier"
+				>
+					@EditIcon()
+				</button>
+			}
 			<div class="m-auto line-clamp-2 w-fit rounded-lg bg-surface/60 px-2 text-center text-xl font-bold text-text">
 				{ props.Title }
 			</div>

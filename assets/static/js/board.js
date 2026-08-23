@@ -185,5 +185,20 @@ function csrfToken() {
     const replacement = template.content.firstElementChild;
     const target = document.getElementById(targetId);
     if (target && replacement) target.replaceWith(replacement);
+
+    applyOOBSwaps(template.content);
+  }
+
+  // Mirrors htmx's hx-swap-oob handling for the persist calls above, which
+  // bypass htmx entirely by using fetch() directly: any element left in the
+  // parsed response after the primary swap target was pulled out (unrank
+  // and tier-item reorder both carry the publish-action fragment this way,
+  // since either can flip the publish gate) replaces the live element with
+  // the same id.
+  function applyOOBSwaps(content) {
+    for (const node of content.querySelectorAll("[hx-swap-oob]")) {
+      const existing = document.getElementById(node.id);
+      if (existing) existing.replaceWith(node);
+    }
   }
 })();

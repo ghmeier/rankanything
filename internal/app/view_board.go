@@ -1,15 +1,19 @@
 package app
 
 import (
+	"context"
 	"net/http"
 
+	"github.com/a-h/templ"
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/ghmeier/rankanything/internal/ui"
 )
 
-// itemCardProps builds the props for one item card.
-func itemCardProps(rankingUUID string, versionShortUUID string, item db.RankingItem) ui.ItemCardProps {
+// itemCardProps builds the props for one item card. editable is false while
+// viewing a published version, so the card renders without a drag handle or
+// delete control.
+func itemCardProps(rankingUUID string, versionShortUUID string, item db.RankingItem, editable bool) ui.ItemCardProps {
 	imageURL := ""
 	if item.ImageSourceUrl != nil {
 		imageURL = *item.ImageSourceUrl
@@ -20,28 +24,14 @@ func itemCardProps(rankingUUID string, versionShortUUID string, item db.RankingI
 		ItemID:           item.ID,
 		Title:            item.Title,
 		ImageURL:         imageURL,
+		Editable:         editable,
 	}
 }
 
 // tierRowProps builds the props for one tier row, including its items.
-func tierRowProps(rankingUUID string, versionShortUUID string, tier db.RankingTier, items []db.RankingItem) ui.TierRowProps {
+// editable is false while viewing a published version.
+func tierRowProps(rankingUUID string, versionShortUUID string, tier db.RankingTier, items []db.RankingItem, editable bool) ui.TierRowProps {
 	props := ui.TierRowProps{
-		RankingUUID:      rankingUUID,
-		VersionShortUUID: versionShortUUID,
-		TierID:           tier.ID,
-		Title:            tier.Title,
-		ColorHex:         tier.ColorHex,
-	}
-	for _, it := range items {
-		props.Items = append(props.Items, itemCardProps(rankingUUID, versionShortUUID, it))
-	}
-	return props
-}
-
-// tierRowLabelProps builds the props for a tier's label, in either its
-// display or editable form.
-func tierRowLabelProps(rankingUUID string, versionShortUUID string, tier db.RankingTier, editable bool) ui.TierRowLabelProps {
-	return ui.TierRowLabelProps{
 		RankingUUID:      rankingUUID,
 		VersionShortUUID: versionShortUUID,
 		TierID:           tier.ID,
@@ -49,15 +39,39 @@ func tierRowLabelProps(rankingUUID string, versionShortUUID string, tier db.Rank
 		ColorHex:         tier.ColorHex,
 		Editable:         editable,
 	}
+	for _, it := range items {
+		props.Items = append(props.Items, itemCardProps(rankingUUID, versionShortUUID, it, editable))
+	}
+	return props
+}
+
+// tierRowLabelProps builds the props for a tier's label, in either its
+// display or inline-edit form. boardEditable is false while viewing a
+// published version, hiding the edit button and drag handle regardless of
+// which form is showing.
+func tierRowLabelProps(rankingUUID string, versionShortUUID string, tier db.RankingTier, editable bool, boardEditable bool) ui.TierRowLabelProps {
+	return ui.TierRowLabelProps{
+		RankingUUID:      rankingUUID,
+		VersionShortUUID: versionShortUUID,
+		TierID:           tier.ID,
+		Title:            tier.Title,
+		ColorHex:         tier.ColorHex,
+		Editable:         editable,
+		BoardEditable:    boardEditable,
+	}
 }
 
 // rankingMetaProps builds the props for the title/description fields.
-func rankingMetaProps(rankingUUID string, versionShortUUID string, ranking db.Ranking) ui.RankingMetaProps {
+// editable is false while viewing a published version: the ranking's name
+// isn't itself version-scoped, but this page shouldn't offer inputs that
+// look like they're editing the published version being viewed.
+func rankingMetaProps(rankingUUID string, versionShortUUID string, ranking db.Ranking, editable bool) ui.RankingMetaProps {
 	return ui.RankingMetaProps{
 		RankingUUID:      rankingUUID,
 		VersionShortUUID: versionShortUUID,
 		Name:             ranking.Name,
 		Description:      ranking.Description,
+		Editable:         editable,
 	}
 }
 
@@ -156,24 +170,31 @@ func boardVersionActionsProps(rankingUUID string, version db.RankingVersion, ver
 // RankingBoard plus the ranking's other versions for the dropdown.
 func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoard, versions []db.RankingVersion, gate services.PublishGate) ui.BoardPageProps {
 	tierItems := boardTierItems(board)
+	editable := !board.Version.PublishedAt.Valid
 
 	props := ui.BoardPageProps{
 		CSRFToken:     base.CSRFToken,
 		LoggedIn:      base.User != nil,
 		Flash:         base.Flash,
-		RankingMeta:   rankingMetaProps(rankingUUID, board.Version.ShortUuid, board.Ranking),
+		RankingMeta:   rankingMetaProps(rankingUUID, board.Version.ShortUuid, board.Ranking, editable),
 		VersionStatus: boardVersionStatusText(board.Version),
 		Versions:      boardVersionOptions(rankingUUID, versions, board.Version),
 		VersionAction: boardVersionActionsProps(rankingUUID, board.Version, versions, gate),
+		Editable:      editable,
 		TierForm:      ui.TierFormProps{RankingUUID: rankingUUID, VersionShortUUID: board.Version.ShortUuid},
+		// ShareControl and ExportControl are nil until feat/public-share and
+		// feat/csv-export land theirs; BoardPage renders nothing for a nil
+		// slot.
+		ShareControl:  nil,
+		ExportControl: nil,
 	}
 	for _, t := range board.Tiers {
-		props.Tiers = append(props.Tiers, tierRowProps(rankingUUID, board.Version.ShortUuid, t, tierItems[t.ID]))
+		props.Tiers = append(props.Tiers, tierRowProps(rankingUUID, board.Version.ShortUuid, t, tierItems[t.ID], editable))
 	}
 
-	tray := ui.ItemTrayProps{RankingUUID: rankingUUID, VersionShortUUID: board.Version.ShortUuid}
+	tray := ui.ItemTrayProps{RankingUUID: rankingUUID, VersionShortUUID: board.Version.ShortUuid, Editable: editable}
 	for _, it := range boardUnplacedItems(board) {
-		tray.Unassigned = append(tray.Unassigned, itemCardProps(rankingUUID, board.Version.ShortUuid, it))
+		tray.Unassigned = append(tray.Unassigned, itemCardProps(rankingUUID, board.Version.ShortUuid, it, editable))
 	}
 	props.ItemTray = tray
 
@@ -203,4 +224,21 @@ func (a *App) RenderRankingPage(w http.ResponseWriter, r *http.Request, board se
 	rankingUUID := board.Ranking.Uuid.String()
 	props := boardPageProps(a.base(r), rankingUUID, board, versions, gate)
 	return renderComponent(w, r, http.StatusOK, ui.BoardPage(props))
+}
+
+// boardVersionActionsOOB re-renders the publish/branch action as an
+// out-of-band swap, for a mutation handler whose change can flip the
+// publish gate (adding or deleting an item or tier, placing or unranking an
+// item). Every route that calls this only ever reaches a draft —
+// requireDraftVersion rejects a published request before the handler runs —
+// so the gate is always worth recomputing rather than branching on version
+// state.
+func (a *App) boardVersionActionsOOB(ctx context.Context, rankingUUID string, version db.RankingVersion) (templ.Component, error) {
+	gate, err := a.RankingSvc.EvaluatePublishGate(ctx, version.ID)
+	if err != nil {
+		return nil, err
+	}
+	props := boardVersionActionsProps(rankingUUID, version, nil, gate)
+	props.OOB = true
+	return ui.BoardVersionActions(props), nil
 }

@@ -15,9 +15,20 @@ type BoardPageProps struct {
 	VersionStatus string
 	Versions      []BoardVersionOption
 	VersionAction BoardVersionActionsProps
-	Tiers         []TierRowProps
-	TierForm      TierFormProps
-	ItemTray      ItemTrayProps
+	// Editable is false while viewing a published version: a version is
+	// immutable once published, so every editing affordance (tier editing,
+	// the add-item form, drag handles, delete controls) is left unrendered
+	// rather than merely disabled.
+	Editable bool
+	Tiers    []TierRowProps
+	TierForm TierFormProps
+	ItemTray ItemTrayProps
+	// ShareControl is the seam feat/public-share fills with a share button;
+	// nil renders nothing.
+	ShareControl templ.Component
+	// ExportControl is the seam feat/csv-export fills with a CSV export
+	// button; nil renders nothing.
+	ExportControl templ.Component
 }
 
 // RankingMetaProps renders the title/description fields. It is rendered
@@ -28,14 +39,11 @@ type RankingMetaProps struct {
 	VersionShortUUID string
 	Name             string
 	Description      string
-}
-
-// BoardVersionOption is one entry in the version-picker dropdown: every
-// version of the ranking, its state, and whether it's the one being viewed.
-type BoardVersionOption struct {
-	URL     string
-	Label   string
-	Current bool
+	// Editable is false while viewing a published version: the ranking's
+	// name isn't itself version-scoped and stays editable elsewhere, but
+	// this page shouldn't offer inputs that look like they're editing the
+	// published version being viewed.
+	Editable bool
 }
 
 templ BoardPage(props BoardPageProps) {
@@ -51,13 +59,21 @@ templ BoardPage(props BoardPageProps) {
 					@RankingMeta(props.RankingMeta)
 				</form>
 				<div class="flex shrink-0 flex-col items-end gap-2">
-					<button
-						id="edit-tiers-toggle"
-						type="button"
-						class="rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-text-muted hover:bg-surface-hover"
-					>
-						Edit tiers
-					</button>
+					if props.Editable {
+						<button
+							id="edit-tiers-toggle"
+							type="button"
+							class="rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-text-muted hover:bg-surface-hover"
+						>
+							Edit tiers
+						</button>
+					}
+					if props.ShareControl != nil {
+						@props.ShareControl
+					}
+					if props.ExportControl != nil {
+						@props.ExportControl
+					}
 					<span class="text-xs uppercase tracking-wide text-text-muted">{ props.VersionStatus }</span>
 					@boardVersionMenu(props.Versions)
 					@BoardVersionActions(props.VersionAction)
@@ -65,7 +81,9 @@ templ BoardPage(props BoardPageProps) {
 			</section>
 			<div id="board" data-ranking-uuid={ props.RankingMeta.RankingUUID } data-version-uuid={ props.RankingMeta.VersionShortUUID } class="space-y-4">
 				@TierRows(TierRowsProps{Tiers: props.Tiers})
-				@TierForm(props.TierForm)
+				if props.Editable {
+					@TierForm(props.TierForm)
+				}
 				@ItemTray(props.ItemTray)
 			</div>
 			<script src="/static/js/board.js" defer></script>
@@ -85,10 +103,21 @@ type BoardVersionActionsProps struct {
 	BlockedReasons   []string
 	HasOtherDraft    bool
 	DraftURL         string
+	// OOB marks this render as an out-of-band swap, sent alongside a board
+	// mutation's own fragment so the publish button re-evaluates the moment
+	// a change flips the gate, rather than staying stale until the next
+	// full page load.
+	OOB bool
 }
 
 templ BoardVersionActions(props BoardVersionActionsProps) {
-	<div class="w-56 text-right">
+	<div
+		id="board-version-actions"
+		class="w-56 text-right"
+		if props.OOB {
+			hx-swap-oob="true"
+		}
+	>
 		if props.IsDraft {
 			@Button(ButtonProps{Variant: ButtonPrimary, Attrs: templ.Attributes{"hx-post": fmt.Sprintf("/r/%s/v/%s/publish", props.RankingUUID, props.VersionShortUUID)}, Disabled: !props.Publishable}) {
 				Publish
@@ -107,48 +136,34 @@ templ BoardVersionActions(props BoardVersionActionsProps) {
 
 templ RankingMeta(props RankingMetaProps) {
 	<div id="ranking-meta" class="space-y-2">
-		<input
-			name="title"
-			value={ props.Name }
-			aria-label="Ranking title"
-			class="w-full text-2xl font-bold tracking-tight text-text outline-none placeholder:text-subtle focus:border-b focus:border-border"
-			placeholder="Untitled ranking"
-			hx-post={ fmt.Sprintf("/r/%s", props.RankingUUID) }
-			hx-target="#ranking-meta"
-			hx-swap="outerHTML"
-			hx-trigger="change"
-		/>
-		<input
-			name="description"
-			value={ props.Description }
-			aria-label="Ranking description"
-			class="w-full text-sm text-muted outline-none placeholder:text-subtle"
-			placeholder="What are you ranking?"
-			hx-post={ fmt.Sprintf("/r/%s", props.RankingUUID) }
-			hx-target="#ranking-meta"
-			hx-swap="outerHTML"
-			hx-trigger="change"
-		/>
-	</div>
-}
-
-// boardVersionMenu is a native <details> disclosure listing every version
-// of the ranking — no JS needed for a dropdown this simple.
-templ boardVersionMenu(versions []BoardVersionOption) {
-	<details class="relative text-right">
-		<summary class="cursor-pointer list-none rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-text-muted hover:bg-surface-hover">
-			Versions
-		</summary>
-		<ul class="absolute right-0 z-10 mt-1 w-56 rounded-md border border-border bg-surface py-1 text-left shadow-md">
-			for _, v := range versions {
-				<li>
-					if v.Current {
-						<span class="block px-3 py-1.5 text-sm font-medium text-text" aria-current="true">{ v.Label }</span>
-					} else {
-						<a href={ templ.URL(v.URL) } class="block px-3 py-1.5 text-sm text-text-muted hover:bg-surface-hover">{ v.Label }</a>
-					}
-				</li>
+		if props.Editable {
+			<input
+				name="title"
+				value={ props.Name }
+				aria-label="Ranking title"
+				class="w-full text-2xl font-bold tracking-tight text-text outline-none placeholder:text-subtle focus:border-b focus:border-border"
+				placeholder="Untitled ranking"
+				hx-post={ fmt.Sprintf("/r/%s", props.RankingUUID) }
+				hx-target="#ranking-meta"
+				hx-swap="outerHTML"
+				hx-trigger="change"
+			/>
+			<input
+				name="description"
+				value={ props.Description }
+				aria-label="Ranking description"
+				class="w-full text-sm text-muted outline-none placeholder:text-subtle"
+				placeholder="What are you ranking?"
+				hx-post={ fmt.Sprintf("/r/%s", props.RankingUUID) }
+				hx-target="#ranking-meta"
+				hx-swap="outerHTML"
+				hx-trigger="change"
+			/>
+		} else {
+			<p class="w-full text-2xl font-bold tracking-tight text-text">{ cmp.Or(props.Name, "Untitled ranking") }</p>
+			if props.Description != "" {
+				<p class="w-full text-sm text-muted">{ props.Description }</p>
 			}
-		</ul>
-	</details>
+		}
+	</div>
 }

@@ -462,3 +462,168 @@ func TestViewingTheLiveRankingResolvesToTheMostRecentlyPublishedVersion(t *testi
 	require.Equal(t, http.StatusOK, res.Status)
 	assert.Contains(t, Body(res.Body), "Published "+published.PublishedAt.Time.Format("Jan 2, 2006"))
 }
+
+// ---------------------------------------------------------------------------
+// Published versions are immutable
+// ---------------------------------------------------------------------------
+
+func TestMutatingRequestsAgainstAPublishedVersionAreRejected(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	ctx := context.Background()
+	slug := owner.Ranking.Uuid
+
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/items", url.Values{"label": {"Ready"}})
+	tiers, err := env.Queries.ListRankingTiersForVersion(ctx, owner.Draft.ID)
+	require.NoError(t, err)
+	items, err := env.Queries.ListRankingItemsForVersion(ctx, owner.Draft.ID)
+	require.NoError(t, err)
+	owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers/"+strconv.FormatInt(tiers[0].ID, 10)+"/items",
+		url.Values{"item_id": {strconv.FormatInt(items[0].ID, 10)}})
+
+	published, err := env.Queries.PublishRankingVersion(ctx, owner.Draft.ID)
+	require.NoError(t, err)
+	base := "/r/" + slug.String() + "/v/" + published.ShortUuid
+
+	cases := []struct {
+		name   string
+		method string
+		path   string
+		form   url.Values
+	}{
+		{"add item", http.MethodPost, base + "/items", url.Values{"label": {"Blocked"}}},
+		{"delete item", http.MethodDelete, base + "/items/" + strconv.FormatInt(items[0].ID, 10), nil},
+		{"unrank item", http.MethodPost, base + "/items/" + strconv.FormatInt(items[0].ID, 10) + "/unrank", nil},
+		{"add tier", http.MethodPost, base + "/tiers", url.Values{"label": {"Blocked"}, "color": {"#000000"}}},
+		{"reorder tiers", http.MethodPost, base + "/tiers/reorder", url.Values{"tier_id": {strconv.FormatInt(tiers[0].ID, 10)}}},
+		{"update tier", http.MethodPut, base + "/tiers/" + strconv.FormatInt(tiers[0].ID, 10), url.Values{"label": {"Blocked"}, "color": {"#000000"}}},
+		{"delete tier", http.MethodDelete, base + "/tiers/" + strconv.FormatInt(tiers[0].ID, 10), nil},
+		{"edit tier", http.MethodPost, base + "/tiers/" + strconv.FormatInt(tiers[0].ID, 10) + "/edit", nil},
+		{"add item to tier", http.MethodPost, base + "/tiers/" + strconv.FormatInt(tiers[1].ID, 10) + "/items", url.Values{"item_id": {strconv.FormatInt(items[0].ID, 10)}}},
+		{"reorder tier items", http.MethodPost, base + "/tiers/" + strconv.FormatInt(tiers[0].ID, 10) + "/items/reorder", url.Values{"item_id": {strconv.FormatInt(items[0].ID, 10)}}},
+		{"publish", http.MethodPost, base + "/publish", nil},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res := owner.HTMX(tc.method, tc.path, tc.form)
+			assert.Equal(t, http.StatusForbidden, res.Status)
+		})
+	}
+}
+
+func TestAddItemSucceedsAgainstADraftVersion(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+
+	res := owner.HTMX(http.MethodPost, "/r/"+owner.Ranking.Uuid.String()+"/v/"+owner.Draft.ShortUuid+"/items", url.Values{"label": {"Allowed"}})
+
+	assert.Equal(t, http.StatusOK, res.Status)
+}
+
+func TestUpdatingTheRankingTitleStaysAllowedWhileViewingAPublishedVersion(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	ctx := context.Background()
+
+	_, err := env.Queries.PublishRankingVersion(ctx, owner.Draft.ID)
+	require.NoError(t, err)
+
+	// handleUpdateRanking sits at POST /r/{uuid} — no version segment, since
+	// the title and description aren't version-scoped — so this exercises
+	// the same route regardless of which version the ranking's page happens
+	// to be viewing.
+	res := owner.HTMX(http.MethodPost, "/r/"+owner.Ranking.Uuid.String(),
+		url.Values{"title": {"Renamed while published"}, "description": {""}})
+
+	require.Equal(t, http.StatusOK, res.Status)
+	assert.Contains(t, Body(res.Body), "Renamed while published", "the ranking's name isn't version-scoped, so this stays allowed")
+}
+
+// ---------------------------------------------------------------------------
+// The publish button re-evaluates as the board changes
+// ---------------------------------------------------------------------------
+
+func TestAddItemResponseCarriesThePublishActionOutOfBand(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+
+	res := owner.HTMX(http.MethodPost, "/r/"+owner.Ranking.Uuid.String()+"/v/"+owner.Draft.ShortUuid+"/items", url.Values{"label": {"Pretzels"}})
+
+	require.Equal(t, http.StatusOK, res.Status)
+	body := Body(res.Body)
+	assert.Contains(t, body, `id="board-version-actions"`)
+	assert.Contains(t, body, `hx-swap-oob="true"`)
+}
+
+func TestDeleteTierResponseCarriesThePublishActionOutOfBand(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	ctx := context.Background()
+	slug := owner.Ranking.Uuid
+
+	tierRes := owner.HTMX(http.MethodPost, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers", url.Values{"label": {"Doomed"}})
+	require.Equal(t, http.StatusOK, tierRes.Status)
+	tiers, err := env.Queries.ListRankingTiersForVersion(ctx, owner.Draft.ID)
+	require.NoError(t, err)
+	doomed := tiers[len(tiers)-1]
+
+	res := owner.HTMX(http.MethodDelete, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers/"+strconv.FormatInt(doomed.ID, 10), nil)
+	require.Equal(t, http.StatusAccepted, res.Status)
+	body := Body(res.Body)
+	assert.Contains(t, body, `id="board-version-actions"`, "the publish action's own out-of-band fragment, alongside the tray's")
+	assert.Contains(t, body, `id="tray-items"`)
+}
+
+func TestRenameTierDoesNotCarryThePublishActionOutOfBand(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	ctx := context.Background()
+	slug := owner.Ranking.Uuid
+
+	tiers, err := env.Queries.ListRankingTiersForVersion(ctx, owner.Draft.ID)
+	require.NoError(t, err)
+
+	res := owner.HTMX(http.MethodPut, "/r/"+slug.String()+"/v/"+owner.Draft.ShortUuid+"/tiers/"+strconv.FormatInt(tiers[0].ID, 10),
+		url.Values{"label": {"Renamed"}, "color": {"#123456"}})
+
+	require.Equal(t, http.StatusOK, res.Status)
+	assert.NotContains(t, Body(res.Body), `id="board-version-actions"`, "renaming a tier can't flip the publish gate")
+}
+
+// ---------------------------------------------------------------------------
+// Published versions hide editing controls
+// ---------------------------------------------------------------------------
+
+func TestPublishedVersionPageHidesEditingControls(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	ctx := context.Background()
+
+	published, err := env.Queries.PublishRankingVersion(ctx, owner.Draft.ID)
+	require.NoError(t, err)
+
+	res := owner.Get("/r/" + owner.Ranking.Uuid.String() + "/v/" + published.ShortUuid)
+	require.Equal(t, http.StatusOK, res.Status)
+
+	body := Body(res.Body)
+	assert.NotContains(t, body, `id="edit-tiers-toggle"`)
+	assert.NotContains(t, body, "New tier label", "the add-tier form is hidden")
+	assert.NotContains(t, body, "Add an item", "the add-item form is hidden")
+	assert.NotContains(t, body, `aria-label="Ranking title"`, "the title is read-only text, not an input")
+	assert.NotContains(t, body, `aria-label="Ranking description"`, "the description is read-only text, not an input")
+}
+
+func TestDraftVersionPageShowsEditingControls(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+
+	res := owner.Get("/r/" + owner.Ranking.Uuid.String() + "/v/" + owner.Draft.ShortUuid)
+	require.Equal(t, http.StatusOK, res.Status)
+
+	body := Body(res.Body)
+	assert.Contains(t, body, `id="edit-tiers-toggle"`)
+	assert.Contains(t, body, "New tier label")
+	assert.Contains(t, body, "Add an item")
+	assert.Contains(t, body, `name="title"`)
+}

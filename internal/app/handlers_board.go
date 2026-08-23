@@ -14,6 +14,26 @@ import (
 	"github.com/google/uuid"
 )
 
+// requireDraftVersion rejects a request against a published version with
+// 403, before it reaches a handler that would otherwise mutate it. A
+// version is immutable once published, so this wraps every board route in
+// routes_rankings.go that writes to one — everything except reading the
+// board, updating the ranking's title/description (not version-scoped, see
+// handleUpdateRanking), and creating a new version off a published one
+// (which requires a published version to run at all). It must sit inside
+// RequireRankingAccess, which is what resolves and stashes the version this
+// reads from context.
+func (a *App) requireDraftVersion(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		version := r.Context().Value(constants.RankingVersionKey).(db.RankingVersion)
+		if version.PublishedAt.Valid {
+			a.forbidden(w, r, "This version is published and can no longer be edited.")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // handleViewRanking is GET /r/{uuid} or GET /r/{uuid}/v/{short} — render the
 // board for the version RequireRankingAccess resolved.
 func (a *App) handleViewRanking(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +74,7 @@ func (a *App) handleUpdateRanking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := rankingMetaProps(rankingUUID.String(), rankingVersion.ShortUuid, updated)
+	props := rankingMetaProps(rankingUUID.String(), rankingVersion.ShortUuid, updated, !rankingVersion.PublishedAt.Valid)
 	if err := renderComponent(w, r, http.StatusOK, ui.RankingMeta(props)); err != nil {
 		a.serverError(w, r, err)
 	}
@@ -83,14 +103,25 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = renderComponent(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item))); err != nil {
+	oob, err := a.boardVersionActionsOOB(ctx, rankingUUID.String(), version)
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+	if err = renderComponent(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item, true)), oob); err != nil {
 		a.serverError(w, r, err)
 	}
 }
 
-// handleDeleteItem is DELETE /r/{uuid}/v/{short}/items/{itemID}.
+// handleDeleteItem is DELETE /r/{uuid}/v/{short}/items/{itemID}. The
+// response carries only the out-of-band publish-action fragment: with
+// nothing left over for the primary target (the item card's own
+// hx-target="#ranking-item-{id}" hx-swap="outerHTML"), htmx swaps in
+// nothing, which is what removes the card — the same technique
+// handleDeleteTier uses for the tier row.
 func (a *App) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
 	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
 
 	id, err := strconv.ParseInt(r.PathValue("itemID"), 10, 64)
@@ -106,7 +137,14 @@ func (a *App) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusAccepted)
+	oob, err := a.boardVersionActionsOOB(ctx, rankingUUID.String(), version)
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+	if err := renderComponent(w, r, http.StatusAccepted, oob); err != nil {
+		a.serverError(w, r, err)
+	}
 }
 
 // handleAddTier is POST /r/{uuid}/v/{short}/tiers — add a new tier.
@@ -126,7 +164,12 @@ func (a *App) handleAddTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := renderComponent(w, r, http.StatusOK, ui.TierRow(tierRowProps(rankingUUID.String(), version.ShortUuid, tier, nil))); err != nil {
+	oob, err := a.boardVersionActionsOOB(ctx, rankingUUID.String(), version)
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+	if err := renderComponent(w, r, http.StatusOK, ui.TierRow(tierRowProps(rankingUUID.String(), version.ShortUuid, tier, nil, true)), oob); err != nil {
 		a.serverError(w, r, err)
 	}
 }
@@ -149,7 +192,7 @@ func (a *App) handleEditTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := tierRowLabelProps(rankingUUID.String(), version.ShortUuid, tier, true)
+	props := tierRowLabelProps(rankingUUID.String(), version.ShortUuid, tier, true, true)
 	if err := renderComponent(w, r, http.StatusAccepted, ui.TierRowLabel(props)); err != nil {
 		a.serverError(w, r, err)
 	}
@@ -178,7 +221,7 @@ func (a *App) handleUpdateTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := tierRowLabelProps(rankingUUID.String(), version.ShortUuid, tier, false)
+	props := tierRowLabelProps(rankingUUID.String(), version.ShortUuid, tier, false, true)
 	if err := renderComponent(w, r, http.StatusOK, ui.TierRowLabel(props)); err != nil {
 		a.serverError(w, r, err)
 	}
@@ -213,9 +256,14 @@ func (a *App) handleDeleteTier(w http.ResponseWriter, r *http.Request) {
 
 	tray := ui.TrayItemsProps{RankingUUID: rankingUUID.String(), OOB: true}
 	for _, it := range unranked {
-		tray.Items = append(tray.Items, itemCardProps(rankingUUID.String(), version.ShortUuid, it))
+		tray.Items = append(tray.Items, itemCardProps(rankingUUID.String(), version.ShortUuid, it, true))
 	}
-	if err := renderComponent(w, r, http.StatusAccepted, ui.TrayItems(tray)); err != nil {
+	oob, err := a.boardVersionActionsOOB(ctx, rankingUUID.String(), version)
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+	if err := renderComponent(w, r, http.StatusAccepted, ui.TrayItems(tray), oob); err != nil {
 		a.serverError(w, r, err)
 	}
 }
@@ -252,7 +300,12 @@ func (a *App) handleAddItemToTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = renderComponent(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item))); err != nil {
+	oob, err := a.boardVersionActionsOOB(ctx, rankingUUID.String(), version)
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+	if err = renderComponent(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item, true)), oob); err != nil {
 		a.serverError(w, r, err)
 	}
 }
@@ -260,10 +313,11 @@ func (a *App) handleAddItemToTier(w http.ResponseWriter, r *http.Request) {
 // handleReorderTierItems is POST /r/{uuid}/v/{short}/tiers/{tierID}/items/reorder —
 // drag-and-drop sets a tier's full item order in one call. The dragged item
 // may be arriving from another tier or the tray; either way it's inserted
-// at the position it landed. The response is the tier's item container,
-// which the client (assets/static/js/board.js) swaps in directly — no
-// out-of-band swap needed, since the source container's own removal was
-// already reflected client-side by the drag itself.
+// at the position it landed, which can move it out of the tray and change
+// the publish gate — so the response carries the publish-action fragment
+// out of band alongside the tier's item container. Both are plain fetch()
+// calls from board.js rather than htmx (see persistItemDrop), so
+// applyOOBSwaps there mirrors htmx's own hx-swap-oob handling by hand.
 func (a *App) handleReorderTierItems(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
@@ -300,9 +354,14 @@ func (a *App) handleReorderTierItems(w http.ResponseWriter, r *http.Request) {
 
 	props := ui.TierItemsProps{RankingUUID: rankingUUID.String(), TierID: tierID}
 	for _, it := range items {
-		props.Items = append(props.Items, itemCardProps(rankingUUID.String(), version.ShortUuid, it))
+		props.Items = append(props.Items, itemCardProps(rankingUUID.String(), version.ShortUuid, it, true))
 	}
-	if err := renderComponent(w, r, http.StatusOK, ui.TierItems(props)); err != nil {
+	oob, err := a.boardVersionActionsOOB(ctx, rankingUUID.String(), version)
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+	if err := renderComponent(w, r, http.StatusOK, ui.TierItems(props), oob); err != nil {
 		a.serverError(w, r, err)
 	}
 }
@@ -344,7 +403,7 @@ func (a *App) handleReorderTiers(w http.ResponseWriter, r *http.Request) {
 	tierItems := boardTierItems(board)
 	rowsProps := ui.TierRowsProps{}
 	for _, t := range board.Tiers {
-		rowsProps.Tiers = append(rowsProps.Tiers, tierRowProps(rankingUUID.String(), version.ShortUuid, t, tierItems[t.ID]))
+		rowsProps.Tiers = append(rowsProps.Tiers, tierRowProps(rankingUUID.String(), version.ShortUuid, t, tierItems[t.ID], true))
 	}
 	if err := renderComponent(w, r, http.StatusOK, ui.TierRows(rowsProps)); err != nil {
 		a.serverError(w, r, err)
@@ -352,7 +411,11 @@ func (a *App) handleReorderTiers(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleUnrankItem is POST /r/{uuid}/v/{short}/items/{itemID}/unrank — drag-and-drop
-// dropping an item back on the tray clears its tier placement.
+// dropping an item back on the tray clears its tier placement, which can
+// flip the publish gate, so the response carries the publish-action
+// fragment out of band alongside the item card. This is a plain fetch()
+// call from board.js (see persistItemDrop) rather than htmx, so
+// applyOOBSwaps there mirrors htmx's own hx-swap-oob handling by hand.
 func (a *App) handleUnrankItem(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
@@ -374,7 +437,12 @@ func (a *App) handleUnrankItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := renderComponent(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item))); err != nil {
+	oob, err := a.boardVersionActionsOOB(ctx, rankingUUID.String(), version)
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+	if err := renderComponent(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item, true)), oob); err != nil {
 		a.serverError(w, r, err)
 	}
 }
