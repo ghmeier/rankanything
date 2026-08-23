@@ -1,0 +1,40 @@
+# Worktrunk project config — https://worktrunk.dev
+#
+# These hooks make `wt switch --create <branch>` produce a worktree that boots
+# and tests with no hand setup: its own gitignored files, its own Postgres
+# databases, its own dev port. See PLAN.md for why each one is needed.
+#
+# Project hooks require approval the first time they run, and again whenever the
+# command text changes. `wt hook pre-start --dry-run` previews them.
+
+# --- creating a worktree ------------------------------------------------------
+
+# Blocking, once per new worktree. Two blocks, so the second runs after the
+# first finishes rather than alongside it.
+[[pre-start]]
+# .env, node_modules, and the generated app.css are gitignored, so a new
+# worktree starts without them. config.Load hard-fails with no .env.
+copy = "wt step copy-ignored"
+
+[[pre-start]]
+# Own databases and own dev port. Must follow the copy step — it appends to the
+# .env that copy-ignored just placed.
+setup = "./scripts/worktree-setup.sh {{ branch | sanitize_db }} {{ branch | hash_port }}"
+
+# Background, once per new worktree. The dev database is empty until this runs;
+# the test database migrates itself from internal/testsupport.
+[post-start]
+migrate = "make migrate"
+
+# --- merging ------------------------------------------------------------------
+
+# Runs after the rebase, before the target branch moves. A failure aborts the
+# merge, so a red suite can't land.
+[pre-merge]
+test = "make test"
+
+# --- removing a worktree ------------------------------------------------------
+
+# The worktree is already gone; this runs from the primary worktree.
+[post-remove]
+teardown = "./scripts/worktree-teardown.sh {{ branch | sanitize_db }}"

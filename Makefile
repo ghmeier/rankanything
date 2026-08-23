@@ -18,7 +18,7 @@ watch:
 	air
 
 run:
-	go run main.go
+	go run cmd/rankanything/main.go
 
 migrate:
 	go run github.com/pressly/goose/v3/cmd/goose@latest -dir db/migrations postgres "$(DATABASE_URL)" up
@@ -26,8 +26,6 @@ migrate:
 migrate-down:
 	go run github.com/pressly/goose/v3/cmd/goose@latest -dir db/migrations postgres "$(DATABASE_URL)" down
 
-# db/queries/*.sql is the source of truth for the data layer. internal/db is a
-# hand-written stand-in for the first pass; run this once you want generated code.
 sqlc:
 	sqlc generate
 
@@ -39,6 +37,3 @@ css-watch:
 
 test:
 	TEST_DATABASE_URL="$(TEST_DATABASE_URL)" rtk go test ./... -race
-
-seed:
-	go run ./cmd/seed
