@@ -14,7 +14,6 @@ import (
 	"github.com/ghmeier/rankanything/internal/constants"
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/email"
-	"github.com/ghmeier/rankanything/internal/render"
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/ghmeier/rankanything/internal/ui"
 )
@@ -23,7 +22,6 @@ type App struct {
 	Pool         *pgxpool.Pool
 	Queries      *db.Queries
 	Sessions     *auth.Sessions
-	Render       *render.Renderer
 	Logger       *slog.Logger
 	Static       fs.FS
 	IsProduction bool
@@ -71,12 +69,12 @@ func (a *App) Routes() http.Handler {
 func (a *App) RequireUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if a.Sessions.UserID(r.Context()) == 0 {
-			if r.Method != http.MethodGet {
-				http.Error(w, "forbidden", http.StatusForbidden)
-				return
+			target := "/login"
+
+			if r.Method == http.MethodGet {
+				target += "?next=" + r.URL.Path
 			}
 
-			target := "/login" + "?next=" + r.URL.Path
 			http.Redirect(w, r, target, http.StatusSeeOther)
 			return
 		}

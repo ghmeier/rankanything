@@ -1,0 +1,43 @@
+package ui
+
+// RegisterProps configures RegisterPage and the container inside it.
+// EmailAlreadyRegistered is the one rejection that isn't just an error
+// string; see AuthFormProps.
+type RegisterProps struct {
+	CSRFToken              string
+	LoggedIn               bool
+	Flash                  string
+	Email                  string
+	Next                   string
+	Error                  string
+	EmailAlreadyRegistered bool
+}
+
+templ RegisterPage(props RegisterProps) {
+	@Layout(LayoutProps{Title: "Create your account", CSRFToken: props.CSRFToken, LoggedIn: props.LoggedIn, Flash: props.Flash}) {
+		@AuthErrorSwapScript()
+		@RegisterContainer(props)
+	}
+}
+
+// RegisterContainer is what a rejected registration renders on its own, with
+// no layout around it — the counterpart to LoginContainer, and the element
+// the form's hx-target resolves to.
+templ RegisterContainer(props RegisterProps) {
+	<div class="auth-container mx-auto max-w-sm space-y-6">
+		<h1 class="text-2xl font-bold tracking-tight">Create your account</h1>
+		@AuthForm(AuthFormProps{
+			Action:                 "/register",
+			Submit:                 "Create account",
+			Email:                  props.Email,
+			Next:                   props.Next,
+			Error:                  props.Error,
+			EmailAlreadyRegistered: props.EmailAlreadyRegistered,
+			PasswordAutocomplete:   "new-password",
+		})
+		<p class="text-sm text-text-muted">
+			Already registered?
+			<a href="/login" class="text-text hover:underline">Sign in</a>.
+		</p>
+	</div>
+}

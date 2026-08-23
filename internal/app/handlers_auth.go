@@ -6,17 +6,35 @@ import (
 	"strings"
 
 	"github.com/ghmeier/rankanything/internal/auth"
-	"github.com/ghmeier/rankanything/internal/render"
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/ghmeier/rankanything/internal/ui"
 )
 
 // handleRegisterForm is GET /register.
 func (a *App) handleRegisterForm(w http.ResponseWriter, r *http.Request) {
+	props := a.registerProps(r)
+	props.Next = r.URL.Query().Get("next")
+	a.renderRegister(w, r, http.StatusOK, props)
+}
+
+// registerProps seeds the props every register render shares.
+func (a *App) registerProps(r *http.Request) ui.RegisterProps {
 	base := a.base(r)
-	next := r.URL.Query().Get("next")
-	view := AuthView{BaseView: base, Next: next}
-	a.Render.Page(w, http.StatusOK, "pages/register.html", view)
+	return ui.RegisterProps{CSRFToken: base.CSRFToken, LoggedIn: base.User != nil, Flash: base.Flash}
+}
+
+// renderRegister answers with the whole page for an ordinary navigation and
+// with just the auth container for an htmx swap, since the form targets
+// "closest .auth-container" — sending a full document into that target would
+// nest a second <html> inside the page.
+func (a *App) renderRegister(w http.ResponseWriter, r *http.Request, status int, props ui.RegisterProps) {
+	component := ui.RegisterPage(props)
+	if isHTMXRequest(r) {
+		component = ui.RegisterContainer(props)
+	}
+	if err := renderComponent(w, r, status, component); err != nil {
+		a.serverError(w, r, err)
+	}
 }
 
 // handleRegister is POST /register.
@@ -67,23 +85,29 @@ func (a *App) handleRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) renderRegisterError(w http.ResponseWriter, r *http.Request, email, next, errMsg string) {
-	base := a.base(r)
-	view := AuthView{BaseView: base, Email: email, Next: next, Error: errMsg}
-	a.Render.Page(w, http.StatusUnprocessableEntity, "pages/register.html", view)
+	props := a.registerProps(r)
+	props.Email, props.Next, props.Error = email, next, errMsg
+	a.renderRegister(w, r, http.StatusUnprocessableEntity, props)
 }
 
 func (a *App) renderRegisterConflict(w http.ResponseWriter, r *http.Request, email, next string) {
-	base := a.base(r)
-	view := AuthView{BaseView: base, Email: email, Next: next, EmailAlreadyRegistered: true}
-	a.Render.Page(w, http.StatusUnprocessableEntity, "pages/register.html", view)
+	props := a.registerProps(r)
+	props.Email, props.Next, props.EmailAlreadyRegistered = email, next, true
+	a.renderRegister(w, r, http.StatusUnprocessableEntity, props)
 }
 
 // handleLoginForm is GET /login.
 func (a *App) handleLoginForm(w http.ResponseWriter, r *http.Request) {
 	base := a.base(r)
-	next := r.URL.Query().Get("next")
-	view := AuthView{BaseView: base, Next: next}
-	a.Render.Page(w, http.StatusOK, "pages/login.html", view)
+	props := ui.LoginProps{
+		CSRFToken: base.CSRFToken,
+		LoggedIn:  base.User != nil,
+		Flash:     base.Flash,
+		Next:      r.URL.Query().Get("next"),
+	}
+	if err := renderComponent(w, r, http.StatusOK, ui.LoginPage(props)); err != nil {
+		a.serverError(w, r, err)
+	}
 }
 
 // handleLogin is POST /login.
@@ -114,7 +138,7 @@ func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 		target = next
 	}
 
-	if render.IsHTMXRequest(r) {
+	if isHTMXRequest(r) {
 		w.Header().Set("HX-Redirect", target)
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -134,11 +158,24 @@ func isSiteRelativePath(next string) bool {
 	return !strings.ContainsRune(next, '\\')
 }
 
+// renderLoginError mirrors renderRegister: the container alone for an htmx
+// swap, the whole page otherwise, so a sign-in error without JavaScript is
+// still a readable page rather than a bare fragment.
 func (a *App) renderLoginError(w http.ResponseWriter, r *http.Request, email, next, errMsg string) {
 	base := a.base(r)
-	view := AuthView{BaseView: base, Email: email, Next: next, Error: errMsg}
-	err := a.Render.Partial(w, http.StatusUnauthorized, "pages/login.html", view)
-	if err != nil {
+	props := ui.LoginProps{
+		CSRFToken: base.CSRFToken,
+		LoggedIn:  base.User != nil,
+		Flash:     base.Flash,
+		Email:     email,
+		Next:      next,
+		Error:     errMsg,
+	}
+	component := ui.LoginPage(props)
+	if isHTMXRequest(r) {
+		component = ui.LoginContainer(props)
+	}
+	if err := renderComponent(w, r, http.StatusUnauthorized, component); err != nil {
 		a.serverError(w, r, err)
 	}
 }
@@ -146,7 +183,7 @@ func (a *App) renderLoginError(w http.ResponseWriter, r *http.Request, email, ne
 // handleLogout is POST /logout.
 func (a *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 	_ = a.UserSvc.Logout(r.Context())
-	if render.IsHTMXRequest(r) {
+	if isHTMXRequest(r) {
 		w.Header().Set("HX-Redirect", "/")
 		w.WriteHeader(http.StatusNoContent)
 		return

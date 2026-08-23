@@ -68,7 +68,7 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 	title := strings.TrimSpace(r.FormValue("label"))
 
 	if title == "" {
-		a.Render.Empty(w, http.StatusBadRequest)
+		empty(w, http.StatusBadRequest)
 		return
 	}
 
@@ -103,7 +103,7 @@ func (a *App) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.Render.Empty(w, http.StatusAccepted)
+	empty(w, http.StatusAccepted)
 }
 
 // handleAddTier is POST /r/{uuid}/tiers — add a new tier.
@@ -242,7 +242,7 @@ func (a *App) handleAddItemToTier(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidTierPlacement) {
-			a.Render.Empty(w, http.StatusConflict)
+			empty(w, http.StatusConflict)
 			return
 		}
 		rankError(a, w, r, err)
@@ -277,7 +277,7 @@ func (a *App) handleReorderTierItems(w http.ResponseWriter, r *http.Request) {
 	}
 	itemIDs, err := parseIDList(r.Form["item_id"])
 	if err != nil {
-		a.Render.Empty(w, http.StatusBadRequest)
+		empty(w, http.StatusBadRequest)
 		return
 	}
 
@@ -288,7 +288,7 @@ func (a *App) handleReorderTierItems(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidTierPlacement) {
-			a.Render.Empty(w, http.StatusConflict)
+			empty(w, http.StatusConflict)
 			return
 		}
 		rankError(a, w, r, err)
@@ -318,7 +318,7 @@ func (a *App) handleReorderTiers(w http.ResponseWriter, r *http.Request) {
 	}
 	tierIDs, err := parseIDList(r.Form["tier_id"])
 	if err != nil {
-		a.Render.Empty(w, http.StatusBadRequest)
+		empty(w, http.StatusBadRequest)
 		return
 	}
 
@@ -364,7 +364,7 @@ func (a *App) handleUnrankItem(w http.ResponseWriter, r *http.Request) {
 	item, err := a.RankingSvc.UnrankItem(ctx, services.UnrankItemRequest{VersionID: version.ID, ItemID: itemID})
 	if err != nil {
 		if errors.Is(err, services.ErrInvalidTierPlacement) {
-			a.Render.Empty(w, http.StatusConflict)
+			empty(w, http.StatusConflict)
 			return
 		}
 		rankError(a, w, r, err)
@@ -391,7 +391,7 @@ func (a *App) handlePublishVersion(w http.ResponseWriter, r *http.Request) {
 	published, err := a.RankingSvc.PublishVersion(ctx, services.PublishVersionRequest{VersionID: version.ID})
 	if err != nil {
 		if errors.Is(err, services.ErrNotPublishable) {
-			a.Render.Empty(w, http.StatusConflict)
+			empty(w, http.StatusConflict)
 			return
 		}
 		rankError(a, w, r, err)
@@ -413,7 +413,7 @@ func (a *App) handleCreateVersion(w http.ResponseWriter, r *http.Request) {
 	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
 
 	if !version.PublishedAt.Valid {
-		a.Render.Empty(w, http.StatusConflict)
+		empty(w, http.StatusConflict)
 		return
 	}
 
@@ -423,7 +423,7 @@ func (a *App) handleCreateVersion(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, services.ErrDraftAlreadyExists) {
-			a.Render.Empty(w, http.StatusConflict)
+			empty(w, http.StatusConflict)
 			return
 		}
 		rankError(a, w, r, err)

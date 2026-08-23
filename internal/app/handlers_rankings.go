@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/ghmeier/rankanything/internal/db"
-	"github.com/ghmeier/rankanything/internal/render"
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/ghmeier/rankanything/internal/ui"
 )
@@ -94,7 +93,7 @@ func (a *App) handleNew(w http.ResponseWriter, r *http.Request) {
 	}
 
 	target := "/r/" + ranking.Uuid.String()
-	if render.IsHTMXRequest(r) {
+	if isHTMXRequest(r) {
 		w.Header().Set("HX-Redirect", target)
 		w.WriteHeader(http.StatusNoContent)
 		return

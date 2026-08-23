@@ -18,7 +18,6 @@ import (
 	"github.com/ghmeier/rankanything/internal/config"
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/email"
-	"github.com/ghmeier/rankanything/internal/render"
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -55,11 +54,6 @@ func run(logger *slog.Logger) error {
 	sm.Lifetime = cfg.SessionTimeout
 	auth.CookieDefaults(sm, cfg.IsProduction())
 
-	renderer, err := render.New(assets.Templates())
-	if err != nil {
-		return err
-	}
-
 	q := db.New(p)
 	s := auth.NewSessions(sm)
 	emailSvc := email.NewSender(cfg.ResendAPIKey, cfg.EmailFrom, logger)
@@ -68,7 +62,6 @@ func run(logger *slog.Logger) error {
 		Pool:         p,
 		Queries:      q,
 		Sessions:     s,
-		Render:       renderer,
 		Logger:       logger,
 		Static:       assets.Static(),
 		IsProduction: cfg.IsProduction(),

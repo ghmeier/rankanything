@@ -3,22 +3,10 @@ package app
 import (
 	"net/http"
 
-	"github.com/a-h/templ"
-
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/ghmeier/rankanything/internal/ui"
 )
-
-// renderComponent writes the status line and renders a templ component
-// straight to w. templ.Component.Render has no notion of a status code, so
-// the header has to be set first — the same ordering render.Renderer.exec
-// uses for html/template partials.
-func renderComponent(w http.ResponseWriter, r *http.Request, status int, c templ.Component) error {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(status)
-	return c.Render(r.Context(), w)
-}
 
 // itemCardProps builds the props for one item card.
 func itemCardProps(rankingUUID string, item db.RankingItem) ui.ItemCardProps {

@@ -7,6 +7,7 @@ package testsupport
 import (
 	"context"
 	"database/sql"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
@@ -36,7 +37,6 @@ import (
 	"github.com/ghmeier/rankanything/internal/config"
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/email"
-	"github.com/ghmeier/rankanything/internal/render"
 	"github.com/ghmeier/rankanything/internal/services"
 )
 
@@ -139,15 +139,12 @@ type Env struct {
 	EmailSink *email.DevSink
 }
 
-// NewEnv builds the real app (real templates, real database, in-memory session
-// store) behind an httptest server.
+// NewEnv builds the real app (real components, real database, in-memory
+// session store) behind an httptest server.
 func NewEnv(t *testing.T) *Env {
 	t.Helper()
 
 	pool, tx := Pool(t)
-
-	renderer, err := render.New(assets.Templates())
-	require.NoError(t, err)
 
 	queries := db.New(tx)
 	sm := NewSessionManager()
@@ -166,7 +163,6 @@ func NewEnv(t *testing.T) *Env {
 		Pool:         pool,
 		Queries:      queries.WithTx(tx),
 		Sessions:     s,
-		Render:       renderer,
 		Logger:       logger,
 		Static:       assets.Static(),
 		IsProduction: isProduction,
@@ -351,9 +347,13 @@ func (r *Response) Slug() uuid.UUID {
 	return uuid.MustParse(strings.TrimPrefix(loc, "/r/"))
 }
 
+// extractCSRF pulls the session's CSRF token out of the hx-headers attribute
+// the layout puts on <body>. The body is unescaped first because templ
+// escapes attribute values, so the JSON's quotes arrive as &#34; — a browser
+// undoes that when it parses the attribute, and this has to do the same.
 func extractCSRF(body string) string {
 	const marker = `"X-CSRF-Token": "`
-	_, after, found := strings.Cut(body, marker)
+	_, after, found := strings.Cut(html.UnescapeString(body), marker)
 	if !found {
 		return ""
 	}

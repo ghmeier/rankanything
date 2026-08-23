@@ -1,0 +1,43 @@
+package ui
+
+// LoginProps configures LoginPage and the container inside it. Next carries
+// the path the visitor was heading for before RequireUser sent them here.
+type LoginProps struct {
+	CSRFToken string
+	LoggedIn  bool
+	Flash     string
+	Email     string
+	Next      string
+	Error     string
+}
+
+templ LoginPage(props LoginProps) {
+	@Layout(LayoutProps{Title: "Sign in", CSRFToken: props.CSRFToken, LoggedIn: props.LoggedIn, Flash: props.Flash}) {
+		@AuthErrorSwapScript()
+		@LoginContainer(props)
+	}
+}
+
+// LoginContainer is what a rejected sign-in renders on its own, with no
+// layout around it: the form posts with hx-target="closest .auth-container",
+// so this element is both the swap target and the response.
+templ LoginContainer(props LoginProps) {
+	<div class="auth-container mx-auto max-w-sm space-y-6">
+		<h1 class="text-2xl font-bold tracking-tight">Sign in</h1>
+		@AuthForm(AuthFormProps{
+			Action:               "/login",
+			Submit:               "Sign in",
+			Email:                props.Email,
+			Next:                 props.Next,
+			Error:                props.Error,
+			PasswordAutocomplete: "current-password",
+		})
+		<p class="text-sm text-text-muted">
+			No account?
+			<a href="/register" class="text-text hover:underline">Create one</a>.
+		</p>
+		<p class="text-sm text-text-muted">
+			<a href="/forgot-password" class="text-text hover:underline">Forgot your password?</a>
+		</p>
+	</div>
+}
