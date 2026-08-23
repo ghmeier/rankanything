@@ -76,10 +76,11 @@ func run(logger *slog.Logger) error {
 		RankingSvc:   &services.RankingsService{Queries: q, Pool: p},
 		EmailSvc:     emailSvc,
 		VerificationSvc: &services.VerificationService{
-			Queries: q,
-			Sender:  emailSvc,
-			DB:      p,
-			BaseURL: cfg.BaseURL,
+			Queries:  q,
+			Sender:   emailSvc,
+			DB:       p,
+			Sessions: s,
+			BaseURL:  cfg.BaseURL,
 		},
 	}
 

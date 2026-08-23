@@ -174,10 +174,11 @@ func NewEnv(t *testing.T) *Env {
 		RankingSvc:   &services.RankingsService{Queries: queries.WithTx(tx), Pool: tx},
 		EmailSvc:     emailSink,
 		VerificationSvc: &services.VerificationService{
-			Queries: queries.WithTx(tx),
-			Sender:  emailSink,
-			DB:      tx,
-			BaseURL: "https://test.rankanything.app",
+			Queries:  queries.WithTx(tx),
+			Sender:   emailSink,
+			DB:       tx,
+			Sessions: s,
+			BaseURL:  "https://test.rankanything.app",
 		},
 	}
 

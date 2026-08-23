@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ghmeier/rankanything/internal/auth"
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/email"
 	"github.com/ghmeier/rankanything/internal/token"
@@ -40,6 +41,10 @@ type VerificationService struct {
 	Queries *db.Queries
 	Sender  email.Sender
 	DB      passwordUpdater
+
+	// Sessions is needed only to invalidate an account's sessions when its
+	// password is reset.
+	Sessions *auth.Sessions
 
 	// BaseURL is the site's own absolute origin (e.g. "https://rankanything.app"),
 	// used to build the links mailed to users. It comes from config.Config.BaseURL.
@@ -137,12 +142,16 @@ func (s *VerificationService) RequestPasswordReset(ctx context.Context, to strin
 	return s.Sender.Send(ctx, msg)
 }
 
-// RedeemPasswordReset validates plaintextToken the same way
-// RedeemEmailVerification does, then, if it's live and unused, marks the
-// reset row consumed and overwrites the owning user's password hash.
-// newPasswordHash is already bcrypt-hashed — this never sees a plaintext
-// password.
-func (s *VerificationService) RedeemPasswordReset(ctx context.Context, plaintextToken, newPasswordHash string) error {
+// RedeemPasswordReset validates plaintextToken and, if it is live and
+// unused, installs newPassword as the account's password and drops every
+// session the account had.
+//
+// newPassword arrives in plaintext and is hashed here rather than by the
+// caller, so that hashing happens strictly after the token check. Hashing
+// first would let an unauthenticated caller burn a full bcrypt round per
+// request using a token they invented, and nothing in the app rate-limits
+// this endpoint yet.
+func (s *VerificationService) RedeemPasswordReset(ctx context.Context, plaintextToken, newPassword string) error {
 	hash := token.Hash(plaintextToken)
 
 	row, err := s.Queries.GetPasswordResetByTokenHash(ctx, hash)
@@ -157,6 +166,11 @@ func (s *VerificationService) RedeemPasswordReset(ctx context.Context, plaintext
 		return ErrTokenInvalid
 	}
 
+	passwordHash, err := auth.HashPassword(newPassword)
+	if err != nil {
+		return err
+	}
+
 	if _, err := s.Queries.RedeemPasswordReset(ctx, hash); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrTokenInvalid
@@ -164,8 +178,15 @@ func (s *VerificationService) RedeemPasswordReset(ctx context.Context, plaintext
 		return fmt.Errorf("password reset: redeem token: %w", err)
 	}
 
-	if _, err := s.DB.Exec(ctx, updateUserPasswordHash, newPasswordHash, row.UserID); err != nil {
+	if _, err := s.DB.Exec(ctx, updateUserPasswordHash, passwordHash, row.UserID); err != nil {
 		return fmt.Errorf("password reset: update password: %w", err)
+	}
+
+	// A reset is how someone takes an account back, so every session opened
+	// against the old password has to stop working. The caller's own session
+	// is not covered here; see auth.Sessions.DestroyAllForUser.
+	if err := s.Sessions.DestroyAllForUser(ctx, row.UserID); err != nil {
+		return fmt.Errorf("password reset: drop sessions: %w", err)
 	}
 	return nil
 }

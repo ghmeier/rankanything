@@ -275,18 +275,28 @@ func (a *App) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 	tok := r.FormValue("token")
 	baseProps := ui.ResetPasswordProps{CSRFToken: base.CSRFToken, LoggedIn: base.User != nil, Flash: base.Flash, Token: tok}
 
-	passwordHash, err := auth.HashPassword(r.FormValue("password"))
+	// The password goes to the service in plaintext rather than pre-hashed
+	// here, because the service hashes only after the token checks out. See
+	// services.VerificationService.RedeemPasswordReset.
+	err := a.VerificationSvc.RedeemPasswordReset(r.Context(), tok, r.FormValue("password"))
 	if err != nil {
 		props := baseProps
-		props.Error = err.Error()
+		if errors.Is(err, auth.ErrWeakPassword) {
+			props.Error = err.Error()
+		} else {
+			props.Error = "This link has expired or was already used. Request a new one."
+		}
 		a.renderResetPasswordForm(w, r, http.StatusUnprocessableEntity, props)
 		return
 	}
 
-	if err := a.VerificationSvc.RedeemPasswordReset(r.Context(), tok, passwordHash); err != nil {
-		props := baseProps
-		props.Error = "This link has expired or was already used. Request a new one."
-		a.renderResetPasswordForm(w, r, http.StatusUnprocessableEntity, props)
+	// The service dropped this account's stored sessions, but the session this
+	// request arrived on is still held in the context, and LoadAndSave would
+	// write it back to the store after this handler returns. Destroying it
+	// here ends a reset performed while signed in; when signed out there is
+	// nothing to destroy and this is a no-op.
+	if err := a.Sessions.LogOut(r.Context()); err != nil {
+		a.serverError(w, r, err)
 		return
 	}
 

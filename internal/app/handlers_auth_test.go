@@ -218,6 +218,56 @@ func TestResetPassword(t *testing.T) {
 		assert.Equal(t, http.StatusSeeOther, newPassword.Status)
 	})
 
+	t.Run("resetting a password ends the sessions opened with the old one", func(t *testing.T) {
+		env := testsupport.NewEnv(t)
+		stale := env.NewClient()
+		require.Equal(t, http.StatusSeeOther, stale.Post("/register",
+			url.Values{"email": {"stolen@example.com"}, "password": {"supersecret"}}).Status)
+		require.Equal(t, http.StatusOK, stale.Get("/me").Status)
+
+		require.Equal(t, http.StatusOK, env.NewClient().HTMX(http.MethodPost, "/forgot-password",
+			url.Values{"email": {"stolen@example.com"}}).Status)
+		sent := env.EmailSink.Sent()
+		token := extractToken(t, sent[len(sent)-1])
+		require.Equal(t, http.StatusOK, env.NewClient().HTMX(http.MethodPost, "/reset-password",
+			url.Values{"token": {token}, "password": {"newpassword123"}}).Status)
+
+		res := stale.Get("/me")
+
+		assert.Equal(t, http.StatusSeeOther, res.Status)
+		assert.Contains(t, res.Location(), "/login")
+	})
+
+	t.Run("a weak password is reported as weak when the token is good", func(t *testing.T) {
+		env := testsupport.NewEnv(t)
+		require.Equal(t, http.StatusSeeOther, env.NewClient().Post("/register",
+			url.Values{"email": {"weak@example.com"}, "password": {"supersecret"}}).Status)
+		require.Equal(t, http.StatusOK, env.NewClient().HTMX(http.MethodPost, "/forgot-password",
+			url.Values{"email": {"weak@example.com"}}).Status)
+		sent := env.EmailSink.Sent()
+		token := extractToken(t, sent[len(sent)-1])
+
+		res := env.NewClient().HTMX(http.MethodPost, "/reset-password",
+			url.Values{"token": {token}, "password": {"short"}})
+
+		assert.Equal(t, http.StatusUnprocessableEntity, res.Status)
+		assert.Contains(t, Body(res.Body), "at least 8 characters")
+	})
+
+	// The pair of this test and the one above pins the order of the two
+	// checks: a bad token wins over a bad password, which is only possible if
+	// the token is verified before the password is hashed.
+	t.Run("a bad token is reported as bad even when the password is also weak", func(t *testing.T) {
+		env := testsupport.NewEnv(t)
+
+		res := env.NewClient().HTMX(http.MethodPost, "/reset-password",
+			url.Values{"token": {"not-a-real-token"}, "password": {"short"}})
+
+		assert.Equal(t, http.StatusUnprocessableEntity, res.Status)
+		assert.Contains(t, Body(res.Body), "expired or was already used")
+		assert.NotContains(t, Body(res.Body), "at least 8 characters")
+	})
+
 	t.Run("an invalid token is rejected without changing anything", func(t *testing.T) {
 		env := testsupport.NewEnv(t)
 

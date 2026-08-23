@@ -166,14 +166,11 @@ func TestRedeemPasswordResetChangesThePasswordHash(t *testing.T) {
 	user := newVerificationTestUser(t, env, "changeme@example.com")
 	require.NoError(t, env.App.VerificationSvc.RequestPasswordReset(ctx, user.Email))
 	plaintext := extractToken(t, env.EmailSink.Sent()[0])
-	newHash, err := auth.HashPassword("supersecret2")
-	require.NoError(t, err)
-
-	require.NoError(t, env.App.VerificationSvc.RedeemPasswordReset(ctx, plaintext, newHash))
+	require.NoError(t, env.App.VerificationSvc.RedeemPasswordReset(ctx, plaintext, "supersecret2"))
 
 	updated, err := env.Queries.GetUserByID(ctx, user.ID)
 	require.NoError(t, err)
-	assert.Equal(t, newHash, updated.PasswordHash)
+	assert.NotEqual(t, user.PasswordHash, updated.PasswordHash)
 	assert.True(t, auth.CheckPassword(updated.PasswordHash, "supersecret2"))
 }
 
@@ -185,11 +182,9 @@ func TestRedeemPasswordResetRejectsAnAlreadyUsedToken(t *testing.T) {
 	user := newVerificationTestUser(t, env, "reusedreset@example.com")
 	require.NoError(t, env.App.VerificationSvc.RequestPasswordReset(ctx, user.Email))
 	plaintext := extractToken(t, env.EmailSink.Sent()[0])
-	newHash, err := auth.HashPassword("supersecret2")
-	require.NoError(t, err)
-	require.NoError(t, env.App.VerificationSvc.RedeemPasswordReset(ctx, plaintext, newHash))
+	require.NoError(t, env.App.VerificationSvc.RedeemPasswordReset(ctx, plaintext, "supersecret2"))
 
-	err = env.App.VerificationSvc.RedeemPasswordReset(ctx, plaintext, newHash)
+	err := env.App.VerificationSvc.RedeemPasswordReset(ctx, plaintext, "supersecret2")
 
 	assert.ErrorIs(t, err, services.ErrTokenInvalid)
 }
@@ -209,10 +204,7 @@ func TestRedeemPasswordResetRejectsAnExpiredToken(t *testing.T) {
 		UserID:    user.ID,
 	})
 	require.NoError(t, err)
-	newHash, err := auth.HashPassword("supersecret2")
-	require.NoError(t, err)
-
-	err = env.App.VerificationSvc.RedeemPasswordReset(ctx, plaintext, newHash)
+	err = env.App.VerificationSvc.RedeemPasswordReset(ctx, plaintext, "supersecret2")
 
 	assert.ErrorIs(t, err, services.ErrTokenInvalid)
 }
