@@ -1,8 +1,4 @@
 SHELL := /bin/bash
-include .env
-export
-
-TEST_DATABASE_URL ?= postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable
 
 .PHONY: dev run migrate migrate-down sqlc css css-watch templ templ-watch test tidy seed
 
