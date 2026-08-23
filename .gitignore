@@ -3,4 +3,3 @@
 node_modules
 tmp
 assets/static/css/app.css
-*_templ.go
