@@ -22,9 +22,14 @@ type Config struct {
 }
 
 // Read configuration from the environment, including .env.
+//
+// A missing .env is not an error. Locally it carries the database URL and
+// port; in production the host injects those as real environment variables
+// and no such file is deployed, so requiring one here would crash-loop the
+// container on every boot. Any other error reading the file is still worth
+// surfacing, since it means a .env exists but could not be parsed.
 func Load(logger *slog.Logger) (Config, error) {
-	err := godotenv.Load()
-	if err != nil {
+	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
 		logger.Error("fatal", "err", err)
 		return Config{}, err
 	}

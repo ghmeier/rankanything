@@ -34,6 +34,28 @@ func TestSignedInVisitorIsRedirectedAwayFromRoot(t *testing.T) {
 	assert.Equal(t, "/me", res.Location())
 }
 
+func TestHealthzReportsOKWhileTheDatabaseIsReachable(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	c := env.NewClient()
+
+	res := c.Get("/healthz")
+
+	assert.Equal(t, http.StatusOK, res.Status)
+	assert.Equal(t, Body("ok"), Body(res.Body))
+}
+
+func TestHealthzIsReachableWithoutSigningIn(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	c := env.NewClient()
+
+	// The host's health check carries no session, so a redirect to the
+	// sign-in page here would mark every healthy deploy as failed.
+	res := c.Get("/healthz")
+
+	assert.Equal(t, http.StatusOK, res.Status)
+	assert.Empty(t, res.Location())
+}
+
 func TestRobotsTxtIsServed(t *testing.T) {
 	env := testsupport.NewEnv(t)
 	c := env.NewClient()

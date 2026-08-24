@@ -72,6 +72,49 @@ jobs:
       - name: Test
         run: go test ./... -race
 
+  # The image is built differently than a local `make build` is: the CSS is
+  # compiled from a narrower file tree, and the binary is statically linked
+  # for distroless. Building it here is what catches that divergence, since
+  # nothing else in CI exercises the Dockerfile.
+  image:
+    name: Build container image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: rankanything:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # A stylesheet missing a class is a silent, production-only failure:
+      # everything renders, just unstyled in one spot. board.js applies
+      # opacity-50 at drag time and no templ component mentions it, so it
+      # only reaches the CSS because input.css names the js directory as a
+      # source. Assert on it directly rather than trusting that.
+      - name: Check the embedded stylesheet is complete
+        run: |
+          container_id="$(docker create rankanything:ci)"
+          trap 'docker rm -f "$container_id" >/dev/null' EXIT
+          docker cp "$container_id:/rankanything" /tmp/rankanything
+          if ! strings /tmp/rankanything | grep -q '\.opacity-50'; then
+            echo "The embedded app.css has no bare .opacity-50 rule."
+            echo "board.js adds that class while dragging, so the drag ghost would be invisible in production."
+            echo "Check the @source directives in assets/static/css/input.css and the COPY lines in the Dockerfile's css stage."
+            exit 1
+          fi
+          echo "Embedded stylesheet carries the classes board.js applies at runtime."
+
   lint:
     name: Lint
     runs-on: ubuntu-latest

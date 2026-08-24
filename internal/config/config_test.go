@@ -13,8 +13,7 @@ import (
 )
 
 // writeEnv drops a .env file in a fresh temp directory and chdirs the test
-// there — config.Load hard-requires a .env in its working directory, same
-// as the running binary does.
+// there, so config.Load reads that file rather than the repository's own.
 func writeEnv(t *testing.T, contents string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -75,6 +74,20 @@ func TestLoadReadsEmailFieldsFromEnv(t *testing.T) {
 	assert.Equal(t, "re_test_key", cfg.ResendAPIKey)
 	assert.Equal(t, "Someone <someone@example.com>", cfg.EmailFrom)
 	assert.Equal(t, "https://rankanything.app", cfg.BaseURL)
+}
+
+func TestLoadSucceedsWithNoEnvFileWhenTheEnvironmentSuppliesEverything(t *testing.T) {
+	// Production has no .env: the host injects real environment variables,
+	// so an empty working directory has to be a valid way to boot.
+	t.Chdir(t.TempDir())
+	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("BASE_URL", "https://rankanything.example")
+
+	cfg, err := config.Load(discardLogger())
+	require.NoError(t, err)
+
+	assert.Equal(t, "postgres://example", cfg.DatabaseURL)
+	assert.Equal(t, "https://rankanything.example", cfg.BaseURL)
 }
 
 func TestLoadStillFailsWithoutDatabaseURL(t *testing.T) {

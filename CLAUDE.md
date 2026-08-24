@@ -17,6 +17,8 @@ make css            # one-shot minified tailwind build
 make tidy
 make run            # run just the server
 
+scripts/smoke-test.sh https://host   # post-deploy checks; read-only, safe against production
+
 go test ./internal/app -run TestOwnedRankingsAreNotReadableByOthers -race
 ```
 
@@ -37,6 +39,23 @@ One templ gotcha worth knowing: a component that writes its own `class` (like `B
 **Auth and ownership (`internal/auth`):** sessions are scs backed by pgxstore. The session holds `user_id`, a CSRF token, and a one-shot flash. A ranking is reachable only by its ownet. That check lives in `App.RequireRankingAccess`, which parses the `{uuid}` path value, confirms `rankings.user_id` matches the session's user, and stashes the ranking's `uuid.UUID` in the request context under `constants.RankingUUIDKey`. It also resolves which version the request addresses (the live version for `/r/{uuid}`, or the one pinned by `/r/{uuid}/v/{short}`) and stashes that `db.RankingVersion` under `constants.RankingVersionKey`. Handlers on those routes read both from context, never from `PathValue`, and can assume access is already granted. `RequireUser` gates the account page. `Routes()` is split into `registerAuthRoutes`, `registerRankingRoutes`, and `registerPublicRoutes`.
 
 **Styling:** `assets/static/css/input.css` defines semantic CSS variables (`--app-background`, `--app-surface`, `--app-text-muted`, …) with a `prefers-color-scheme: dark` block, exposed to Tailwind as utilities like `bg-background`, `text-text-muted`, `border-border`. Use those tokens rather than raw palette colors.
+
+## Deploy
+
+Render, configured by `render.yaml` rather than the dashboard. `DEPLOY.md` is the runbook:
+first deploy, the Resend domain and DNS records, backups and a restore you can actually
+verify, and what a rollback does and doesn't revert.
+
+Two things about the deployed artifact differ from local work and are easy to trip over.
+The container builds the stylesheet from a narrower file tree than a local `make css` sees,
+so a class that only exists in `assets/static/js` reaches production only because
+`input.css` names that directory in an `@source` — CI builds the image and asserts on it.
+And migrations are embedded (`db/migrations/embed.go`) and applied on boot under a goose
+advisory lock, so a deploy is one artifact and one command; `internal/testsupport` migrates
+from that same embedded set, so tests can't run against a schema the binary wouldn't produce.
+
+There is no `.env` in production. `config.Load` reads one when present and ignores its
+absence, because the host injects real environment variables.
 
 ## Tests
 

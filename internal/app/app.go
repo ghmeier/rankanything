@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -37,8 +38,18 @@ type App struct {
 func (a *App) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(a.Static))))
+	// The host's health check and the post-deploy smoke test both hit
+	// /healthz. It pings the database rather than answering
+	// unconditionally, because the failure worth catching is a container
+	// that booted fine but cannot reach Postgres. The timeout is what keeps
+	// a hung database from holding the check open until the host's own
+	// deadline expires and the deploy is marked failed for the wrong reason.
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
-		if err := a.Pool.Ping(r.Context()); err != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+
+		if err := a.Pool.Ping(ctx); err != nil {
+			a.Logger.Error("health check failed", "err", err)
 			http.Error(w, "unhealthy", http.StatusServiceUnavailable)
 			return
 		}

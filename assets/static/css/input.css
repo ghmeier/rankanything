@@ -1,7 +1,13 @@
 @import "tailwindcss";
 
-@source '../../templates';
+/* Tailwind v4 also auto-scans the working directory, which is enough for a
+   local `make css` run from the repo root. These are spelled out because
+   the container build copies in only the files the stylesheet needs, and
+   under that narrower tree auto-detection alone would silently drop any
+   class it can no longer see — board.js applies opacity-50 at drag time and
+   nothing in internal/ui mentions it. */
 @source '../../../internal/ui';
+@source '../js';
 
 :root {
   --app-background: #f8f8f7;

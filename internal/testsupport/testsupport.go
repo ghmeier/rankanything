@@ -15,8 +15,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -24,6 +22,7 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/alexedwards/scs/v2/memstore"
+	"github.com/ghmeier/rankanything/db/migrations"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -101,6 +100,9 @@ func SessionContext(t *testing.T, sm *scs.SessionManager) context.Context {
 	return ctx
 }
 
+// migrate brings the test database up to the current schema using the same
+// embedded migration set the binary ships, so tests can never run against a
+// schema the deployed app wouldn't produce.
 func migrate(dsn string) {
 	sqlDB, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -109,20 +111,9 @@ func migrate(dsn string) {
 	defer sqlDB.Close()
 
 	goose.SetLogger(goose.NopLogger())
-	if err := goose.SetDialect("postgres"); err != nil {
+	if err := migrations.Up(context.Background(), sqlDB); err != nil {
 		panic(err)
 	}
-	if err := goose.Up(sqlDB, migrationsDir()); err != nil {
-		panic(err)
-	}
-}
-
-func migrationsDir() string {
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		panic("unable to determine migrations directory")
-	}
-	return filepath.Join(filepath.Dir(file), "..", "..", "db", "migrations")
 }
 
 // Env is a running server plus the collaborators tests want to poke at.

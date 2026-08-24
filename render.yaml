@@ -1,0 +1,48 @@
+# Render blueprint. Creating the service from this file rather than the
+# dashboard keeps the deploy reproducible and reviewable in git.
+#
+# Two values are deliberately left for the dashboard: RESEND_API_KEY, which
+# is a secret and must never live in the repository, and BASE_URL, which
+# depends on the domain that has not been registered yet.
+services:
+  - type: web
+    name: rankanything
+    runtime: docker
+    plan: starter
+    region: oregon
+    healthCheckPath: /healthz
+    # Render replaces the old container only once the new one passes its
+    # health check, so a failed migration or an unreachable database keeps
+    # the previous version serving instead of taking the site down.
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: rankanything-db
+          property: connectionString
+      # Set in the dashboard. sync: false means Render prompts for a value
+      # on first deploy and never expects to find one here.
+      - key: RESEND_API_KEY
+        sync: false
+      # Until a domain is registered this is the onrender.com URL. It has to
+      # be right: verification and password-reset emails build their links
+      # from it, so a wrong value produces mail whose links go nowhere.
+      - key: BASE_URL
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+
+databases:
+  - name: rankanything-db
+    databaseName: rankanything
+    plan: basic-256mb
+    region: oregon
+    # Must match the web service's region: a cross-region connection pays
+    # the latency on every query, and this app issues several per request.
+    #
+    # Pinned to the same major version CI tests against. The schema itself
+    # needs nothing newer than 14 — identity columns, citext, pgcrypto — but
+    # a version that drifts from CI is a difference nothing would catch
+    # until production.
+    postgresMajorVersion: "18"

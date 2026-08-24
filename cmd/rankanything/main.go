@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/alexedwards/scs/pgxstore"
 	"github.com/alexedwards/scs/v2"
 	"github.com/ghmeier/rankanything/assets"
+	"github.com/ghmeier/rankanything/db/migrations"
 	"github.com/ghmeier/rankanything/internal/app"
 	"github.com/ghmeier/rankanything/internal/auth"
 	"github.com/ghmeier/rankanything/internal/config"
@@ -20,6 +22,8 @@ import (
 	"github.com/ghmeier/rankanything/internal/email"
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 )
 
 func main() {
@@ -46,6 +50,10 @@ func run(logger *slog.Logger) error {
 	}
 	defer p.Close()
 	if err := p.Ping(ctx); err != nil {
+		return err
+	}
+
+	if err := migrate(ctx, logger, cfg); err != nil {
 		return err
 	}
 
@@ -96,5 +104,31 @@ func run(logger *slog.Logger) error {
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
+	return nil
+}
+
+// migrate brings the database up to the schema this binary was built
+// against, before the server starts serving.
+//
+// Running it here rather than as a separate deploy step keeps a deploy to
+// one artifact and one command, which is what the host's rollback gives
+// back: redeploying the previous image re-runs nothing, because goose
+// records what it has already applied. It opens its own database/sql
+// connection because that is what goose speaks — the pgxpool the app uses
+// is a different type entirely — and closes it as soon as the schema is
+// current.
+func migrate(ctx context.Context, logger *slog.Logger, cfg config.Config) error {
+	sqlDB, err := sql.Open("pgx", cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer sqlDB.Close()
+
+	goose.SetLogger(goose.NopLogger())
+	logger.Info("applying migrations")
+	if err := migrations.Up(ctx, sqlDB); err != nil {
+		return err
+	}
+	logger.Info("migrations up to date")
 	return nil
 }
