@@ -14,12 +14,14 @@ type BoardExportProps struct {
 
 // BoardExport is a plain link rather than an htmx control: a file download
 // is native browser behavior driven by the response's Content-Disposition
-// header, not a fragment swap.
+// header, not a fragment swap. It renders as a row of the board's actions
+// menu, so it wears that menu's row styling.
 templ BoardExport(props BoardExportProps) {
 	<a
 		href={ templ.URL(fmt.Sprintf("/r/%s/v/%s/export", props.RankingUUID, props.VersionShortUUID)) }
-		class="rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-text-muted hover:bg-surface-hover"
+		class={ boardMenuItemClass }
 	>
+		@DownloadIcon()
 		Export CSV
 	</a>
 }

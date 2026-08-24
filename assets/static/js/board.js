@@ -36,9 +36,25 @@ function csrfToken() {
   if (editToggle) {
     editToggle.addEventListener("click", () => {
       const editing = board.classList.toggle("editing");
-      editToggle.textContent = editing ? "Done editing" : "Edit tiers";
+      const label = editToggle.querySelector("[data-edit-tiers-label]");
+      if (label) label.textContent = editing ? "Done editing" : "Edit tiers";
+      // The toggle lives in the actions menu, and what it toggles is the
+      // board behind that menu — leaving the menu open would cover it.
+      const menu = editToggle.closest("details");
+      if (menu) menu.open = false;
     });
   }
+
+  // --- Dropdown dismissal -----------------------------------------------
+  // A native <details> stays open until its own summary is clicked again,
+  // which reads as broken for something shaped like a menu. Only the
+  // top-level menus are marked, so the share disclosure nested inside one
+  // of them counts as "inside" and survives a click on its own panel.
+  document.addEventListener("click", (e) => {
+    document.querySelectorAll("details[data-menu][open]").forEach((menu) => {
+      if (!menu.contains(e.target)) menu.open = false;
+    });
+  });
 
   function isEditing() {
     return board.classList.contains("editing");

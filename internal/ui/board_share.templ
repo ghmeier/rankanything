@@ -24,16 +24,20 @@ type ShareControlProps struct {
 	Open bool
 }
 
+// ShareControl is a disclosure nested inside the board's actions menu: the
+// summary is a menu row like any other, and opening it expands the panel in
+// place rather than flying out a second popover beside the first.
 templ ShareControl(props ShareControlProps) {
-	<details id="share-control" class="relative text-right" open?={ props.Open }>
-		<summary class="cursor-pointer list-none rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-text-muted hover:bg-surface-hover">
+	<details id="share-control" open?={ props.Open }>
+		<summary class={ boardMenuItemClass, "list-none [&::-webkit-details-marker]:hidden" }>
+			@ShareIcon()
 			if props.IsPublic {
 				Shared
 			} else {
 				Share
 			}
 		</summary>
-		<div class="absolute right-0 z-10 mt-1 w-72 space-y-2 rounded-md border border-border bg-surface p-3 text-left text-sm shadow-md">
+		<div class="space-y-2 px-3 pt-1 pb-2 text-sm">
 			if !props.Shareable {
 				<p class="text-text-muted">Sharing isn't available yet:</p>
 				<ul class="list-disc space-y-1 pl-4 text-xs text-text-muted">
@@ -52,16 +56,19 @@ templ ShareControl(props ShareControlProps) {
 					class="w-full rounded-md border border-border bg-surface-muted px-2 py-1 text-xs text-text"
 					onclick="this.select()"
 				/>
-				<button
-					type="button"
-					class={ ButtonClass(ButtonSecondary) + " w-full" }
-					onclick="navigator.clipboard.writeText(document.getElementById('share-link-input').value)"
-				>
+				@Button(ButtonProps{
+					Variant: ButtonSecondary,
+					Class:   "w-full",
+					Attrs: templ.Attributes{
+						"onclick": "navigator.clipboard.writeText(document.getElementById('share-link-input').value)",
+					},
+				}) {
 					Copy link
-				</button>
+				}
 				<p class="text-xs text-text-muted">Turning this off kills the link for good. Sharing again creates a brand new one — the old link never comes back.</p>
 				@Button(ButtonProps{
 					Variant: ButtonDestructive,
+					Class:   "w-full",
 					Attrs: templ.Attributes{
 						"hx-delete": fmt.Sprintf("/r/%s/share", props.RankingUUID),
 						"hx-target": "#share-control",
@@ -74,6 +81,7 @@ templ ShareControl(props ShareControlProps) {
 				<p class="text-xs text-text-muted">Create a public read-only link to the live published version. Turning it off later kills the link for good — sharing again creates a new one.</p>
 				@Button(ButtonProps{
 					Variant: ButtonPrimary,
+					Class:   "w-full",
 					Attrs: templ.Attributes{
 						"hx-post":   fmt.Sprintf("/r/%s/share", props.RankingUUID),
 						"hx-target": "#share-control",

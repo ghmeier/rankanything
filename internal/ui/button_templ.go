@@ -26,7 +26,12 @@ type ButtonProps struct {
 	Variant  ButtonVariant
 	Type     string
 	Disabled bool
-	Attrs    templ.Attributes
+	// Class is appended to the variant's own classes. Extra classes have to
+	// arrive here rather than through Attrs: Button writes its own class
+	// attribute, and a second one passed through Attrs would be a duplicate
+	// the browser ignores.
+	Class string
+	Attrs templ.Attributes
 }
 
 func Button(props ButtonProps) templ.Component {
@@ -50,7 +55,7 @@ func Button(props ButtonProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var2 = []any{ButtonClass(props.Variant)}
+		var templ_7745c5c3_Var2 = []any{ButtonClass(props.Variant), props.Class}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var2...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -62,7 +67,7 @@ func Button(props ButtonProps) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(cmp.Or(props.Type, "button"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/button.templ`, Line: 26, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/button.templ`, Line: 31, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 		if templ_7745c5c3_Err != nil {

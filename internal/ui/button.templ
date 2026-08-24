@@ -18,14 +18,19 @@ type ButtonProps struct {
 	Variant  ButtonVariant
 	Type     string
 	Disabled bool
-	Attrs    templ.Attributes
+	// Class is appended to the variant's own classes. Extra classes have to
+	// arrive here rather than through Attrs: Button writes its own class
+	// attribute, and a second one passed through Attrs would be a duplicate
+	// the browser ignores.
+	Class string
+	Attrs templ.Attributes
 }
 
 templ Button(props ButtonProps) {
 	<button
 		type={ cmp.Or(props.Type, "button") }
 		disabled?={ props.Disabled }
-		class={ ButtonClass(props.Variant) }
+		class={ ButtonClass(props.Variant), props.Class }
 		{ props.Attrs... }
 	>
 		{ children... }
