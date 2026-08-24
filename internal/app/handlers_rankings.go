@@ -31,11 +31,16 @@ func (a *App) handleRankingsIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	for i, summary := range summaries {
 		card := ui.RankingsIndexCard{
-			URL:         "/r/" + summary.Ranking.Uuid.String(),
-			Name:        summary.Ranking.Name,
-			PublishedAt: services.FormatPublishedAt(*summary.Published),
+			URL:  "/r/" + summary.Ranking.Uuid.String(),
+			Name: summary.Ranking.Name,
 		}
 
+		// A ranking that has never been published has no Published version,
+		// and one whose last draft is published has no Draft; a ranking with
+		// a draft on top of a publish has both.
+		if summary.Published != nil {
+			card.PublishedAt = services.FormatPublishedAt(*summary.Published)
+		}
 		if summary.Draft != nil {
 			card.DraftURL = card.URL + "/v/" + summary.Draft.ShortUuid
 		}

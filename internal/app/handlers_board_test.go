@@ -176,7 +176,7 @@ func TestBoardVersionButtonCarriesNumberAndPublishDateForAPublishedVersion(t *te
 	res := owner.Get("/r/" + owner.Ranking.Uuid.String() + "/v/" + published.ShortUuid)
 
 	require.Equal(t, http.StatusOK, res.Status)
-	assert.Contains(t, Body(res.Body), "v1 · Published "+published.PublishedAt.Time.Format("Jan 2, 2006"))
+	assert.Contains(t, Body(res.Body), "v1 · Published "+services.FormatPublishedAt(published))
 	assert.NotContains(t, Body(res.Body), "<span>Draft</span>")
 }
 
@@ -207,9 +207,9 @@ func TestBoardVersionNumberingFollowsPublishOrderAcrossThreeVersions(t *testing.
 	// The dropdown lists every version regardless of which one is being
 	// viewed, so any of the three pages carries all three numbers.
 	body := Body(owner.Get("/r/" + owner.Ranking.Uuid.String() + "/v/" + third.ShortUuid).Body)
-	assert.Contains(t, body, "v1 · Published "+first.PublishedAt.Time.Format("Jan 2, 2006"))
-	assert.Contains(t, body, "v2 · Published "+second.PublishedAt.Time.Format("Jan 2, 2006"))
-	assert.Contains(t, body, "v3 · Published "+third.PublishedAt.Time.Format("Jan 2, 2006"))
+	assert.Contains(t, body, "v1 · Published "+services.FormatPublishedAt(first))
+	assert.Contains(t, body, "v2 · Published "+services.FormatPublishedAt(second))
+	assert.Contains(t, body, "v3 · Published "+services.FormatPublishedAt(third))
 }
 
 func TestBoardVersionButtonMatchesThePinnedVersionRatherThanTheLiveOne(t *testing.T) {
@@ -229,7 +229,7 @@ func TestBoardVersionButtonMatchesThePinnedVersionRatherThanTheLiveOne(t *testin
 	// /r/{uuid} with no pinned version resolves to the published one per
 	// ResolveLiveRankingVersion, so the button there reads the publish label.
 	onLive := Body(owner.Get("/r/" + owner.Ranking.Uuid.String()).Body)
-	assert.Contains(t, onLive, "v1 · Published "+published.PublishedAt.Time.Format("Jan 2, 2006"))
+	assert.Contains(t, onLive, "v1 · Published "+services.FormatPublishedAt(published))
 	assert.NotContains(t, onLive, "<span>Draft</span>")
 
 	// Pinning the draft's own short uuid makes the button track it instead,
@@ -528,7 +528,7 @@ func TestViewingTheLiveRankingResolvesToTheMostRecentlyPublishedVersion(t *testi
 	res := owner.Get("/r/" + owner.Ranking.Uuid.String())
 
 	require.Equal(t, http.StatusOK, res.Status)
-	assert.Contains(t, Body(res.Body), "Published "+published.PublishedAt.Time.Format("Jan 2, 2006"))
+	assert.Contains(t, Body(res.Body), "Published "+services.FormatPublishedAt(published))
 }
 
 // ---------------------------------------------------------------------------

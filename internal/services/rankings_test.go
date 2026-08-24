@@ -3,6 +3,9 @@ package services_test
 import (
 	"context"
 	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 
 	db "github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/services"
@@ -843,4 +846,34 @@ func TestCreateVersionFromPublishedRejectsWhenADraftAlreadyExists(t *testing.T) 
 		RankingID: ranking.ID, SourceVersionID: version.ID,
 	})
 	assert.ErrorIs(t, err, services.ErrDraftAlreadyExists, "the seeded draft itself is the conflicting one")
+}
+
+// ---------------------------------------------------------------------------
+// FormatPublishedAt
+// ---------------------------------------------------------------------------
+
+func publishedAt(t time.Time) db.RankingVersion {
+	return db.RankingVersion{PublishedAt: pgtype.Timestamptz{Time: t, Valid: true}}
+}
+
+func TestFormatPublishedAtOmitsTheYearWithinTheLastYear(t *testing.T) {
+	t.Parallel()
+
+	recent := time.Now().AddDate(0, -1, 0)
+
+	assert.Equal(t, recent.Format("Jan 2"), services.FormatPublishedAt(publishedAt(recent)))
+}
+
+func TestFormatPublishedAtIncludesTheYearBeyondTheLastYear(t *testing.T) {
+	t.Parallel()
+
+	old := time.Now().AddDate(-2, 0, 0)
+
+	assert.Equal(t, old.Format("Jan 2, 2006"), services.FormatPublishedAt(publishedAt(old)))
+}
+
+func TestFormatPublishedAtIsEmptyForADraft(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, services.FormatPublishedAt(db.RankingVersion{}))
 }

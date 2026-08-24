@@ -56,8 +56,8 @@ func TestRankingsIndexShowsADraftOnlyRanking(t *testing.T) {
 	require.Equal(t, http.StatusOK, res.Status)
 	body := Body(res.Body)
 	assert.Contains(t, body, owner.Ranking.Name)
-	assert.Contains(t, body, "draft")
-	assert.NotContains(t, body, "published", "a ranking that's never been published must not claim to be")
+	assert.Contains(t, body, "Continue draft")
+	assert.NotContains(t, body, "Last published", "a ranking that's never been published must not claim to be")
 }
 
 func TestRankingsIndexShowsAPublishedRanking(t *testing.T) {
@@ -71,8 +71,8 @@ func TestRankingsIndexShowsAPublishedRanking(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, res.Status)
 	body := Body(res.Body)
-	assert.Contains(t, body, "published")
-	assert.NotContains(t, body, "draft in progress", "a ranking with nothing but a stale draft row must not claim work is in progress")
+	assert.Contains(t, body, "Last published")
+	assert.NotContains(t, body, "Continue draft", "publishing the only draft leaves nothing in progress to continue")
 }
 
 func TestRankingsIndexShowsAPublishedRankingWithANewerDraftInProgress(t *testing.T) {
@@ -82,7 +82,7 @@ func TestRankingsIndexShowsAPublishedRankingWithANewerDraftInProgress(t *testing
 
 	_, err := env.Queries.PublishRankingVersion(ctx, owner.Draft.ID)
 	require.NoError(t, err)
-	_, err = env.Queries.CreateRankingVersion(ctx, db.CreateRankingVersionParams{
+	draft, err := env.Queries.CreateRankingVersion(ctx, db.CreateRankingVersionParams{
 		ShortUuid: newTestShortUUID(),
 		RankingID: owner.Ranking.ID,
 	})
@@ -92,6 +92,8 @@ func TestRankingsIndexShowsAPublishedRankingWithANewerDraftInProgress(t *testing
 
 	require.Equal(t, http.StatusOK, res.Status)
 	body := Body(res.Body)
-	assert.Contains(t, body, "published", "the last publish must still be visible")
-	assert.Contains(t, body, "draft in progress", "the newer draft on top of the publish must be visible too")
+	assert.Contains(t, body, "Last published", "the last publish must still be visible")
+	assert.Contains(t, body, "Continue draft", "the newer draft on top of the publish must be reachable too")
+	assert.Contains(t, body, `href="/r/`+owner.Ranking.Uuid.String()+"/v/"+draft.ShortUuid+`"`,
+		"the link pins the draft rather than resolving to the live published version")
 }

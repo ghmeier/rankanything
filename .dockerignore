@@ -1,5 +1,3 @@
-# Secrets must never reach the image; the host injects real environment
-# variables instead.
 .env
 .env.*
 
@@ -8,13 +6,13 @@
 node_modules
 tmp
 
-# Rebuilt inside the image by the css stage. Copying the local one in would
-# let a stale desktop build silently become the deployed stylesheet.
 assets/static/css/app.css
 
 *.md
 .config
+.claude
 scripts
 db/queries
 sqlc.yaml
 .air.toml
+.prettierrc.json

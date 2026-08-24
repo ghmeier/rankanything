@@ -172,10 +172,19 @@
   --color-danger-surface: var(--app-danger-surface);
 }
 
-/* Edit-tiers mode (assets/static/js/board.js) is client-side UI state, not
-   anything the server renders differently — a tier's rename/delete/reorder
-   affordances only make sense once a viewer opts into rearranging tier
-   structure, so they stay hidden until #board carries the "editing" class. */
-#board:not(.editing) [data-tier-edit-only] {
+/* Edit-tiers mode is client-side UI state, not anything the server renders
+   differently — a tier's rename/delete/reorder affordances only make sense
+   once a viewer opts into rearranging tier structure, so they stay hidden
+   until the #edit-tiers checkbox in the board's actions menu is checked.
+   Keying off :has() rather than a sibling combinator lets that checkbox live
+   next to the label it belongs to instead of somewhere the selector needs. */
+body:not(:has(#edit-tiers:checked)) [data-tier-edit-only] {
+  display: none;
+}
+
+/* The toggle ships both label texts and hides the one that doesn't apply, so
+   the same :checked state drives the affordances and the wording. */
+body:not(:has(#edit-tiers:checked)) [data-edit-tiers-label="stop"],
+body:has(#edit-tiers:checked) [data-edit-tiers-label="start"] {
   display: none;
 }

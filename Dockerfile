@@ -1,9 +1,4 @@
-# The CSS has to be built before the Go binary, not after: app.css is
-# gitignored and assets/assets.go embeds the whole static tree at compile
-# time, so a Go build that runs first bakes in a missing or stale
-# stylesheet. Tailwind scans the .templ sources for class names, which is
-# why they are copied in here rather than only in the Go stage.
-FROM node:22-slim AS css
+FROM node:26-slim AS css
 
 WORKDIR /src
 COPY package.json package-lock.json ./
@@ -25,17 +20,8 @@ RUN go mod download
 COPY . .
 COPY --from=css /src/assets/static/css/app.css ./assets/static/css/app.css
 
-# The generated *_templ.go files are committed, so this is normally a no-op.
-# Regenerating anyway means the image is built from the .templ sources even
-# if a commit ever lands with stale output; CI is what fails on that drift,
-# the image just shouldn't ship it.
-RUN go tool templ generate
-
-# CGO off gives a static binary, which is what lets the runtime stage be
-# distroless. Trimming paths and symbols keeps the image small; nothing here
-# is debugged by attaching to the container.
+# Trimming paths and symbols keeps the image small.
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/rankanything ./cmd/rankanything
-
 
 # Distroless rather than alpine: the binary is static and the only other
 # things it needs are CA certificates, for Resend's HTTPS API and for a

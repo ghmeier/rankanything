@@ -32,7 +32,7 @@ func TestEvaluateShareGateBlocksWhenNothingIsPublished(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.False(t, gate.Shareable)
-	assert.Contains(t, gate.Reasons, "Publish a version before sharing a link.")
+	assert.Contains(t, gate.Reasons, "Publish at least one version.")
 }
 
 func TestEvaluateShareGateBlocksWhenTheOwnerEmailIsUnverified(t *testing.T) {
@@ -47,7 +47,7 @@ func TestEvaluateShareGateBlocksWhenTheOwnerEmailIsUnverified(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.False(t, gate.Shareable)
-	assert.Contains(t, gate.Reasons, "Verify your email before sharing a link.")
+	assert.Contains(t, gate.Reasons, "Verify your email.")
 }
 
 func TestEvaluateShareGateAllowsWhenBothConditionsHold(t *testing.T) {

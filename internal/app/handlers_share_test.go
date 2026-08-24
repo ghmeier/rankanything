@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"html"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -44,22 +45,19 @@ func verifyOwnerEmail(t *testing.T, env *testsupport.Env, owner *testsupport.Own
 	require.NoError(t, err)
 }
 
-// extractShareURL pulls the public share link out of the share control's
-// readonly input, the way extractCSRF pulls the CSRF token out of
-// hx-headers.
+// extractShareURL pulls the public share link out of the "Copy link" menu
+// item's clipboard call, which is where the URL lives now that the control is
+// a menu rather than a panel with a readonly input. The body is unescaped
+// first for the reason extractCSRF unescapes: templ escapes the quotes inside
+// an attribute value, and a browser undoes that before running the handler.
 func extractShareURL(t *testing.T, body string) string {
 	t.Helper()
-	const marker = `id="share-link-input"`
-	idx := strings.Index(body, marker)
-	require.NotEqual(t, -1, idx, "share link input not found in body")
-	rest := body[idx:]
-	const valueMarker = `value="`
-	vi := strings.Index(rest, valueMarker)
-	require.NotEqual(t, -1, vi, "share link input has no value attribute")
-	rest = rest[vi+len(valueMarker):]
-	end := strings.Index(rest, `"`)
-	require.NotEqual(t, -1, end, "unterminated value attribute")
-	return rest[:end]
+	const marker = `navigator.clipboard.writeText("`
+	_, after, found := strings.Cut(html.UnescapeString(body), marker)
+	require.True(t, found, "no copy-link control in body")
+	shareURL, _, found := strings.Cut(after, `"`)
+	require.True(t, found, "unterminated clipboard argument")
+	return shareURL
 }
 
 // ---------------------------------------------------------------------------
@@ -75,9 +73,9 @@ func TestShareControlBlockedWhenNothingIsPublished(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, res.Status)
 	body := Body(res.Body)
-	assert.Contains(t, body, "Publish a version before sharing a link.")
-	assert.NotContains(t, body, "Verify your email before sharing a link.")
-	assert.NotContains(t, body, "Create share link")
+	assert.Contains(t, body, "Publish at least one version.")
+	assert.NotContains(t, body, "Verify your email.")
+	assert.NotContains(t, body, "Copy link", "there's no link to copy until sharing is on")
 }
 
 func TestShareControlBlockedWhenTheOwnerEmailIsUnverified(t *testing.T) {
@@ -89,9 +87,9 @@ func TestShareControlBlockedWhenTheOwnerEmailIsUnverified(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, res.Status)
 	body := Body(res.Body)
-	assert.Contains(t, body, "Verify your email before sharing a link.")
-	assert.NotContains(t, body, "Publish a version before sharing a link.")
-	assert.NotContains(t, body, "Create share link")
+	assert.Contains(t, body, "Verify your email.")
+	assert.NotContains(t, body, "Publish at least one version.")
+	assert.NotContains(t, body, "Copy link", "there's no link to copy until sharing is on")
 }
 
 func TestShareControlOfferedWhenBothConditionsHold(t *testing.T) {
@@ -104,8 +102,8 @@ func TestShareControlOfferedWhenBothConditionsHold(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, res.Status)
 	body := Body(res.Body)
-	assert.Contains(t, body, "Create share link")
-	assert.NotContains(t, body, "Sharing isn't available yet")
+	assert.Contains(t, body, `hx-post="/r/`+owner.Ranking.Uuid.String()+`/share"`)
+	assert.NotContains(t, body, "To share this ranking:", "the blocked-reason tooltip only renders on an inert control")
 }
 
 // ---------------------------------------------------------------------------
@@ -147,7 +145,8 @@ func TestDisablingShareKillsTheOldSlugPermanentlyAndResharingMintsANewOne(t *tes
 
 	disable := owner.Delete("/r/"+owner.Ranking.Uuid.String()+"/share", nil)
 	require.Equal(t, http.StatusOK, disable.Status)
-	assert.Contains(t, Body(disable.Body), "Create share link", "the control offers to share again, not the live link view")
+	assert.Contains(t, Body(disable.Body), `hx-post="/r/`+owner.Ranking.Uuid.String()+`/share"`, "the control offers to share again")
+	assert.NotContains(t, Body(disable.Body), "Copy link", "and stops offering the dead link")
 
 	assert.Equal(t, http.StatusNotFound, env.NewClient().Get(firstPath).Status, "the old link must be dead")
 

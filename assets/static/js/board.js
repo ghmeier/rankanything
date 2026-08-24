@@ -1,11 +1,13 @@
-// Board editing: the "edit tiers" mode toggle, and native HTML5
-// drag-and-drop for reordering items (within and between tiers, and back to
-// the unranked tray) and reordering tiers. No frameworks, no build step —
-// just the DOM APIs a modern browser already has.
+// Board editing: native HTML5 drag-and-drop for reordering items (within and
+// between tiers, and back to the unranked tray) and for reordering tiers.
+// That is all this file is for. Adding, renaming and deleting tiers and items
+// are htmx attributes on the markup, and edit-tiers mode is a checkbox that
+// CSS reads (see the #edit-tiers rules in input.css), so with this script
+// blocked the board loses dragging and keeps everything else.
 //
-// Every listener below is delegated to #board rather than attached per
-// card/row, so it keeps working after a drag's persist step replaces a
-// container's contents with the server's fragment — no re-binding needed.
+// Every listener is delegated to #board rather than attached per card or row,
+// so it survives a persist replacing a container's contents with the server's
+// fragment — there is nothing to re-bind.
 (function () {
   "use strict";
 
@@ -14,40 +16,8 @@
 
   const rankingUUID = board.dataset.rankingUuid;
   const versionUUID = board.dataset.versionUuid;
+  const editToggle = document.getElementById("edit-tiers");
 
-  // --- CSRF -----------------------------------------------------------
-  // The layout puts the session's CSRF token in <body>'s hx-headers so
-  // every htmx mutation carries it automatically; a plain fetch() has to
-  // read it out itself.
-  function csrfToken() {
-    try {
-      const headers = JSON.parse(
-        document.body.getAttribute("hx-headers") || "{}",
-      );
-      return headers["X-CSRF-Token"] || "";
-    } catch (e) {
-      return "";
-    }
-  }
-
-  // --- Edit-tiers mode --------------------------------------------------
-  // Purely a CSS toggle: input.css hides [data-tier-edit-only] elements
-  // unless #board carries the "editing" class, so this is the only line
-  // that needs to run, regardless of how the DOM churns afterward.
-  const editToggle = document.getElementById("edit-tiers-toggle");
-  if (editToggle) {
-    editToggle.addEventListener("click", () => {
-      const editing = board.classList.toggle("editing");
-      const label = editToggle.querySelector("[data-edit-tiers-label]");
-      if (label) label.textContent = editing ? "Stop editing" : "Edit tiers";
-      // The toggle lives in the actions menu, and what it toggles is the
-      // board behind that menu — leaving the menu open would cover it.
-      const menu = editToggle.closest("details");
-      if (menu) menu.open = false;
-    });
-  }
-
-  // --- Dropdown dismissal -----------------------------------------------
   // A native <details> stays open until its own summary is clicked again,
   // which reads as broken for something shaped like a menu. Only the
   // top-level menus are marked, so the share disclosure nested inside one
@@ -58,11 +28,21 @@
     });
   });
 
-  function isEditing() {
-    return board.classList.contains("editing");
+  // CSS owns edit-tiers mode, so the only thing left to do when it flips is
+  // close the menu the toggle lives in — what it reveals is the board behind
+  // that menu. This waits for "change" rather than the label's click so it
+  // can't unmount the checkbox mid-activation.
+  if (editToggle) {
+    editToggle.addEventListener("change", () => {
+      const menu = editToggle.closest("details");
+      if (menu) menu.open = false;
+    });
   }
 
-  // --- Drag state ---------------------------------------------------
+  function isEditing() {
+    return editToggle != null && editToggle.checked;
+  }
+
   let dragging = null; // the element currently being dragged
   let dragKind = null; // "item" | "tier"
 
@@ -91,12 +71,11 @@
     dragKind = null;
   });
 
-  // Finds the sibling a dragged element should land before, by comparing
-  // the pointer's Y position against each candidate's vertical midpoint.
-  // This only looks at Y, so within a wrapped row of item cards it treats
-  // the row as a single line rather than accounting for horizontal
-  // position too — a reasonable approximation for how small these lists
-  // are, and it's exactly right for the single-column tier-row stack.
+  // Finds the sibling a dragged element should land before, by comparing the
+  // pointer's Y position against each candidate's vertical midpoint. Looking
+  // only at Y is exactly right for the single-column tier-row stack, and
+  // within a wrapped row of item cards it treats the whole wrap as one line —
+  // an approximation these list lengths don't make anyone notice.
   function elementAfter(container, y, selector) {
     const candidates = [...container.querySelectorAll(selector)].filter(
       (el) => el !== dragging,
@@ -145,92 +124,62 @@
     else if (dragKind === "tier") persistTierOrder();
   });
 
-  // --- Persisting a drop ------------------------------------------------
-  // Every persist call only has to fix up the one container whose contents
-  // actually changed in the database: dragover has already moved the
-  // dragged node in the live DOM, including out of its old container, so
-  // there's nothing left to reconcile there.
+  // Each persist only has to reconcile the one container whose contents
+  // actually changed in the database: dragover has already moved the dragged
+  // node in the live DOM, including out of the container it came from.
+  //
+  // The request goes through htmx rather than fetch so the response is
+  // handled the way every other board mutation's is. That matters twice over:
+  // htmx applies the out-of-band publish-action fragment that unrank and item
+  // reorder carry, and it processes what it inserts, so the hx-delete and
+  // hx-post attributes on the swapped-in buttons come back live instead of
+  // inert. Passing #board as the source is what attaches the session CSRF
+  // token, which htmx resolves from <body>'s hx-headers by walking up.
+  function persist(target, path, values = {}) {
+    htmx.ajax("POST", `/r/${rankingUUID}/v/${versionUUID}${path}`, {
+      source: board,
+      target,
+      swap: "outerHTML",
+      values,
+    });
+  }
 
   function persistItemDrop(item) {
     const zone = item.closest(".tier-dropzone");
     if (!zone) return;
 
-    const tierId = zone.dataset.tierId;
-    if (!tierId) {
-      replaceWithResponse(`ranking-item-${item.dataset.itemId}`, () =>
-        postForm(
-          `/r/${rankingUUID}/v/${versionUUID}/items/${item.dataset.itemId}/unrank`,
-          null,
-        ),
-      );
+    const itemID = item.dataset.itemId;
+    // The tray is a dropzone with no tier of its own, so landing there means
+    // the item left the ranking rather than moved within it.
+    const tierID = zone.dataset.tierId;
+    if (!tierID) {
+      persist(`#ranking-item-${itemID}`, `/items/${itemID}/unrank`);
       return;
     }
 
-    const itemIds = [...zone.querySelectorAll("[data-item-id]")].map(
+    const itemIDs = [...zone.querySelectorAll("[data-item-id]")].map(
       (el) => el.dataset.itemId,
     );
-    const body = new URLSearchParams();
-    itemIds.forEach((id) => body.append("item_id", id));
-    replaceWithResponse(`tier-items-${tierId}`, () =>
-      postForm(
-        `/r/${rankingUUID}/v/${versionUUID}/tiers/${tierId}/items/reorder`,
-        body,
-      ),
-    );
+    persist(`#tier-items-${tierID}`, `/tiers/${tierID}/items/reorder`, {
+      item_id: itemIDs,
+    });
   }
 
   function persistTierOrder() {
-    const tierIds = [...document.querySelectorAll("#tier-rows .tier-row")].map(
+    const tierIDs = [...document.querySelectorAll("#tier-rows .tier-row")].map(
       (row) => row.dataset.tierId,
     );
-    const body = new URLSearchParams();
-    tierIds.forEach((id) => body.append("tier_id", id));
-    replaceWithResponse("tier-rows", () =>
-      postForm(`/r/${rankingUUID}/v/${versionUUID}/tiers/reorder`, body),
-    );
+    persist("#tier-rows", "/tiers/reorder", { tier_id: tierIDs });
   }
 
-  function postForm(url, body) {
-    const headers = { "X-CSRF-Token": csrfToken() };
-    if (body) headers["Content-Type"] = "application/x-www-form-urlencoded";
-    return fetch(url, { method: "POST", headers, body });
-  }
-
-  async function replaceWithResponse(targetId, request) {
-    let res;
-    try {
-      res = await request();
-    } catch (e) {
-      window.location.reload();
-      return;
-    }
-    if (!res.ok) {
-      // The optimistic DOM move has already drifted from the server's
-      // idea of the board; reloading is the simplest correct recovery.
-      window.location.reload();
-      return;
-    }
-
-    const html = await res.text();
-    const template = document.createElement("template");
-    template.innerHTML = html.trim();
-    const replacement = template.content.firstElementChild;
-    const target = document.getElementById(targetId);
-    if (target && replacement) target.replaceWith(replacement);
-
-    applyOOBSwaps(template.content);
-  }
-
-  // Mirrors htmx's hx-swap-oob handling for the persist calls above, which
-  // bypass htmx entirely by using fetch() directly: any element left in the
-  // parsed response after the primary swap target was pulled out (unrank
-  // and tier-item reorder both carry the publish-action fragment this way,
-  // since either can flip the publish gate) replaces the live element with
-  // the same id.
-  function applyOOBSwaps(content) {
-    for (const node of content.querySelectorAll("[hx-swap-oob]")) {
-      const existing = document.getElementById(node.id);
-      if (existing) existing.replaceWith(node);
-    }
+  // A rejected or dropped persist leaves the optimistic DOM move drifted from
+  // the server's idea of the board, and a reload is the simplest correct
+  // recovery. htmx fires these on whichever element made the request, so the
+  // target check keeps an unrelated failure from a button inside the board
+  // from reloading the page out from under it.
+  for (const event of ["htmx:responseError", "htmx:sendError"]) {
+    board.addEventListener(event, (e) => {
+      if (e.target === board) window.location.reload();
+    });
   }
 })();
