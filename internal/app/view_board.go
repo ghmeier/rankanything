@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"sort"
 
@@ -90,20 +89,13 @@ func boardVersionNumbers(versions []db.RankingVersion) map[int64]int {
 	return numbers
 }
 
-func boardVersionLabel(v db.RankingVersion, number int) string {
-	if !v.PublishedAt.Valid {
-		return "Draft"
-	}
-	return fmt.Sprintf("v%d · Published %s", number, v.PublishedAt.Time.Format("Jan 2, 2006"))
-}
-
 func boardVersionOptions(rankingUUID string, versions []db.RankingVersion, viewing db.RankingVersion) []ui.BoardVersionOption {
 	numbers := boardVersionNumbers(versions)
 	options := make([]ui.BoardVersionOption, len(versions))
 	for i, v := range versions {
 		options[i] = ui.BoardVersionOption{
 			URL:     "/r/" + rankingUUID + "/v/" + v.ShortUuid,
-			Label:   boardVersionLabel(v, numbers[v.ID]),
+			Label:   services.FormatVersionLabel(v, numbers[v.ID]),
 			Current: v.ID == viewing.ID,
 		}
 	}

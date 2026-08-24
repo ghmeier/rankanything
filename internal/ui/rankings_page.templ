@@ -14,9 +14,10 @@ type RankingsIndexProps struct {
 // RankingsIndexCard names both versions when a draft sits on a publish, so a
 // reader can tell the live version is stale.
 type RankingsIndexCard struct {
-	URL    string
-	Name   string
-	Status string
+	URL         string
+	Name        string
+	PublishedAt string
+	DraftURL    string
 }
 
 templ RankingsIndexPage(props RankingsIndexProps) {
@@ -55,7 +56,9 @@ templ rankingsIndexList(cards []RankingsIndexCard) {
 			<li class="rounded-lg border border-border bg-surface hover:bg-surface-hover">
 				<a href={ templ.URL(card.URL) } class="block px-4 py-4">
 					<p class="font-medium text-text">{ card.Name }</p>
-					<p class="mt-1 text-sm text-text-muted">{ card.Status }</p>
+					if card.PublishedAt != "" {
+						<p class="mt-1 text-sm text-text-muted">Last published { card.PublishedAt }</p>
+					}
 				</a>
 			</li>
 		}

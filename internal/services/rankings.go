@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/google/uuid"
@@ -632,6 +633,26 @@ func (s *RankingsService) CreateVersionFromPublished(ctx context.Context, req Cr
 		return db.RankingVersion{}, err
 	}
 	return version, nil
+}
+
+func FormatVersionLabel(v db.RankingVersion, number int) string {
+	if !v.PublishedAt.Valid {
+		return "Draft"
+	}
+	return fmt.Sprintf("v%d · Published %s", number, FormatPublishedAt(v))
+}
+
+func FormatPublishedAt(v db.RankingVersion) string {
+	if !v.PublishedAt.Valid {
+		return ""
+	}
+
+	oneYearAgo := time.Now().AddDate(-1, 0, 0)
+	if v.PublishedAt.Time.After(oneYearAgo) {
+		return v.PublishedAt.Time.Format("Jan 2")
+	}
+
+	return v.PublishedAt.Time.Format("Jan 2, 2006")
 }
 
 // DefaultTiers seeds every new ranking version.

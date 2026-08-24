@@ -353,8 +353,7 @@ func (a *App) handleCreateVersion(w http.ResponseWriter, r *http.Request) {
 
 // renderWithVersionActions renders a mutation's own fragments plus the
 // publish action out of band, since any board mutation can flip the publish
-// gate. The drag endpoints are plain fetch() calls rather than htmx, so
-// board.js applies the out-of-band swap by hand (see applyOOBSwaps).
+// gate.
 func (a *App) renderWithVersionActions(w http.ResponseWriter, r *http.Request, status int, rankingUUID uuid.UUID, version db.RankingVersion, fragments ...templ.Component) {
 	actions, err := a.boardVersionActionsOOB(r.Context(), rankingUUID.String(), version)
 	if err != nil {

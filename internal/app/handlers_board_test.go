@@ -700,7 +700,7 @@ func TestPublishedVersionPageHidesEditingControls(t *testing.T) {
 	require.Equal(t, http.StatusOK, res.Status)
 
 	body := Body(res.Body)
-	assert.NotContains(t, body, `id="edit-tiers-toggle"`)
+	assert.NotContains(t, body, `id="edit-tiers"`)
 	assert.NotContains(t, body, "New tier label", "the add-tier form is hidden")
 	assert.NotContains(t, body, "Add an item", "the add-item form is hidden")
 	assert.NotContains(t, body, `aria-label="Ranking title"`, "the title is read-only text, not an input")
@@ -715,7 +715,7 @@ func TestDraftVersionPageShowsEditingControls(t *testing.T) {
 	require.Equal(t, http.StatusOK, res.Status)
 
 	body := Body(res.Body)
-	assert.Contains(t, body, `id="edit-tiers-toggle"`)
+	assert.Contains(t, body, `id="edit-tiers"`)
 	assert.Contains(t, body, "New tier label")
 	assert.Contains(t, body, "Add an item")
 	assert.Contains(t, body, `name="title"`)
