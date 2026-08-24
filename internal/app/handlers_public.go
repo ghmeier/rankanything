@@ -10,26 +10,17 @@ import (
 	"github.com/ghmeier/rankanything/internal/ui"
 )
 
-// handleLanding is GET / for a signed-out visitor: the marketing page (hero,
-// signup CTA, and a static preview of the S-F board). A signed-in visitor
-// never sees it — registerPublicRoutes redirects to /me before this runs.
+// handleLanding is the marketing page; handleRoot sends a signed-in visitor
+// to /me before this runs.
 func (a *App) handleLanding(w http.ResponseWriter, r *http.Request) {
 	props := ui.LandingPageProps{CSRFToken: a.Sessions.CSRFToken(r.Context())}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := ui.LandingPage(props).Render(r.Context(), w); err != nil {
-		a.serverError(w, r, err)
-	}
+	a.render(w, r, http.StatusOK, ui.LandingPage(props))
 }
 
 const defaultPublicDescription = "A tier list ranked with Rank Anything."
 
-// handlePublicRanking is GET /s/{public_slug} — the read-only view anyone
-// with a share link can reach, no session or ownership required. A slug
-// that doesn't resolve, or resolves to a ranking with nothing published,
-// answers 404 rather than distinguishing the two: ShareService.
-// ResolvePublicRanking already collapses them into the same error, the
-// same way ErrRankingNotFound does for an owned ranking.
+// handlePublicRanking needs no session: anyone with the slug may read it. An
+// unknown slug and one with nothing published both answer 404.
 func (a *App) handlePublicRanking(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	slug := r.PathValue("public_slug")
@@ -51,16 +42,11 @@ func (a *App) handlePublicRanking(w http.ResponseWriter, r *http.Request) {
 	}
 
 	props := a.publicBoardPageProps(a.base(r), board, slug)
-	if err := renderComponent(w, r, http.StatusOK, ui.PublicBoardPage(props)); err != nil {
-		a.serverError(w, r, err)
-	}
+	a.render(w, r, http.StatusOK, ui.PublicBoardPage(props))
 }
 
-// publicBoardPageProps assembles PublicBoardPage's props. It reuses the
-// same tierRowProps/itemCardProps/boardTierItems/boardUnplacedItems helpers
-// view_board.go builds the owner's board from, always with editable set to
-// false — a public visitor never gets a drag handle, a delete control, or
-// an add-item form, regardless of who they're signed in as.
+// publicBoardPageProps reuses the owner board's helpers with editable always
+// false, so a visitor never gets a drag handle or a delete control.
 func (a *App) publicBoardPageProps(base BaseView, board services.RankingBoard, slug string) ui.PublicBoardPageProps {
 	tierItems := boardTierItems(board)
 
@@ -83,7 +69,7 @@ func (a *App) publicBoardPageProps(base BaseView, board services.RankingBoard, s
 	}
 
 	tray := ui.ItemTrayProps{Editable: false}
-	for _, it := range boardUnplacedItems(board) {
+	for _, it := range board.UnplacedItems() {
 		tray.Unassigned = append(tray.Unassigned, itemCardProps("", "", it, false))
 	}
 	props.ItemTray = tray
@@ -91,17 +77,13 @@ func (a *App) publicBoardPageProps(base BaseView, board services.RankingBoard, s
 	return props
 }
 
-// handleRobotsTxt is GET /robots.txt. The file itself lives in
-// assets/static (embedded through the existing //go:embed static in
-// assets.go) so it ships in the binary like every other static asset, but
-// it's served at the domain root rather than under /static/ — robots.txt
-// and sitemap.xml are only honored by crawlers at the root.
+// handleRobotsTxt serves an embedded static file from the domain root, where
+// crawlers require it, rather than from under /static/.
 func (a *App) handleRobotsTxt(w http.ResponseWriter, r *http.Request) {
 	a.serveStaticRoot(w, r, "robots.txt", "text/plain; charset=utf-8")
 }
 
-// handleSitemapXML is GET /sitemap.xml. See handleRobotsTxt for why this
-// isn't just served from under /static/.
+// handleSitemapXML is served from the root for the same reason robots.txt is.
 func (a *App) handleSitemapXML(w http.ResponseWriter, r *http.Request) {
 	a.serveStaticRoot(w, r, "sitemap.xml", "application/xml; charset=utf-8")
 }

@@ -1,17 +1,14 @@
 package ui
 
-// BoardVersionOption is one entry in the version-picker dropdown: every
-// version of the ranking, its label ("Draft" or "v{n} · Published {date}"),
-// and whether it's the one being viewed.
+// BoardVersionOption is one entry in the version-picker dropdown.
 type BoardVersionOption struct {
 	URL     string
 	Label   string
 	Current bool
 }
 
-// currentVersionLabel finds the label of whichever option is marked
-// current, so the button reads as "what you're looking at" even while the
-// menu itself is closed.
+// currentVersionLabel keeps the button reading as what you're looking at
+// while the menu is closed.
 func currentVersionLabel(versions []BoardVersionOption) string {
 	for _, v := range versions {
 		if v.Current {
@@ -21,11 +18,8 @@ func currentVersionLabel(versions []BoardVersionOption) string {
 	return ""
 }
 
-// boardVersionMenu is a native <details> disclosure listing every version
-// of the ranking — no JS needed for a dropdown this simple. The summary
-// doubles as the dropdown button: it's labeled with the version being
-// viewed and carries a caret that flips per the group-open state, so it
-// reads as a menu rather than the plain word "Versions" it used to show.
+// boardVersionMenu is a native <details>, so a dropdown this simple needs no
+// JS. The summary doubles as the button, labeled with the current version.
 templ boardVersionMenu(versions []BoardVersionOption) {
 	<details class="group relative" data-menu>
 		<summary class={ ButtonClass(ButtonSecondary), "list-none [&::-webkit-details-marker]:hidden" }>

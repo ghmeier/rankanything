@@ -9,7 +9,7 @@ import (
 )
 
 // CSRF rejects mutating requests whose token does not match the session's.
-// htmx sends the token via the X-CSRF-Token header (see the layout's hx-headers);
+// htmx sends it as X-CSRF-Token; see the layout's hx-headers.
 func CSRF(s *Sessions) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

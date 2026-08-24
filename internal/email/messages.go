@@ -18,10 +18,6 @@ var (
 	textTemplates = texttemplate.Must(texttemplate.ParseFS(templateFS, "templates/*.txt"))
 )
 
-// Route paths for the one-time links. Wave 3's auth project owns the actual
-// handlers; these are provisional and safe to change there — nothing else
-// in this package depends on the exact path, only that Link produces an
-// absolute URL carrying the token.
 const (
 	verifyPath = "/verify"
 	resetPath  = "/reset-password"
@@ -36,21 +32,17 @@ type resetData struct {
 	Link  string
 }
 
-// Link builds an absolute one-time-use URL from a base URL, a path, and a
-// plaintext token.
 func Link(baseURL, path, plaintextToken string) string {
 	return strings.TrimRight(baseURL, "/") + path + "?token=" + url.QueryEscape(plaintextToken)
 }
 
-// VerificationMessage renders the email-verification mail. plaintextToken is
-// the one-shot value from token.Generate — never the stored hash.
+// VerificationMessage takes the one-shot token, never the stored hash.
 func VerificationMessage(to, baseURL, plaintextToken string) (Message, error) {
 	data := verificationData{Link: Link(baseURL, verifyPath, plaintextToken)}
 	return render("verification", "Verify your email for Rank Anything", to, data)
 }
 
-// PasswordResetMessage renders the password-reset mail. plaintextToken is
-// the one-shot value from token.Generate — never the stored hash.
+// PasswordResetMessage takes the one-shot token, never the stored hash.
 func PasswordResetMessage(to, baseURL, plaintextToken string) (Message, error) {
 	data := resetData{Email: to, Link: Link(baseURL, resetPath, plaintextToken)}
 	return render("reset", "Reset your Rank Anything password", to, data)

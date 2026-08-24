@@ -9,8 +9,7 @@ import (
 	"github.com/ghmeier/rankanything/internal/ui"
 )
 
-// handleAccountPage is GET /account. RequireUser gates this route, so
-// base().User is always set here.
+// handleAccountPage relies on RequireUser, so base().User is always set.
 func (a *App) handleAccountPage(w http.ResponseWriter, r *http.Request) {
 	base := a.base(r)
 	props := ui.AccountProps{
@@ -20,15 +19,9 @@ func (a *App) handleAccountPage(w http.ResponseWriter, r *http.Request) {
 		Email:     base.User.Email,
 		Theme:     base.Theme,
 	}
-	if err := renderComponent(w, r, http.StatusOK, ui.AccountPage(props)); err != nil {
-		a.serverError(w, r, err)
-	}
+	a.render(w, r, http.StatusOK, ui.AccountPage(props))
 }
 
-// handleUpdateTheme is POST /account/theme. It responds with just the
-// ThemeSettings fragment, which the form targets for its own htmx swap — the
-// same pattern inline tier editing uses for a control that lives inside a
-// bigger page.
 func (a *App) handleUpdateTheme(w http.ResponseWriter, r *http.Request) {
 	userID := a.Sessions.UserID(r.Context())
 

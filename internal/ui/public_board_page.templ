@@ -1,20 +1,14 @@
 package ui
 
-// PublicBoardPageProps configures PublicBoardPage — the read-only view of a
-// ranking's live published version served at GET /s/{public_slug}. It
-// carries none of BoardPageProps' editing plumbing (TierForm, ItemTray's
-// add form, the version menu, publish/branch actions, the share control
-// itself): a public visitor gets exactly the tiers, items, and title/
-// description, nothing that implies they can change any of it.
+// PublicBoardPageProps is the read-only view of a ranking's live version. It
+// carries none of BoardPageProps' editing plumbing, so nothing on the page
+// implies a visitor can change it.
 type PublicBoardPageProps struct {
 	CSRFToken string
 	LoggedIn  bool
 	Flash     string
 	Theme     string
-	// Title and Description feed both <title>/meta description and the
-	// Open Graph tags — a shared tier list is the app's best organic
-	// acquisition surface, so its own preview matters more than most
-	// pages'.
+	// Feeds <title>, the meta description, and the Open Graph tags.
 	Title        string
 	Description  string
 	CanonicalURL string

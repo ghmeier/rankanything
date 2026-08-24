@@ -5,37 +5,26 @@ import (
 	"fmt"
 )
 
-// LayoutProps configures the page shell: the <html>/<head> boilerplate, the
-// NavBar, an optional flash notice, and a <main> the caller's content renders
-// into. Ported from assets/templates/layout.html — the CSRF token still rides
-// on body's hx-headers so every htmx mutation carries X-CSRF-Token.
+// LayoutProps configures the page shell. The CSRF token rides on body's
+// hx-headers, so every htmx mutation carries X-CSRF-Token.
 type LayoutProps struct {
 	Title string
-	// Description overrides the default meta description; empty renders
-	// the site's own pitch, unchanged from before this field existed.
+	// Empty renders the site's own pitch.
 	Description string
 	CSRFToken   string
 	LoggedIn    bool
 	Flash       string
-	// Theme is a signed-in user's explicit preference: "system", "light",
-	// or "dark". It lands on <html data-theme="..."> in this same response
-	// — not applied by client-side JS after paint — so there's no flash of
-	// the wrong theme. Left empty for a signed-out visitor, which renders
-	// <html> with no data-theme attribute at all so input.css's
-	// prefers-color-scheme media query is the only thing deciding the
-	// palette, exactly as it did before this preference existed.
+	// Theme lands on <html data-theme> in this same response rather than
+	// being applied by JS after paint, so there's no flash of the wrong
+	// theme. Empty omits the attribute, leaving prefers-color-scheme to
+	// decide.
 	Theme string
-	// OpenGraph gives a page its own social preview — a shared tier list's
-	// og:title and og:description differ from the site default, and
-	// matter more here than almost anywhere else in the app, since a
-	// shared link is the app's best organic acquisition surface. Nil
-	// renders no og: tags at all.
+	// OpenGraph gives a shared tier list its own social preview. Nil renders
+	// no og: tags.
 	OpenGraph *OpenGraphProps
 }
 
-// OpenGraphProps configures a page's Open Graph tags, read by link
-// unfurlers (Slack, Discord, iMessage, social platforms) when its URL gets
-// pasted somewhere.
+// OpenGraphProps configures the tags link unfurlers read.
 type OpenGraphProps struct {
 	Title       string
 	Description string

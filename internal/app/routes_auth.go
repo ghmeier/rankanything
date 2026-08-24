@@ -2,8 +2,6 @@ package app
 
 import "net/http"
 
-// registerAuthRoutes mounts registration, login, logout, email verification,
-// and password reset.
 func (a *App) registerAuthRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /register", a.handleRegisterForm)
 	mux.HandleFunc("POST /register", a.handleRegister)

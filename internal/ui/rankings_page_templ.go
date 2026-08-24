@@ -8,15 +8,8 @@ package ui
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// RankingsIndexProps configures RankingsIndexPage — the page a signed-in
-// user lands on after logging in or registering, listing their rankings.
-//
-// VerificationNotice is the one seam this page shares with
-// feat/auth-flows, which is building a resend-verification control on a
-// parallel branch and cannot edit this file. This branch only needs to
-// know the contract: render it above the heading when it's non-nil, render
-// nothing when it's nil. The orchestrator wires
-// ui.ResendVerificationNotice(email) into it after both branches merge.
+// RankingsIndexProps configures RankingsIndexPage. VerificationNotice renders
+// above the heading; nil renders nothing.
 type RankingsIndexProps struct {
 	CSRFToken          string
 	LoggedIn           bool
@@ -26,10 +19,8 @@ type RankingsIndexProps struct {
 	Rankings           []RankingsIndexCard
 }
 
-// RankingsIndexCard is one ranking's card on the index: where it links and
-// a one-line description of its live version's state — "draft",
-// "published Aug 4", or "published Aug 4 · draft in progress" when a newer
-// draft sits on top of the last publish.
+// RankingsIndexCard names both versions when a draft sits on a publish, so a
+// reader can tell the live version is stale.
 type RankingsIndexCard struct {
 	URL    string
 	Name   string
@@ -222,7 +213,7 @@ func rankingsIndexList(cards []RankingsIndexCard) templ.Component {
 			var templ_7745c5c3_Var7 templ.SafeURL
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(card.URL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/rankings_page.templ`, Line: 65, Col: 33}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/rankings_page.templ`, Line: 56, Col: 33}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -235,7 +226,7 @@ func rankingsIndexList(cards []RankingsIndexCard) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(card.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/rankings_page.templ`, Line: 66, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/rankings_page.templ`, Line: 57, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -248,7 +239,7 @@ func rankingsIndexList(cards []RankingsIndexCard) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(card.Status)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/rankings_page.templ`, Line: 67, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/rankings_page.templ`, Line: 58, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {

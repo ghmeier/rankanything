@@ -8,19 +8,14 @@ package ui
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// LandingPageProps configures LandingPage. CSRFToken rides on Layout's
-// hx-headers like every other page; LoggedIn is always false in practice
-// (handlers_public.go only renders this page for signed-out visitors) but
-// is threaded through rather than hardcoded so Layout stays a single
-// source of truth for the navbar.
+// LandingPageProps threads LoggedIn through rather than hardcoding false, so
+// Layout stays the single source of truth for the navbar.
 type LandingPageProps struct {
 	CSRFToken string
 }
 
-// demoTier is one row of the static S-F scaffold below the CTA. It reuses
-// services.DefaultTiers' S/A/B/C/D palette (extended with an F row in the
-// same family) so the demo doesn't introduce a color the real board
-// doesn't already use.
+// demoTier reuses services.DefaultTiers' palette, extended with an F row, so
+// the demo introduces no color the real board lacks.
 type demoTier struct {
 	Label string
 	Color string
@@ -36,9 +31,7 @@ var demoTiers = []demoTier{
 	{Label: "F", Color: "#94a3b8", Items: []string{"Neon Pink"}},
 }
 
-// LandingPage is the marketing page shown at "/" to signed-out visitors:
-// hero, a CTA into signup, and a static (non-persisting, non-draggable)
-// preview of the S-F tier board every new account starts with.
+// LandingPage previews the tier board every new account starts with.
 func LandingPage(props LandingPageProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -116,9 +109,8 @@ func LandingPage(props LandingPageProps) templ.Component {
 	})
 }
 
-// demoBoard renders the static S-F scaffold. It intentionally shares no
-// markup with partials/tier_row.html: there is no session, no ranking row,
-// and no drag behavior here, only a look-alike of the real board.
+// demoBoard shares no markup with the real board: there is no session, no
+// ranking row, and no drag behavior here, only a look-alike.
 func demoBoard() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -152,7 +144,7 @@ func demoBoard() templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("background-color: " + tier.Color)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/landing_page.templ`, Line: 80, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/landing_page.templ`, Line: 72, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -165,7 +157,7 @@ func demoBoard() templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(tier.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/landing_page.templ`, Line: 82, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/landing_page.templ`, Line: 74, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -183,7 +175,7 @@ func demoBoard() templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(item)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/landing_page.templ`, Line: 87, Col: 13}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/landing_page.templ`, Line: 79, Col: 13}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {

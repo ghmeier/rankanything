@@ -1,14 +1,7 @@
 package ui
 
-// RankingsIndexProps configures RankingsIndexPage — the page a signed-in
-// user lands on after logging in or registering, listing their rankings.
-//
-// VerificationNotice is the one seam this page shares with
-// feat/auth-flows, which is building a resend-verification control on a
-// parallel branch and cannot edit this file. This branch only needs to
-// know the contract: render it above the heading when it's non-nil, render
-// nothing when it's nil. The orchestrator wires
-// ui.ResendVerificationNotice(email) into it after both branches merge.
+// RankingsIndexProps configures RankingsIndexPage. VerificationNotice renders
+// above the heading; nil renders nothing.
 type RankingsIndexProps struct {
 	CSRFToken          string
 	LoggedIn           bool
@@ -18,10 +11,8 @@ type RankingsIndexProps struct {
 	Rankings           []RankingsIndexCard
 }
 
-// RankingsIndexCard is one ranking's card on the index: where it links and
-// a one-line description of its live version's state — "draft",
-// "published Aug 4", or "published Aug 4 · draft in progress" when a newer
-// draft sits on top of the last publish.
+// RankingsIndexCard names both versions when a draft sits on a publish, so a
+// reader can tell the live version is stale.
 type RankingsIndexCard struct {
 	URL    string
 	Name   string

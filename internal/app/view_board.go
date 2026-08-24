@@ -12,9 +12,6 @@ import (
 	"github.com/ghmeier/rankanything/internal/ui"
 )
 
-// itemCardProps builds the props for one item card. editable is false while
-// viewing a published version, so the card renders without a drag handle or
-// delete control.
 func itemCardProps(rankingUUID string, versionShortUUID string, item db.RankingItem, editable bool) ui.ItemCardProps {
 	imageURL := ""
 	if item.ImageSourceUrl != nil {
@@ -30,8 +27,6 @@ func itemCardProps(rankingUUID string, versionShortUUID string, item db.RankingI
 	}
 }
 
-// tierRowProps builds the props for one tier row, including its items.
-// editable is false while viewing a published version.
 func tierRowProps(rankingUUID string, versionShortUUID string, tier db.RankingTier, items []db.RankingItem, editable bool) ui.TierRowProps {
 	props := ui.TierRowProps{
 		RankingUUID:      rankingUUID,
@@ -47,10 +42,6 @@ func tierRowProps(rankingUUID string, versionShortUUID string, tier db.RankingTi
 	return props
 }
 
-// tierRowLabelProps builds the props for a tier's label, in either its
-// display or inline-edit form. boardEditable is false while viewing a
-// published version, hiding the edit button and drag handle regardless of
-// which form is showing.
 func tierRowLabelProps(rankingUUID string, versionShortUUID string, tier db.RankingTier, editable bool, boardEditable bool) ui.TierRowLabelProps {
 	return ui.TierRowLabelProps{
 		RankingUUID:      rankingUUID,
@@ -63,10 +54,6 @@ func tierRowLabelProps(rankingUUID string, versionShortUUID string, tier db.Rank
 	}
 }
 
-// rankingMetaProps builds the props for the title/description fields.
-// editable is false while viewing a published version: the ranking's name
-// isn't itself version-scoped, but this page shouldn't offer inputs that
-// look like they're editing the published version being viewed.
 func rankingMetaProps(rankingUUID string, versionShortUUID string, ranking db.Ranking, editable bool) ui.RankingMetaProps {
 	return ui.RankingMetaProps{
 		RankingUUID:      rankingUUID,
@@ -77,12 +64,8 @@ func rankingMetaProps(rankingUUID string, versionShortUUID string, ranking db.Ra
 	}
 }
 
-// boardVersionNumbers assigns each published version its 1-based publish
-// order (v1 is the first ever published, v2 the next, and so on), keyed by
-// id. A draft has no entry — it hasn't been published yet, so it has no
-// order to show. Derived from the versions already loaded for the dropdown
-// rather than a query of its own: the ranking's version count is small
-// enough that sorting them in memory is cheaper than another round trip.
+// boardVersionNumbers keys each published version by its 1-based publish
+// order. Sorted in memory because a ranking has few versions.
 func boardVersionNumbers(versions []db.RankingVersion) map[int64]int {
 	published := make([]db.RankingVersion, 0, len(versions))
 	for _, v := range versions {
@@ -90,13 +73,8 @@ func boardVersionNumbers(versions []db.RankingVersion) map[int64]int {
 			published = append(published, v)
 		}
 	}
-	// Only one draft can exist at a time (ranking_versions_one_draft_idx),
-	// so a version can only be created after its predecessor is published —
-	// id order and publish order always agree. Falling back to id breaks
-	// ties from published_at's clock resolution, which Postgres freezes to
-	// the start of the transaction: two publishes issued moments apart in
-	// the same transaction, as a test does, otherwise get an identical
-	// now().
+	// Postgres freezes now() to the start of a transaction, so two publishes
+	// in one transaction share a timestamp; id order matches publish order.
 	sort.Slice(published, func(i, j int) bool {
 		pi, pj := published[i], published[j]
 		if !pi.PublishedAt.Time.Equal(pj.PublishedAt.Time) {
@@ -112,10 +90,6 @@ func boardVersionNumbers(versions []db.RankingVersion) map[int64]int {
 	return numbers
 }
 
-// boardVersionLabel names a version for both the dropdown entry and the
-// button that shows the current selection. The draft has no publish order
-// yet, so it's labeled plainly; a published version is numbered by publish
-// order and dated.
 func boardVersionLabel(v db.RankingVersion, number int) string {
 	if !v.PublishedAt.Valid {
 		return "Draft"
@@ -123,8 +97,6 @@ func boardVersionLabel(v db.RankingVersion, number int) string {
 	return fmt.Sprintf("v%d · Published %s", number, v.PublishedAt.Time.Format("Jan 2, 2006"))
 }
 
-// boardVersionOptions builds the version-picker dropdown's entries, marking
-// whichever one matches the version being viewed.
 func boardVersionOptions(rankingUUID string, versions []db.RankingVersion, viewing db.RankingVersion) []ui.BoardVersionOption {
 	numbers := boardVersionNumbers(versions)
 	options := make([]ui.BoardVersionOption, len(versions))
@@ -138,8 +110,6 @@ func boardVersionOptions(rankingUUID string, versions []db.RankingVersion, viewi
 	return options
 }
 
-// boardTierItems maps each tier id to the items placed in it, from a
-// board's flat item and placement lists.
 func boardTierItems(board services.RankingBoard) map[int64][]db.RankingItem {
 	byID := make(map[int64]db.RankingItem, len(board.Items))
 	for _, it := range board.Items {
@@ -156,25 +126,6 @@ func boardTierItems(board services.RankingBoard) map[int64][]db.RankingItem {
 	return tierItems
 }
 
-// boardUnplacedItems returns the items in a board with no tier placement —
-// the unranked tray's contents.
-func boardUnplacedItems(board services.RankingBoard) []db.RankingItem {
-	placed := make(map[int64]bool, len(board.Placements))
-	for _, p := range board.Placements {
-		placed[p.RankingItemID] = true
-	}
-	var unplaced []db.RankingItem
-	for _, it := range board.Items {
-		if !placed[it.ID] {
-			unplaced = append(unplaced, it)
-		}
-	}
-	return unplaced
-}
-
-// boardVersionActionsProps builds the publish/branch action shown next to
-// the version dropdown: a draft's publish gate, or — for a published
-// version — whether the ranking already has another draft in progress.
 func boardVersionActionsProps(rankingUUID string, version db.RankingVersion, versions []db.RankingVersion, gate services.PublishGate) ui.BoardVersionActionsProps {
 	props := ui.BoardVersionActionsProps{
 		RankingUUID:      rankingUUID,
@@ -196,8 +147,6 @@ func boardVersionActionsProps(rankingUUID string, version db.RankingVersion, ver
 	return props
 }
 
-// boardPageProps assembles the whole board page's props from a fetched
-// RankingBoard plus the ranking's other versions for the dropdown.
 func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoard, versions []db.RankingVersion, gate services.PublishGate) ui.BoardPageProps {
 	tierItems := boardTierItems(board)
 	editable := !board.Version.PublishedAt.Valid
@@ -213,10 +162,8 @@ func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoa
 		Editable:      editable,
 		TierForm:      ui.TierFormProps{RankingUUID: rankingUUID, VersionShortUUID: board.Version.ShortUuid},
 
-		// ShareControl is filled in by RenderRankingPage, which needs an
-		// extra couple of queries this function doesn't otherwise make.
-		// ExportControl stays nil until feat/csv-export lands its own;
-		// BoardPage renders nothing for a nil slot.
+		// ShareControl needs queries this function doesn't make, so
+		// renderRankingPage fills it in.
 		ShareControl:  nil,
 		ExportControl: ui.BoardExport(ui.BoardExportProps{RankingUUID: rankingUUID, VersionShortUUID: board.Version.ShortUuid}),
 	}
@@ -225,7 +172,7 @@ func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoa
 	}
 
 	tray := ui.ItemTrayProps{RankingUUID: rankingUUID, VersionShortUUID: board.Version.ShortUuid, Editable: editable}
-	for _, it := range boardUnplacedItems(board) {
+	for _, it := range board.UnplacedItems() {
 		tray.Unassigned = append(tray.Unassigned, itemCardProps(rankingUUID, board.Version.ShortUuid, it, editable))
 	}
 	props.ItemTray = tray
@@ -233,8 +180,6 @@ func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoa
 	return props
 }
 
-// shareControlProps builds the props for the board's share control from a
-// ranking's ShareGate and its current public-link state.
 func shareControlProps(rankingUUID string, gate services.ShareGate, link services.LinkShare) ui.ShareControlProps {
 	return ui.ShareControlProps{
 		RankingUUID: rankingUUID,
@@ -245,51 +190,45 @@ func shareControlProps(rankingUUID string, gate services.ShareGate, link service
 	}
 }
 
-// RenderRankingPage renders the whole board page for one version of a
-// ranking, including the version-picker dropdown listing every version of
-// the ranking.
-func (a *App) RenderRankingPage(w http.ResponseWriter, r *http.Request, board services.RankingBoard) error {
+func (a *App) renderRankingPage(w http.ResponseWriter, r *http.Request, board services.RankingBoard) {
 	ctx := r.Context()
 	versions, err := a.RankingSvc.ListVersions(ctx, services.ListVersionsRequest{RankingID: board.Ranking.ID})
 	if err != nil {
-		return err
+		a.serverError(w, r, err)
+		return
 	}
 
-	// The publish gate only matters for a draft; a published version has
-	// nothing to gate, so skip the extra queries it costs to compute.
+	// A published version has nothing to gate, so skip the queries.
 	var gate services.PublishGate
 	if !board.Version.PublishedAt.Valid {
 		gate, err = a.RankingSvc.EvaluatePublishGate(ctx, board.Version.ID)
 		if err != nil {
-			return err
+			a.serverError(w, r, err)
+			return
 		}
 	}
 
-	// The share control's own gate is independent of which version is
-	// being viewed — it cares whether the ranking has ever published
-	// anything, not whether this particular request landed on a draft.
+	// The share gate asks whether the ranking ever published anything, not
+	// whether this request landed on a draft.
 	shareGate, err := a.ShareSvc.EvaluateShareGate(ctx, board.Ranking)
 	if err != nil {
-		return err
+		a.serverError(w, r, err)
+		return
 	}
 	link, err := a.ShareSvc.GetLinkShare(ctx, board.Ranking.ID)
 	if err != nil {
-		return err
+		a.serverError(w, r, err)
+		return
 	}
 
 	rankingUUID := board.Ranking.Uuid.String()
 	props := boardPageProps(a.base(r), rankingUUID, board, versions, gate)
 	props.ShareControl = ui.ShareControl(shareControlProps(rankingUUID, shareGate, link))
-	return renderComponent(w, r, http.StatusOK, ui.BoardPage(props))
+	a.render(w, r, http.StatusOK, ui.BoardPage(props))
 }
 
-// boardVersionActionsOOB re-renders the publish/branch action as an
-// out-of-band swap, for a mutation handler whose change can flip the
-// publish gate (adding or deleting an item or tier, placing or unranking an
-// item). Every route that calls this only ever reaches a draft —
-// requireDraftVersion rejects a published request before the handler runs —
-// so the gate is always worth recomputing rather than branching on version
-// state.
+// boardVersionActionsOOB always recomputes the gate rather than branching on
+// version state, because requireDraftVersion means callers only see drafts.
 func (a *App) boardVersionActionsOOB(ctx context.Context, rankingUUID string, version db.RankingVersion) (templ.Component, error) {
 	gate, err := a.RankingSvc.EvaluatePublishGate(ctx, version.ID)
 	if err != nil {

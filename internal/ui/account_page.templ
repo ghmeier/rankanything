@@ -1,8 +1,6 @@
 package ui
 
-// AccountProps configures AccountPage — the signed-in settings surface,
-// currently just the theme preference. Email is display-only; there's no
-// form field for it yet.
+// AccountProps configures AccountPage. Email is display-only.
 type AccountProps struct {
 	CSRFToken string
 	LoggedIn  bool
@@ -23,9 +21,8 @@ templ AccountPage(props AccountProps) {
 	}
 }
 
-// ThemeSettings is its own component (rather than inline in AccountPage) so
-// the POST /account/theme handler can re-render just this fragment as the
-// htmx swap target.
+// ThemeSettings is split out so POST /account/theme can re-render just this
+// fragment as the htmx swap target.
 templ ThemeSettings(theme string) {
 	<div
 		id="theme-settings"

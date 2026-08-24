@@ -13,10 +13,8 @@ import (
 	"strconv"
 )
 
-// TierRowProps renders one tier row: its label (or edit form, via
-// TierRowLabelProps) and the items placed in it. A mutation handler renders
-// this standalone as an htmx swap target, so it carries RankingUUID rather
-// than depending on an ancestor for it.
+// TierRowProps carries RankingUUID because a mutation handler renders this
+// standalone as an htmx swap target.
 type TierRowProps struct {
 	RankingUUID      string
 	VersionShortUUID string
@@ -24,13 +22,11 @@ type TierRowProps struct {
 	Title            string
 	ColorHex         string
 	Items            []ItemCardProps
-	// Editable is false while viewing a published version: the row is
-	// neither draggable nor editable, and offers no delete control.
+	// A published version is immutable: no drag, no edit, no delete.
 	Editable bool
 }
 
-// TierRows renders the whole stack of tier rows — BoardPage's normal view,
-// and also the response a tier-reorder drag swaps into #tier-rows directly.
+// TierRows is both BoardPage's normal view and what a reorder drag swaps in.
 type TierRowsProps struct {
 	Tiers []TierRowProps
 }
@@ -102,7 +98,7 @@ func TierRow(props TierRowProps) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("tier-row-%d", props.TierID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 40, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 36, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 		if templ_7745c5c3_Err != nil {
@@ -115,7 +111,7 @@ func TierRow(props TierRowProps) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%d", props.TierID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 41, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 37, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -128,7 +124,7 @@ func TierRow(props TierRowProps) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(strconv.FormatBool(props.Editable))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 42, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 38, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -154,9 +150,8 @@ func TierRow(props TierRowProps) templ.Component {
 	})
 }
 
-// TierItemsProps renders the items placed in one tier — the
-// #tier-items-{id} drop zone TierRow embeds, and the fragment a
-// drag-and-drop reorder swaps in directly afterward.
+// TierItemsProps is the drop zone TierRow embeds, and the fragment a reorder
+// drag swaps back in.
 type TierItemsProps struct {
 	RankingUUID string
 	TierID      int64
@@ -191,7 +186,7 @@ func TierItems(props TierItemsProps) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("tier-items-%d", props.TierID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 61, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 56, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 		if templ_7745c5c3_Err != nil {
@@ -204,7 +199,7 @@ func TierItems(props TierItemsProps) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("%d", props.TierID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 62, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 57, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 		if templ_7745c5c3_Err != nil {
@@ -228,11 +223,9 @@ func TierItems(props TierItemsProps) templ.Component {
 	})
 }
 
-// TierRowLabelProps renders a tier's label, either as its display form (a
-// title on its tier color, with an edit button) or — when Editable is set —
-// the inline rename/recolor/delete form that edit button swaps in. Both
-// forms share the same #tier-container-{id} id, so an htmx swap of either
-// lands in the same slot.
+// TierRowLabelProps renders the label's display form, or its inline edit form
+// when Editable. Both share one id, so a swap of either lands in the same
+// slot.
 type TierRowLabelProps struct {
 	RankingUUID      string
 	VersionShortUUID string
@@ -240,10 +233,8 @@ type TierRowLabelProps struct {
 	Title            string
 	ColorHex         string
 	Editable         bool
-	// BoardEditable is false while viewing a published version: the drag
-	// handle and edit button are left unrendered entirely, since the inline
-	// edit form (and the tier delete control inside it) is unreachable
-	// either way once the version is immutable.
+	// BoardEditable drops the drag handle and edit button entirely, since the
+	// form they open is unreachable on an immutable version anyway.
 	BoardEditable bool
 }
 
@@ -276,7 +267,7 @@ func TierRowLabel(props TierRowLabelProps) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/r/%s/v/%s/tiers/%d", props.RankingUUID, props.VersionShortUUID, props.TierID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 93, Col: 103}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 84, Col: 103}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 			if templ_7745c5c3_Err != nil {
@@ -289,7 +280,7 @@ func TierRowLabel(props TierRowLabelProps) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("#tier-container-%d", props.TierID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 94, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 85, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 			if templ_7745c5c3_Err != nil {
@@ -302,7 +293,7 @@ func TierRowLabel(props TierRowLabelProps) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("background-color: " + props.ColorHex + "1a")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 98, Col: 55}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 89, Col: 55}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -315,7 +306,7 @@ func TierRowLabel(props TierRowLabelProps) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("tier-container-%d", props.TierID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 99, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 90, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
 			if templ_7745c5c3_Err != nil {
@@ -336,7 +327,7 @@ func TierRowLabel(props TierRowLabelProps) templ.Component {
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 106, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 97, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 			if templ_7745c5c3_Err != nil {
@@ -349,7 +340,7 @@ func TierRowLabel(props TierRowLabelProps) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("color: " + props.ColorHex)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 109, Col: 38}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 100, Col: 38}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -362,7 +353,7 @@ func TierRowLabel(props TierRowLabelProps) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.ColorHex)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 114, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 105, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16)
 			if templ_7745c5c3_Err != nil {
@@ -375,7 +366,7 @@ func TierRowLabel(props TierRowLabelProps) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/r/%s/v/%s/tiers/%d", props.RankingUUID, props.VersionShortUUID, props.TierID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 120, Col: 107}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 111, Col: 107}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
 			if templ_7745c5c3_Err != nil {
@@ -393,7 +384,7 @@ func TierRowLabel(props TierRowLabelProps) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues("background-color: " + props.ColorHex)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 130, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 121, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -406,7 +397,7 @@ func TierRowLabel(props TierRowLabelProps) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("tier-container-%d", props.TierID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 131, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 122, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 			if templ_7745c5c3_Err != nil {
@@ -432,7 +423,7 @@ func TierRowLabel(props TierRowLabelProps) templ.Component {
 				var templ_7745c5c3_Var20 string
 				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/r/%s/v/%s/tiers/%d/edit", props.RankingUUID, props.VersionShortUUID, props.TierID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 145, Col: 111}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 136, Col: 111}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var20)
 				if templ_7745c5c3_Err != nil {
@@ -445,7 +436,7 @@ func TierRowLabel(props TierRowLabelProps) templ.Component {
 				var templ_7745c5c3_Var21 string
 				templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("#tier-container-%d", props.TierID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 146, Col: 64}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 137, Col: 64}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var21)
 				if templ_7745c5c3_Err != nil {
@@ -471,7 +462,7 @@ func TierRowLabel(props TierRowLabelProps) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(props.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 154, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 145, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -486,9 +477,8 @@ func TierRowLabel(props TierRowLabelProps) templ.Component {
 	})
 }
 
-// DragHandleIcon is a small grip glyph marking a tier row draggable in edit
-// mode — purely a visual affordance, since the whole row (not just the
-// handle) is the drag source.
+// DragHandleIcon is a visual affordance only; the whole row is the drag
+// source, not just the handle.
 func DragHandleIcon() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -518,7 +508,7 @@ func DragHandleIcon() templ.Component {
 	})
 }
 
-// TierFormProps renders the "add a tier" form at the bottom of the board.
+// TierFormProps renders the "add a tier" form.
 type TierFormProps struct {
 	RankingUUID      string
 	VersionShortUUID string
@@ -545,14 +535,14 @@ func TierForm(props TierFormProps) templ.Component {
 			templ_7745c5c3_Var24 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<form class=\"flex gap-2\" hx-post=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<form class=\"flex gap-2\" data-tier-edit-only hx-post=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var25 string
 		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/r/%s/v/%s/tiers", props.RankingUUID, props.VersionShortUUID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 183, Col: 86}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_tier.templ`, Line: 174, Col: 86}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var25)
 		if templ_7745c5c3_Err != nil {

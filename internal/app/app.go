@@ -34,16 +34,12 @@ type App struct {
 	VerificationSvc *services.VerificationService
 }
 
-// Routes builds the fully wrapped handler for the app.
 func (a *App) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(a.Static))))
-	// The host's health check and the post-deploy smoke test both hit
-	// /healthz. It pings the database rather than answering
-	// unconditionally, because the failure worth catching is a container
-	// that booted fine but cannot reach Postgres. The timeout is what keeps
-	// a hung database from holding the check open until the host's own
-	// deadline expires and the deploy is marked failed for the wrong reason.
+	// Pings the database because the failure worth catching is a container
+	// that booted but cannot reach Postgres. The timeout keeps a hung
+	// database from stalling the check past the host's own deadline.
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		defer cancel()
@@ -56,7 +52,6 @@ func (a *App) Routes() http.Handler {
 		_, _ = w.Write([]byte("ok"))
 	})
 
-	// The component gallery is a development tool; it never runs in production.
 	if !a.IsProduction {
 		mux.HandleFunc("GET /components", ui.ComponentsHandler)
 	}
@@ -75,9 +70,7 @@ func (a *App) Routes() http.Handler {
 	)
 }
 
-// RequireUser ensures a logged in user session for the request. If
-// none is found, redirect to the login page for GET request and return
-// forbidden otherwise.
+// RequireUser redirects an anonymous request to the login page.
 func (a *App) RequireUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if a.Sessions.UserID(r.Context()) == 0 {

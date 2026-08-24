@@ -5,8 +5,7 @@ import (
 	"fmt"
 )
 
-// BoardPageProps configures BoardPage — the whole tier board for one
-// version of a ranking.
+// BoardPageProps configures the whole tier board for one version.
 type BoardPageProps struct {
 	CSRFToken     string
 	LoggedIn      bool
@@ -15,34 +14,26 @@ type BoardPageProps struct {
 	RankingMeta   RankingMetaProps
 	Versions      []BoardVersionOption
 	VersionAction BoardVersionActionsProps
-	// Editable is false while viewing a published version: a version is
-	// immutable once published, so every editing affordance (tier editing,
-	// the add-item form, drag handles, delete controls) is left unrendered
-	// rather than merely disabled.
+	// A published version is immutable, so editing affordances are left
+	// unrendered rather than merely disabled.
 	Editable bool
 	Tiers    []TierRowProps
 	TierForm TierFormProps
 	ItemTray ItemTrayProps
-	// ShareControl is the seam feat/public-share fills with a share button;
-	// nil renders nothing.
-	ShareControl templ.Component
-	// ExportControl is the seam feat/csv-export fills with a CSV export
-	// button; nil renders nothing.
+	// Nil renders nothing for either control.
+	ShareControl  templ.Component
 	ExportControl templ.Component
 }
 
-// RankingMetaProps renders the title/description fields. It is rendered
-// both inside BoardPage and standalone as the htmx swap target when a field
-// is edited, so it carries RankingUUID itself.
+// RankingMetaProps carries RankingUUID because editing a field renders this
+// standalone as an htmx swap target, with no surrounding page.
 type RankingMetaProps struct {
 	RankingUUID      string
 	VersionShortUUID string
 	Name             string
 	Description      string
-	// Editable is false while viewing a published version: the ranking's
-	// name isn't itself version-scoped and stays editable elsewhere, but
-	// this page shouldn't offer inputs that look like they're editing the
-	// published version being viewed.
+	// A ranking's name is not version-scoped, but this page shouldn't offer
+	// inputs that look like they edit the published version on screen.
 	Editable bool
 }
 
@@ -80,10 +71,8 @@ templ BoardPage(props BoardPageProps) {
 	}
 }
 
-// BoardVersionActionsProps renders the publish/branch action for the
-// version being viewed: a draft shows why publishing is blocked or a
-// working publish button; a published version offers to branch a new draft,
-// unless the ranking already has one in progress.
+// BoardVersionActionsProps renders the publish action for a draft, or the
+// branch action for a published version with no draft in progress.
 type BoardVersionActionsProps struct {
 	RankingUUID      string
 	VersionShortUUID string
@@ -92,17 +81,15 @@ type BoardVersionActionsProps struct {
 	BlockedReasons   []string
 	HasOtherDraft    bool
 	DraftURL         string
-	// OOB marks this render as an out-of-band swap, sent alongside a board
-	// mutation's own fragment so the publish button re-evaluates the moment
-	// a change flips the gate, rather than staying stale until the next
-	// full page load.
+	// OOB rides along with a mutation's own fragment, so the publish button
+	// re-evaluates the moment a change flips the gate.
 	OOB bool
 }
 
 templ BoardVersionActions(props BoardVersionActionsProps) {
 	<div
 		id="board-version-actions"
-		class="flex"
+		class="flex group relative"
 		if props.OOB {
 			hx-swap-oob="true"
 		}
@@ -111,48 +98,51 @@ templ BoardVersionActions(props BoardVersionActionsProps) {
 			@Button(ButtonProps{Variant: ButtonPrimary, Class: splitButtonPrimaryClass, Attrs: templ.Attributes{"hx-post": fmt.Sprintf("/r/%s/v/%s/publish", props.RankingUUID, props.VersionShortUUID)}, Disabled: !props.Publishable}) {
 				Publish
 			}
+			if !props.Publishable {
+				<div class="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full left-1/2 z-10 mb-2 w-48 -translate-x-1/2 rounded bg-surface p-2 text-xs text-text">
+					<p>To publish this version:</p>
+					<ul class="list-disc list-inside">
+						for _, reason := range props.BlockedReasons {
+							<li class="whitespace-nowrap">{ reason }</li>
+						}
+					</ul>
+					<div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+				</div>
+			}
 		} else if props.HasOtherDraft {
 			<a href={ templ.URL(props.DraftURL) } class={ ButtonClass(ButtonSecondary), splitButtonPrimaryClass }>
-				Continue editing draft
+				Edit draft
 			</a>
 		} else {
 			@Button(ButtonProps{Variant: ButtonSecondary, Class: splitButtonPrimaryClass, Attrs: templ.Attributes{"hx-post": fmt.Sprintf("/r/%s/versions", props.RankingUUID)}}) {
-				Create new version
+				New version
 			}
 		}
 	</div>
 }
 
-// The two halves of the split button share a seam: the primary half drops
-// its right corners, the menu half its left ones, and the menu half pulls a
-// pixel left so the adjoining borders overlap into one line.
+// The split button's halves drop their adjoining corners and overlap by a
+// pixel, so the two borders read as one line.
 const (
 	splitButtonPrimaryClass = "rounded-r-none"
-	splitButtonMenuClass    = "-ml-px rounded-l-none px-2"
+	splitButtonMenuClass    = "rounded-l-none"
 )
 
-// boardActionsMenu is the second half of the split button: a disclosure
-// holding the actions that aren't the primary one (editing tiers, sharing,
-// exporting). Like boardVersionMenu it is a native <details>, so it needs no
-// JS to open. The share control keeps its own nested disclosure rather than
-// being flattened into a row, because its panel is a form, not a link.
-//
-// It stays secondary even when the primary half is the Publish button: a
-// blocked publish renders disabled, and a menu half that matched it would
-// look disabled too, when the actions behind it are all still available.
+// boardActionsMenu is a native <details>, so it opens without JS. It stays
+// styled as secondary even beside a disabled Publish button, because the
+// actions behind it are still available. The share control keeps its own
+// nested disclosure because its panel is a form, not a link.
 templ boardActionsMenu(props BoardPageProps) {
-	<details class="group relative" data-menu>
-		<summary class={ ButtonClass(ButtonSecondary), splitButtonMenuClass, "list-none [&::-webkit-details-marker]:hidden" } aria-label="More actions">
-			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4 shrink-0 transition-transform duration-150 group-open:rotate-180" aria-hidden="true">
-				<path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"></path>
-			</svg>
+	<details class="relative" data-menu>
+		<summary class={ boardActionMenuButtonClass(props.Editable) } aria-label="More actions">
+			@MoreIcon()
 		</summary>
-		<div class="absolute right-0 z-20 mt-1 w-72 rounded-md border border-border bg-surface p-1 text-left shadow-md">
+		<div class="absolute right-0 z-20 mt-1 w-fit rounded-md border border-border bg-surface p-1 text-left shadow-md">
 			if props.Editable {
-				<button id="edit-tiers-toggle" type="button" class={ boardMenuItemClass }>
+				@BoardMenuItem(BoardMenuItemProps{ID: "edit-tiers-toggle"}) {
 					@EditIcon()
 					<span data-edit-tiers-label>Edit tiers</span>
-				</button>
+				}
 			}
 			if props.ShareControl != nil {
 				@props.ShareControl
@@ -164,10 +154,30 @@ templ boardActionsMenu(props BoardPageProps) {
 	</details>
 }
 
-// boardMenuItemClass is the shared look of a row in the actions menu. The
-// share and export controls live in their own files but render into this
-// menu, so they reach for the same constant rather than each restating it.
-const boardMenuItemClass = "flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-left text-sm text-text-muted hover:bg-surface-hover hover:text-text-muted-hover"
+func boardActionMenuButtonClass(editable bool) string {
+	className := splitButtonMenuClass + " h-full border-l border-border list-none [&::-webkit-details-marker]:hidden "
+	if editable {
+		className += ButtonClass(ButtonPrimary)
+	} else {
+		className += ButtonClass(ButtonSecondary)
+	}
+
+	return className
+}
+
+const boardMenuItemClass = "flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-left text-sm text-text-muted whitespace-nowrap hover:bg-surface-hover hover:text-text-muted-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:pointer-events-none"
+
+type BoardMenuItemProps struct {
+	ID       string
+	Disabled bool
+	Attrs    templ.Attributes
+}
+
+templ BoardMenuItem(props BoardMenuItemProps) {
+	<button id={ props.ID } type="button" disabled?={ props.Disabled } class={ boardMenuItemClass } { props.Attrs... }>
+		{ children... }
+	</button>
+}
 
 templ RankingMeta(props RankingMetaProps) {
 	<div id="ranking-meta" class="space-y-2">

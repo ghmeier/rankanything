@@ -2,19 +2,12 @@ package app
 
 import "net/http"
 
-// registerRankingRoutes mounts the signed-in rankings surface: the landing
-// placeholder, the account page, and the board plus its mutating endpoints,
-// all gated by RequireRankingAccess. feat/rankings-index and
-// feat/versioned-board (wave 3) build out the handlers behind these routes.
-//
-// Every route that mutates a version's tiers, items, or placements is also
-// wrapped in requireDraftVersion, since a published version is immutable.
-// handleUpdateRanking is exempt — the ranking's title and description
-// aren't version-scoped — and so is handleCreateVersion, which requires a
-// published version to branch off of. mutable composes the two middlewares
-// in the order requireDraftVersion needs: RequireRankingAccess resolves and
-// stashes the version in context before requireDraftVersion reads it back
-// out.
+// registerRankingRoutes mounts the rankings index and the board. mutable
+// composes the two middlewares in the order requireDraftVersion needs:
+// RequireRankingAccess stashes the version before requireDraftVersion reads
+// it. handleUpdateRanking is exempt because a ranking's title is not
+// version-scoped, and handleCreateVersion needs a published version to
+// branch from.
 func (a *App) registerRankingRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /new", a.RequireUser(http.HandlerFunc(a.handleNew)))
 	mux.Handle("GET /me", a.RequireUser(http.HandlerFunc(a.handleRankingsIndex)))
@@ -41,9 +34,8 @@ func (a *App) registerRankingRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /r/{uuid}/v/{short}/publish", mutable(a.handlePublishVersion))
 	mux.Handle("POST /r/{uuid}/versions", a.RequireRankingAccess(http.HandlerFunc(a.handleCreateVersion)))
 
-	// Sharing isn't version-scoped mutation — it toggles a ranking_shares
-	// row independent of which version is currently a draft — so these sit
-	// behind RequireRankingAccess only, not mutable.
+	// Sharing toggles a ranking_shares row, not a version, so it skips
+	// requireDraftVersion.
 	mux.Handle("POST /r/{uuid}/share", a.RequireRankingAccess(http.HandlerFunc(a.handleEnableShare)))
 	mux.Handle("DELETE /r/{uuid}/share", a.RequireRankingAccess(http.HandlerFunc(a.handleDisableShare)))
 }

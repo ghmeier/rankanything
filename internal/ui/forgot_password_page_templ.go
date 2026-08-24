@@ -8,10 +8,8 @@ package ui
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// ForgotPasswordProps configures ForgotPasswordPage and its inner form. Sent
-// flips the form to a confirmation notice once a request has been
-// processed — the same notice whether or not the address is registered, so
-// a response can never be used to test which emails have accounts.
+// ForgotPasswordProps shows the same Sent notice whether or not the address
+// is registered, so a response can never test which emails have accounts.
 type ForgotPasswordProps struct {
 	CSRFToken string
 	LoggedIn  bool
@@ -76,9 +74,8 @@ func ForgotPasswordPage(props ForgotPasswordProps) templ.Component {
 	})
 }
 
-// ForgotPasswordForm is also what POST /forgot-password renders back as an
-// htmx swap, so it carries its own id rather than relying on the page
-// wrapper for one.
+// ForgotPasswordForm carries its own id because POST /forgot-password swaps
+// it back in without the page wrapper.
 func ForgotPasswordForm(props ForgotPasswordProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -148,7 +145,7 @@ func ForgotPasswordForm(props ForgotPasswordProps) templ.Component {
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(props.Error)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/forgot_password_page.templ`, Line: 38, Col: 19}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/forgot_password_page.templ`, Line: 35, Col: 19}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {

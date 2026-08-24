@@ -55,8 +55,7 @@ func init() {
 	})
 }
 
-// Pool returns a pool and a test-scoped transaction.  All queries execute
-// inside the transaction which rolls back at test end — concurrent tests
+// Pool returns a transaction that rolls back at test end, so concurrent tests
 // never conflict.
 func Pool(t *testing.T) (*pgxpool.Pool, pgx.Tx) {
 	t.Helper()
@@ -90,8 +89,8 @@ func NewSessionManager() *scs.SessionManager {
 	return sm
 }
 
-// SessionContext creates a context with session data initialized, suitable
-// for tests that need to call auth.Session methods like LogIn or RememberDraft.
+// SessionContext initializes session data, for tests calling auth.Sessions
+// methods directly.
 func SessionContext(t *testing.T, sm *scs.SessionManager) context.Context {
 	t.Helper()
 	ctx := context.Background()
@@ -100,9 +99,8 @@ func SessionContext(t *testing.T, sm *scs.SessionManager) context.Context {
 	return ctx
 }
 
-// migrate brings the test database up to the current schema using the same
-// embedded migration set the binary ships, so tests can never run against a
-// schema the deployed app wouldn't produce.
+// migrate uses the same embedded set the binary ships, so tests can't run
+// against a schema the deployed app wouldn't produce.
 func migrate(dsn string) {
 	sqlDB, err := sql.Open("pgx", dsn)
 	if err != nil {
@@ -125,14 +123,13 @@ type Env struct {
 	Queries *db.Queries
 	Server  *httptest.Server
 
-	// EmailSink is the DevSink backing App.EmailSvc, so tests can assert on
-	// what a verification or password-reset flow would have mailed without
-	// touching the network.
+	// EmailSink backs App.EmailSvc, so tests can assert on what would have
+	// been mailed without touching the network.
 	EmailSink *email.DevSink
 }
 
-// NewEnv builds the real app (real components, real database, in-memory
-// session store) behind an httptest server.
+// NewEnv builds the real app behind an httptest server, with an in-memory
+// session store.
 func NewEnv(t *testing.T) *Env {
 	t.Helper()
 
@@ -142,13 +139,11 @@ func NewEnv(t *testing.T) *Env {
 	sm := NewSessionManager()
 	s := auth.NewSessions(sm)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	// Reading APP_ENV directly (rather than requiring a full config.Load,
-	// which also demands DATABASE_URL) keeps this test environment able to
-	// exercise the same production gating main.go wires from config.Config.
+	// Read directly rather than through config.Load, which also demands
+	// DATABASE_URL, so tests can still exercise the production gating.
 	isProduction := config.Config{Env: os.Getenv("APP_ENV")}.IsProduction()
 
-	// The dev sink never touches the network: tests assert on what it
-	// captured (Env.EmailSink) instead of hitting Resend.
+	// The dev sink never touches the network; tests read Env.EmailSink.
 	emailSink := email.NewDevSink(logger)
 
 	application := &app.App{
@@ -176,8 +171,7 @@ func NewEnv(t *testing.T) *Env {
 	return &Env{T: t, App: application, Pool: pool, Tx: tx, Queries: application.Queries, Server: srv, EmailSink: emailSink}
 }
 
-// Client is a browser-like client: it keeps cookies and tracks the CSRF token
-// the server handed out.
+// Client keeps cookies and tracks the CSRF token the server handed out.
 type Client struct {
 	t    *testing.T
 	env  *Env
@@ -202,32 +196,24 @@ func (e *Env) NewClient() *Client {
 	}
 }
 
-// OwnerClient is a signed-in client together with the ranking (and its
-// seeded draft version) it owns — the fixture nearly every ranking test in
-// internal/app needs now that anonymous drafts are gone and every ranking
-// requires a signed-in owner from the moment it's created.
+// OwnerClient is a signed-in client plus the ranking it owns, with its draft
+// version already seeded.
 type OwnerClient struct {
 	*Client
 	Ranking db.Ranking
 	Draft   db.RankingVersion
 }
 
-// NewOwnerClient registers a fresh user and creates a ranking through the
-// same service path GET /new uses, so its draft version comes pre-seeded
-// with the default tiers exactly like the real app.
-//
-// It goes through the services rather than POST /register and POST /new so
-// that a fixture nearly every handler test needs doesn't cost two HTTP round
-// trips; the bcrypt hash alone dominated the suite's runtime. LoginUser then
-// plants the session the real requests would have established.
+// NewOwnerClient goes through the services rather than POST /register and
+// POST /new, because two HTTP round trips per fixture — the bcrypt hash above
+// all — dominated the suite's runtime. LoginUser then plants the session
+// those requests would have established.
 func (e *Env) NewOwnerClient() *OwnerClient {
 	e.T.Helper()
 	c := e.NewClient()
 
-	// UserService.Register logs the new user in, and scs panics on a context
-	// that never went through the session middleware, so registration needs a
-	// loaded session even though the one the client actually uses is the one
-	// LoginUser commits below.
+	// Register logs the user in, and scs panics on a context that never went
+	// through the session middleware, so it needs a loaded session here.
 	ctx, err := e.App.Sessions.Load(context.Background(), "")
 	require.NoError(e.T, err)
 
@@ -239,9 +225,8 @@ func (e *Env) NewOwnerClient() *OwnerClient {
 
 	c.LoginUser(user.ID)
 
-	// Sending the verification email is the register handler's job, not the
-	// service's, so bypassing HTTP would otherwise leave the new user in a
-	// state real registration never produces.
+	// Sending this is the register handler's job, not the service's, so
+	// bypassing HTTP would leave a state real registration never produces.
 	require.NoError(e.T, e.App.VerificationSvc.SendVerificationEmail(ctx, user.ID, user.Email))
 
 	ranking, err := e.App.RankingSvc.CreateForUser(ctx, services.CreateForUserRequest{UserID: user.ID})
@@ -253,8 +238,8 @@ func (e *Env) NewOwnerClient() *OwnerClient {
 	return &OwnerClient{Client: c, Ranking: ranking, Draft: draft}
 }
 
-// OwnerPassword is the plaintext behind every NewOwnerClient user, so a test
-// that wants to sign one of them in again over HTTP can.
+// OwnerPassword is the plaintext behind every NewOwnerClient user, for a test
+// that signs one in again over HTTP.
 const OwnerPassword = "supersecret"
 
 // OwnerPasswordHash hashes OwnerPassword at bcrypt's minimum cost. The stored

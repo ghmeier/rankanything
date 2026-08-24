@@ -1,10 +1,8 @@
 package ui
 
-// ComponentsGallery is a development-only page rendering every component in
-// every variant, so a component's look can be checked without navigating to
-// a page that uses it. The theme toggle sets documentElement's data-theme
-// attribute (persisted to localStorage), which input.css's [data-theme]
-// blocks give priority over the OS's prefers-color-scheme.
+// ComponentsGallery renders every component in every variant, so a look can
+// be checked without navigating to a page that uses it. Its theme toggle sets
+// data-theme, which input.css gives priority over prefers-color-scheme.
 templ ComponentsGallery() {
 	@Layout(LayoutProps{Title: "Components", CSRFToken: "gallery-preview-token", LoggedIn: false}) {
 		<div class="space-y-12 pb-16">

@@ -107,16 +107,9 @@ func run(logger *slog.Logger) error {
 	return nil
 }
 
-// migrate brings the database up to the schema this binary was built
-// against, before the server starts serving.
-//
-// Running it here rather than as a separate deploy step keeps a deploy to
-// one artifact and one command, which is what the host's rollback gives
-// back: redeploying the previous image re-runs nothing, because goose
-// records what it has already applied. It opens its own database/sql
-// connection because that is what goose speaks — the pgxpool the app uses
-// is a different type entirely — and closes it as soon as the schema is
-// current.
+// migrate runs on boot rather than as a separate deploy step, so a deploy
+// stays one artifact and one command. It opens its own database/sql handle
+// because that is what goose speaks, and closes it once the schema is current.
 func migrate(ctx context.Context, logger *slog.Logger, cfg config.Config) error {
 	sqlDB, err := sql.Open("pgx", cfg.DatabaseURL)
 	if err != nil {

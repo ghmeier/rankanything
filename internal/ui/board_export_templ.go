@@ -10,20 +10,16 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import "fmt"
 
-// BoardExportProps configures the CSV export control. It always links to the
-// pinned form of the URL (/v/{short}) rather than the bare /r/{uuid} route,
-// so the download matches whichever version the board is currently showing
-// — live or pinned — rather than whatever happens to be live by the time
-// the browser follows the link.
+// BoardExportProps always links to the pinned /v/{short} URL, so the download
+// matches the version on screen rather than whatever is live by the time the
+// browser follows the link.
 type BoardExportProps struct {
 	RankingUUID      string
 	VersionShortUUID string
 }
 
-// BoardExport is a plain link rather than an htmx control: a file download
-// is native browser behavior driven by the response's Content-Disposition
-// header, not a fragment swap. It renders as a row of the board's actions
-// menu, so it wears that menu's row styling.
+// BoardExport is a plain link, not an htmx control: a download is driven by
+// Content-Disposition, not a fragment swap.
 func BoardExport(props BoardExportProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -57,7 +53,7 @@ func BoardExport(props BoardExportProps) templ.Component {
 		var templ_7745c5c3_Var3 templ.SafeURL
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(fmt.Sprintf("/r/%s/v/%s/export", props.RankingUUID, props.VersionShortUUID)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_export.templ`, Line: 21, Col: 95}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_export.templ`, Line: 17, Col: 95}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {

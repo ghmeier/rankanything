@@ -19,9 +19,11 @@
   // The layout puts the session's CSRF token in <body>'s hx-headers so
   // every htmx mutation carries it automatically; a plain fetch() has to
   // read it out itself.
-function csrfToken() {
+  function csrfToken() {
     try {
-      const headers = JSON.parse(document.body.getAttribute("hx-headers") || "{}");
+      const headers = JSON.parse(
+        document.body.getAttribute("hx-headers") || "{}",
+      );
       return headers["X-CSRF-Token"] || "";
     } catch (e) {
       return "";
@@ -37,7 +39,7 @@ function csrfToken() {
     editToggle.addEventListener("click", () => {
       const editing = board.classList.toggle("editing");
       const label = editToggle.querySelector("[data-edit-tiers-label]");
-      if (label) label.textContent = editing ? "Done editing" : "Edit tiers";
+      if (label) label.textContent = editing ? "Stop editing" : "Edit tiers";
       // The toggle lives in the actions menu, and what it toggles is the
       // board behind that menu — leaving the menu open would cover it.
       const menu = editToggle.closest("details");
@@ -96,7 +98,9 @@ function csrfToken() {
   // position too — a reasonable approximation for how small these lists
   // are, and it's exactly right for the single-column tier-row stack.
   function elementAfter(container, y, selector) {
-    const candidates = [...container.querySelectorAll(selector)].filter((el) => el !== dragging);
+    const candidates = [...container.querySelectorAll(selector)].filter(
+      (el) => el !== dragging,
+    );
     let after = null;
     let closestOffset = Number.NEGATIVE_INFINITY;
     for (const el of candidates) {
@@ -154,24 +158,36 @@ function csrfToken() {
     const tierId = zone.dataset.tierId;
     if (!tierId) {
       replaceWithResponse(`ranking-item-${item.dataset.itemId}`, () =>
-        postForm(`/r/${rankingUUID}/v/${versionUUID}/items/${item.dataset.itemId}/unrank`, null),
+        postForm(
+          `/r/${rankingUUID}/v/${versionUUID}/items/${item.dataset.itemId}/unrank`,
+          null,
+        ),
       );
       return;
     }
 
-    const itemIds = [...zone.querySelectorAll("[data-item-id]")].map((el) => el.dataset.itemId);
+    const itemIds = [...zone.querySelectorAll("[data-item-id]")].map(
+      (el) => el.dataset.itemId,
+    );
     const body = new URLSearchParams();
     itemIds.forEach((id) => body.append("item_id", id));
     replaceWithResponse(`tier-items-${tierId}`, () =>
-      postForm(`/r/${rankingUUID}/v/${versionUUID}/tiers/${tierId}/items/reorder`, body),
+      postForm(
+        `/r/${rankingUUID}/v/${versionUUID}/tiers/${tierId}/items/reorder`,
+        body,
+      ),
     );
   }
 
   function persistTierOrder() {
-    const tierIds = [...document.querySelectorAll("#tier-rows .tier-row")].map((row) => row.dataset.tierId);
+    const tierIds = [...document.querySelectorAll("#tier-rows .tier-row")].map(
+      (row) => row.dataset.tierId,
+    );
     const body = new URLSearchParams();
     tierIds.forEach((id) => body.append("tier_id", id));
-    replaceWithResponse("tier-rows", () => postForm(`/r/${rankingUUID}/v/${versionUUID}/tiers/reorder`, body));
+    replaceWithResponse("tier-rows", () =>
+      postForm(`/r/${rankingUUID}/v/${versionUUID}/tiers/reorder`, body),
+    );
   }
 
   function postForm(url, body) {

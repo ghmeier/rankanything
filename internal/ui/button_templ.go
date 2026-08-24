@@ -20,16 +20,14 @@ const (
 	ButtonDestructive ButtonVariant = "destructive"
 )
 
-// ButtonProps configures Button. Variant defaults to ButtonPrimary, Type to
-// "button" (so a Button never accidentally submits a form it sits in).
+// ButtonProps defaults Type to "button", so a Button never accidentally
+// submits a form it sits in.
 type ButtonProps struct {
 	Variant  ButtonVariant
 	Type     string
 	Disabled bool
-	// Class is appended to the variant's own classes. Extra classes have to
-	// arrive here rather than through Attrs: Button writes its own class
-	// attribute, and a second one passed through Attrs would be a duplicate
-	// the browser ignores.
+	// Extra classes must arrive here, not through Attrs: Button writes its
+	// own class, and the browser ignores a duplicate attribute.
 	Class string
 	Attrs templ.Attributes
 }
@@ -67,7 +65,7 @@ func Button(props ButtonProps) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(cmp.Or(props.Type, "button"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/button.templ`, Line: 31, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/button.templ`, Line: 29, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 		if templ_7745c5c3_Err != nil {
@@ -120,9 +118,7 @@ func Button(props ButtonProps) templ.Component {
 	})
 }
 
-// ButtonClass exposes the class string a variant renders with, so other
-// components (NavBar's button-styled links, for instance) can match Button's
-// look without wrapping a non-<button> element in one.
+// ButtonClass lets a non-<button> element match Button's look.
 func ButtonClass(variant ButtonVariant) string {
 	base := "inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 disabled:pointer-events-none"
 

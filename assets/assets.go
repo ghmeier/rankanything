@@ -1,6 +1,6 @@
 // Package assets embeds the compiled static files so the binary ships as a
-// single artifact. Markup lives in internal/ui as templ components, compiled
-// into the binary as Go rather than embedded as data.
+// single artifact. Markup is templ components in internal/ui, compiled to Go
+// rather than embedded as data.
 package assets
 
 import (

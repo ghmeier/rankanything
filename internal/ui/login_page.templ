@@ -1,7 +1,7 @@
 package ui
 
-// LoginProps configures LoginPage and the container inside it. Next carries
-// the path the visitor was heading for before RequireUser sent them here.
+// LoginProps carries in Next the path the visitor wanted before RequireUser
+// sent them here.
 type LoginProps struct {
 	CSRFToken string
 	LoggedIn  bool
@@ -18,9 +18,8 @@ templ LoginPage(props LoginProps) {
 	}
 }
 
-// LoginContainer is what a rejected sign-in renders on its own, with no
-// layout around it: the form posts with hx-target="closest .auth-container",
-// so this element is both the swap target and the response.
+// LoginContainer is both the form's swap target and what a rejected sign-in
+// answers with, so it renders without a layout around it.
 templ LoginContainer(props LoginProps) {
 	<div class="auth-container mx-auto max-w-sm space-y-6">
 		<h1 class="text-2xl font-bold tracking-tight">Sign in</h1>

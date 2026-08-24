@@ -1,11 +1,7 @@
 package ui
 
-// ResendVerificationNotice is the seam RankingsIndexProps.VerificationNotice
-// exists for: the rankings index renders it above the heading for a
-// signed-in user whose email isn't verified yet, and renders nothing when
-// it's nil. The resend button posts to /resend-verification and swaps this
-// same element for resendVerificationSentNotice, so a slow mail provider
-// never leaves the button silently doing nothing.
+// ResendVerificationNotice swaps itself for the sent notice, so a slow mail
+// provider never leaves the button silently doing nothing.
 templ ResendVerificationNotice(email string) {
 	<div id="verification-notice">
 		@Notice(NoticeProps{Variant: NoticeError}) {
@@ -26,9 +22,7 @@ templ ResendVerificationNotice(email string) {
 	</div>
 }
 
-// ResendVerificationSentNotice replaces ResendVerificationNotice once the
-// resend control has been used, confirming the mail went out without
-// requiring a full page reload.
+// ResendVerificationSentNotice confirms the mail went out.
 templ ResendVerificationSentNotice(email string) {
 	<div id="verification-notice">
 		@Notice(NoticeProps{Variant: NoticeSuccess, Dismissable: true, ID: "verification-sent"}) {

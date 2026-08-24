@@ -8,11 +8,9 @@ package ui
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// ComponentsGallery is a development-only page rendering every component in
-// every variant, so a component's look can be checked without navigating to
-// a page that uses it. The theme toggle sets documentElement's data-theme
-// attribute (persisted to localStorage), which input.css's [data-theme]
-// blocks give priority over the OS's prefers-color-scheme.
+// ComponentsGallery renders every component in every variant, so a look can
+// be checked without navigating to a page that uses it. Its theme toggle sets
+// data-theme, which input.css gives priority over prefers-color-scheme.
 func ComponentsGallery() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

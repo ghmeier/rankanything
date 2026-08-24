@@ -8,12 +8,8 @@ package ui
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// ResetPasswordProps configures ResetPasswordPage and its inner form. Token
-// is the plaintext value from the query string; it rides through the form
-// as a hidden field so a failed submission (e.g. a too-short password)
-// doesn't need to re-parse it from the URL to re-render. Done flips the
-// form to a confirmation notice once the password has actually been
-// changed.
+// ResetPasswordProps rides Token through as a hidden field, so a failed
+// submission re-renders without re-parsing it from the URL.
 type ResetPasswordProps struct {
 	CSRFToken string
 	LoggedIn  bool
@@ -78,9 +74,8 @@ func ResetPasswordPage(props ResetPasswordProps) templ.Component {
 	})
 }
 
-// ResetPasswordForm is also what POST /reset-password renders back as an
-// htmx swap, so it carries its own id rather than relying on the page
-// wrapper for one.
+// ResetPasswordForm carries its own id because POST /reset-password swaps it
+// back in without the page wrapper.
 func ResetPasswordForm(props ResetPasswordProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -137,7 +132,7 @@ func ResetPasswordForm(props ResetPasswordProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.Token)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/reset_password_page.templ`, Line: 38, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/reset_password_page.templ`, Line: 33, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 			if templ_7745c5c3_Err != nil {
@@ -163,7 +158,7 @@ func ResetPasswordForm(props ResetPasswordProps) templ.Component {
 					var templ_7745c5c3_Var7 string
 					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(props.Error)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/reset_password_page.templ`, Line: 41, Col: 19}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/reset_password_page.templ`, Line: 36, Col: 19}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 					if templ_7745c5c3_Err != nil {

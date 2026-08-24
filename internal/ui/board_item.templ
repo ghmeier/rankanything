@@ -5,24 +5,21 @@ import (
 	"strconv"
 )
 
-// ItemCardProps renders one ranking item, in the tray or in a tier. It
-// carries RankingUUID rather than relying on an ancestor for it because a
-// mutation handler renders this component standalone as an htmx swap
-// target, with no surrounding page.
+// ItemCardProps carries RankingUUID because a mutation handler renders this
+// standalone as an htmx swap target, with no surrounding page.
 type ItemCardProps struct {
 	RankingUUID      string
 	VersionShortUUID string
 	ItemID           int64
 	Title            string
 	ImageURL         string
-	// Editable is false while viewing a published version: a published
-	// version is immutable, so the card is neither draggable nor removable.
+	// A published version is immutable: no drag handle, no delete control.
 	Editable bool
 }
 
 templ ItemCard(props ItemCardProps) {
 	<article
-		class="item-card group flex h-fit w-40 cursor-grab items-center gap-2 rounded-md border border-border bg-surface p-2 text-sm shadow-sm"
+		class={ itemCardClass(props.Editable) }
 		id={ fmt.Sprintf("ranking-item-%d", props.ItemID) }
 		data-item-id={ fmt.Sprintf("%d", props.ItemID) }
 		draggable={ strconv.FormatBool(props.Editable) }
@@ -52,23 +49,29 @@ templ ItemCard(props ItemCardProps) {
 	</article>
 }
 
-// ItemTrayProps renders the unranked item tray: its add-item form and every
-// item that isn't yet placed in a tier.
+func itemCardClass(editable bool) string {
+	className := "item-card group flex h-fit w-40 items-center gap-2 rounded-md border border-border bg-surface p-2 text-sm shadow-sm"
+	if editable {
+		className += " cursor-grab"
+	} else {
+		className += "cursor-not-allowed"
+	}
+	return className
+}
+
+// ItemTrayProps renders the add-item form and every unplaced item.
 type ItemTrayProps struct {
 	RankingUUID      string
 	VersionShortUUID string
 	Unassigned       []ItemCardProps
-	// Editable is false while viewing a published version: the add-item
-	// form is left unrendered rather than merely disabled.
+	// The add-item form is left unrendered rather than merely disabled.
 	Editable bool
 }
 
 templ ItemTray(props ItemTrayProps) {
-	<section class="rounded-lg border border-dashed border-border bg-surface-muted p-4">
-		<div class="mb-3 flex items-center justify-between">
-			<h2 class="text-sm font-semibold uppercase tracking-wide text-text-muted">
-				Unranked items
-			</h2>
+	<section class="grid gap-2 rounded-sm border border-dashed border-border bg-surface-muted p-2">
+		@TrayItems(TrayItemsProps{RankingUUID: props.RankingUUID, Items: props.Unassigned})
+		<div class="flex items-center justify-end">
 			if props.Editable {
 				<form
 					class="flex gap-2"
@@ -96,14 +99,11 @@ templ ItemTray(props ItemTrayProps) {
 				</form>
 			}
 		</div>
-		@TrayItems(TrayItemsProps{RankingUUID: props.RankingUUID, Items: props.Unassigned})
 	</section>
 }
 
-// TrayItemsProps renders the unranked tray's #tray-items drop zone —
-// embedded normally in ItemTray, and rendered standalone (with OOB set) to
-// refresh the tray out-of-band alongside a tier deletion, which returns the
-// deleted tier's items to it.
+// TrayItemsProps renders the tray's drop zone. Deleting a tier returns its
+// items here, so that response sets OOB and refreshes the tray alongside.
 type TrayItemsProps struct {
 	RankingUUID string
 	Items       []ItemCardProps
@@ -114,7 +114,7 @@ templ TrayItems(props TrayItemsProps) {
 	<div
 		id="tray-items"
 		data-tier-id=""
-		class="tier-dropzone flex min-h-20 flex-wrap gap-2"
+		class="tier-dropzone flex flex-wrap gap-2 min-h-10"
 		if props.OOB {
 			hx-swap-oob="true"
 		}

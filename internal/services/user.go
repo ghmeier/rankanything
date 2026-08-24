@@ -1,8 +1,3 @@
-// Package services holds the application's business logic — operations that
-// manipulate domain state without knowledge of HTTP, templates, or the web.
-// Each service receives structured input and returns structured output (or
-// errors). The handlers layer is the only place that touches http.Request,
-// http.ResponseWriter, or templates.
 package services
 
 import (
@@ -15,30 +10,24 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// ErrEmailAlreadyRegistered is returned when a registration attempt fails
-// because the supplied email is already associated with an existing user.
 var ErrEmailAlreadyRegistered = &emailAlreadyRegisteredError{}
 
 type emailAlreadyRegisteredError struct{}
 
 func (*emailAlreadyRegisteredError) Error() string { return "email already registered" }
 
-// UserService implements user-facing business logic: registration, login,
-// and logout.
 type UserService struct {
 	Queries  *db.Queries
 	Sessions *auth.Sessions
 }
 
-// RegisterRequest is the input for user registration.
 type RegisterRequest struct {
 	Email    string // already normalised
 	Password string // already hashed
 	Next     string
 }
 
-// Register creates a user and logs them in. The handler is responsible for
-// setting flash messages and performing the redirect.
+// Register creates a user and logs them in; the handler redirects.
 func (s *UserService) Register(ctx context.Context, req RegisterRequest) (*db.User, error) {
 	user, err := s.Queries.CreateUser(ctx, db.CreateUserParams{
 		Email:        req.Email,
@@ -60,16 +49,13 @@ func (s *UserService) Register(ctx context.Context, req RegisterRequest) (*db.Us
 	return &user, nil
 }
 
-// LoginRequest is the input for user login.
 type LoginRequest struct {
 	Email    string
 	Password string
 	Next     string
 }
 
-// Login authenticates a user, logs them in, and touches their last login
-// time. The handler is responsible for setting flash messages and
-// performing the redirect.
+// Login authenticates a user and logs them in; the handler redirects.
 func (s *UserService) Login(ctx context.Context, req LoginRequest) (*db.User, error) {
 	user, err := s.Queries.GetUserByEmail(ctx, req.Email)
 	if err != nil {
@@ -92,29 +78,23 @@ func (s *UserService) Login(ctx context.Context, req LoginRequest) (*db.User, er
 	return &user, nil
 }
 
-// Logout destroys the current session.
 func (s *UserService) Logout(ctx context.Context) error {
 	return s.Sessions.LogOut(ctx)
 }
 
-// ErrInvalidThemePreference is returned when UpdateThemePreference is asked
-// to set a value other than "system", "light", or "dark".
 var ErrInvalidThemePreference = &invalidThemePreferenceError{}
 
 type invalidThemePreferenceError struct{}
 
 func (*invalidThemePreferenceError) Error() string { return "invalid theme preference" }
 
-// UpdateThemePreferenceRequest is the input for changing a user's theme
-// preference.
 type UpdateThemePreferenceRequest struct {
 	UserID     int64
 	Preference db.UserThemePreference
 }
 
-// UpdateThemePreference validates and persists a user's explicit theme
-// choice — "system" defers to the visitor's OS setting, "light" and "dark"
-// force a palette regardless of it.
+// UpdateThemePreference persists an explicit choice; "system" defers to the
+// visitor's OS setting.
 func (s *UserService) UpdateThemePreference(ctx context.Context, req UpdateThemePreferenceRequest) (*db.User, error) {
 	switch req.Preference {
 	case db.UserThemePreferenceSystem, db.UserThemePreferenceLight, db.UserThemePreferenceDark:
@@ -132,7 +112,6 @@ func (s *UserService) UpdateThemePreference(ctx context.Context, req UpdateTheme
 	return &user, nil
 }
 
-// isUniqueViolation reports whether an error is a PostgreSQL unique constraint violation.
 func isUniqueViolation(err error) bool {
 	if err == nil {
 		return false

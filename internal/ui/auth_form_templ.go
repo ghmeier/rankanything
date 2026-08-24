@@ -8,15 +8,9 @@ package ui
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// AuthFormProps configures the email-and-password form shared by the sign-in
-// and create-account pages. Action and Submit are all that differ between
-// them; everything else is the state of a rejected attempt being rendered
-// back to the user.
-//
-// EmailAlreadyRegistered is separate from Error rather than being one more
-// error string, because it is the only one that needs links in it: someone
-// who already has an account wants to reach sign-in or password reset, not
-// to read a sentence telling them the address is taken.
+// AuthFormProps is shared by the sign-in and create-account pages; only
+// Action and Submit differ. EmailAlreadyRegistered is separate from Error
+// because it is the one rejection that needs links rather than a sentence.
 type AuthFormProps struct {
 	Action                 string
 	Submit                 string
@@ -25,20 +19,16 @@ type AuthFormProps struct {
 	Error                  string
 	EmailAlreadyRegistered bool
 
-	// PasswordAutocomplete distinguishes the two forms for a password
-	// manager: "current-password" offers a saved credential, while
-	// "new-password" offers to generate one.
+	// Tells a password manager whether to offer a saved credential
+	// ("current-password") or generate one ("new-password").
 	PasswordAutocomplete string
 }
 
-// AuthErrorSwapScript opts the auth failure statuses back into htmx swapping.
-// htmx only swaps 2xx by default, but a rejected sign-in answers 401 and a
-// rejected registration answers 422, and in both cases the response body is
-// the form that has to come back carrying the message.
+// AuthErrorSwapScript opts 401 and 422 back into htmx swapping, since htmx
+// swaps only 2xx by default and a rejected attempt answers with the form.
 //
-// It belongs on the page rather than inside AuthForm: the form sits in the
-// element the swap replaces, so a copy of this script living there would be
-// re-executed on every failed attempt and add another listener each time.
+// It belongs on the page, not in AuthForm: the form is inside the element the
+// swap replaces, so a copy there would add a listener on every failure.
 func AuthErrorSwapScript() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -96,7 +86,7 @@ func AuthForm(props AuthFormProps) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.Action)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/auth_form.templ`, Line: 48, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/auth_form.templ`, Line: 38, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 		if templ_7745c5c3_Err != nil {
@@ -109,7 +99,7 @@ func AuthForm(props AuthFormProps) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.Next)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/auth_form.templ`, Line: 53, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/auth_form.templ`, Line: 43, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -158,7 +148,7 @@ func AuthForm(props AuthFormProps) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(props.Error)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/auth_form.templ`, Line: 63, Col: 17}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/auth_form.templ`, Line: 53, Col: 17}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -217,7 +207,7 @@ func AuthForm(props AuthFormProps) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(props.Submit)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/auth_form.templ`, Line: 85, Col: 17}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/auth_form.templ`, Line: 74, Col: 17}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {

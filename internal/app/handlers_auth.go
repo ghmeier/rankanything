@@ -32,9 +32,7 @@ func (a *App) renderRegister(w http.ResponseWriter, r *http.Request, status int,
 	if isHTMXRequest(r) {
 		component = ui.RegisterContainer(props)
 	}
-	if err := renderComponent(w, r, status, component); err != nil {
-		a.serverError(w, r, err)
-	}
+	a.render(w, r, status, component)
 }
 
 // handleRegister is POST /register.
@@ -82,13 +80,7 @@ func (a *App) handleRegister(w http.ResponseWriter, r *http.Request) {
 		target = next
 	}
 
-	if isHTMXRequest(r) {
-		w.Header().Set("HX-Redirect", target)
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-
-	http.Redirect(w, r, target, http.StatusSeeOther)
+	redirect(w, r, target)
 }
 
 func (a *App) renderRegisterError(w http.ResponseWriter, r *http.Request, email, next, errMsg string) {
@@ -112,9 +104,7 @@ func (a *App) handleLoginForm(w http.ResponseWriter, r *http.Request) {
 		Flash:     base.Flash,
 		Next:      r.URL.Query().Get("next"),
 	}
-	if err := renderComponent(w, r, http.StatusOK, ui.LoginPage(props)); err != nil {
-		a.serverError(w, r, err)
-	}
+	a.render(w, r, http.StatusOK, ui.LoginPage(props))
 }
 
 // handleLogin is POST /login.
@@ -145,12 +135,7 @@ func (a *App) handleLogin(w http.ResponseWriter, r *http.Request) {
 		target = next
 	}
 
-	if isHTMXRequest(r) {
-		w.Header().Set("HX-Redirect", target)
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-	http.Redirect(w, r, target, http.StatusSeeOther)
+	redirect(w, r, target)
 }
 
 // isSiteRelativePath reports whether next is safe to redirect to: a path on
@@ -182,20 +167,13 @@ func (a *App) renderLoginError(w http.ResponseWriter, r *http.Request, email, ne
 	if isHTMXRequest(r) {
 		component = ui.LoginContainer(props)
 	}
-	if err := renderComponent(w, r, http.StatusUnauthorized, component); err != nil {
-		a.serverError(w, r, err)
-	}
+	a.render(w, r, http.StatusUnauthorized, component)
 }
 
 // handleLogout is POST /logout.
 func (a *App) handleLogout(w http.ResponseWriter, r *http.Request) {
 	_ = a.UserSvc.Logout(r.Context())
-	if isHTMXRequest(r) {
-		w.Header().Set("HX-Redirect", "/")
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	redirect(w, r, "/")
 }
 
 // handleVerifyEmail is GET /verify — the click-through from a verification
@@ -239,21 +217,14 @@ func (a *App) handleResendVerification(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	a.renderVerificationNotice(w, r, user.Email)
-}
-
-func (a *App) renderVerificationNotice(w http.ResponseWriter, r *http.Request, email string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := ui.ResendVerificationSentNotice(email).Render(r.Context(), w); err != nil {
-		a.Logger.Error("render verification notice", "err", err)
-	}
+	a.render(w, r, http.StatusOK, ui.ResendVerificationSentNotice(user.Email))
 }
 
 // handleForgotPasswordForm is GET /forgot-password.
 func (a *App) handleForgotPasswordForm(w http.ResponseWriter, r *http.Request) {
 	base := a.base(r)
 	props := ui.ForgotPasswordProps{CSRFToken: base.CSRFToken, LoggedIn: base.User != nil, Flash: base.Flash}
-	a.renderForgotPasswordPage(w, r, http.StatusOK, props)
+	a.render(w, r, http.StatusOK, ui.ForgotPasswordPage(props))
 }
 
 // handleForgotPassword is POST /forgot-password. Its response is identical
@@ -269,7 +240,7 @@ func (a *App) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 		props := baseProps
 		props.Email = r.FormValue("email")
 		props.Error = err.Error()
-		a.renderForgotPasswordForm(w, r, http.StatusUnprocessableEntity, props)
+		a.render(w, r, http.StatusUnprocessableEntity, ui.ForgotPasswordForm(props))
 		return
 	}
 
@@ -279,23 +250,7 @@ func (a *App) handleForgotPassword(w http.ResponseWriter, r *http.Request) {
 
 	props := baseProps
 	props.Sent = true
-	a.renderForgotPasswordForm(w, r, http.StatusOK, props)
-}
-
-func (a *App) renderForgotPasswordPage(w http.ResponseWriter, r *http.Request, status int, props ui.ForgotPasswordProps) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(status)
-	if err := ui.ForgotPasswordPage(props).Render(r.Context(), w); err != nil {
-		a.Logger.Error("render forgot-password page", "err", err)
-	}
-}
-
-func (a *App) renderForgotPasswordForm(w http.ResponseWriter, r *http.Request, status int, props ui.ForgotPasswordProps) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(status)
-	if err := ui.ForgotPasswordForm(props).Render(r.Context(), w); err != nil {
-		a.Logger.Error("render forgot-password form", "err", err)
-	}
+	a.render(w, r, http.StatusOK, ui.ForgotPasswordForm(props))
 }
 
 // handleResetPasswordForm is GET /reset-password?token=...
@@ -307,7 +262,7 @@ func (a *App) handleResetPasswordForm(w http.ResponseWriter, r *http.Request) {
 		Flash:     base.Flash,
 		Token:     r.URL.Query().Get("token"),
 	}
-	a.renderResetPasswordPage(w, r, http.StatusOK, props)
+	a.render(w, r, http.StatusOK, ui.ResetPasswordPage(props))
 }
 
 // handleResetPassword is POST /reset-password. Unlike forgot-password, a
@@ -330,15 +285,13 @@ func (a *App) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 		} else {
 			props.Error = "This link has expired or was already used. Request a new one."
 		}
-		a.renderResetPasswordForm(w, r, http.StatusUnprocessableEntity, props)
+		a.render(w, r, http.StatusUnprocessableEntity, ui.ResetPasswordForm(props))
 		return
 	}
 
-	// The service dropped this account's stored sessions, but the session this
-	// request arrived on is still held in the context, and LoadAndSave would
-	// write it back to the store after this handler returns. Destroying it
-	// here ends a reset performed while signed in; when signed out there is
-	// nothing to destroy and this is a no-op.
+	// The service dropped the stored sessions, but this request's own is held
+	// in context and LoadAndSave would write it back after the handler
+	// returns. Signed out, there is nothing to destroy and this is a no-op.
 	if err := a.Sessions.LogOut(r.Context()); err != nil {
 		a.serverError(w, r, err)
 		return
@@ -346,21 +299,5 @@ func (a *App) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 
 	props := baseProps
 	props.Done = true
-	a.renderResetPasswordForm(w, r, http.StatusOK, props)
-}
-
-func (a *App) renderResetPasswordPage(w http.ResponseWriter, r *http.Request, status int, props ui.ResetPasswordProps) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(status)
-	if err := ui.ResetPasswordPage(props).Render(r.Context(), w); err != nil {
-		a.Logger.Error("render reset-password page", "err", err)
-	}
-}
-
-func (a *App) renderResetPasswordForm(w http.ResponseWriter, r *http.Request, status int, props ui.ResetPasswordProps) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(status)
-	if err := ui.ResetPasswordForm(props).Render(r.Context(), w); err != nil {
-		a.Logger.Error("render reset-password form", "err", err)
-	}
+	a.render(w, r, http.StatusOK, ui.ResetPasswordForm(props))
 }

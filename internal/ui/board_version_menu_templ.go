@@ -8,18 +8,15 @@ package ui
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// BoardVersionOption is one entry in the version-picker dropdown: every
-// version of the ranking, its label ("Draft" or "v{n} · Published {date}"),
-// and whether it's the one being viewed.
+// BoardVersionOption is one entry in the version-picker dropdown.
 type BoardVersionOption struct {
 	URL     string
 	Label   string
 	Current bool
 }
 
-// currentVersionLabel finds the label of whichever option is marked
-// current, so the button reads as "what you're looking at" even while the
-// menu itself is closed.
+// currentVersionLabel keeps the button reading as what you're looking at
+// while the menu is closed.
 func currentVersionLabel(versions []BoardVersionOption) string {
 	for _, v := range versions {
 		if v.Current {
@@ -29,11 +26,8 @@ func currentVersionLabel(versions []BoardVersionOption) string {
 	return ""
 }
 
-// boardVersionMenu is a native <details> disclosure listing every version
-// of the ranking — no JS needed for a dropdown this simple. The summary
-// doubles as the dropdown button: it's labeled with the version being
-// viewed and carries a caret that flips per the group-open state, so it
-// reads as a menu rather than the plain word "Versions" it used to show.
+// boardVersionMenu is a native <details>, so a dropdown this simple needs no
+// JS. The summary doubles as the button, labeled with the current version.
 func boardVersionMenu(versions []BoardVersionOption) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -84,7 +78,7 @@ func boardVersionMenu(versions []BoardVersionOption) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(currentVersionLabel(versions))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_version_menu.templ`, Line: 32, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_version_menu.templ`, Line: 26, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -107,7 +101,7 @@ func boardVersionMenu(versions []BoardVersionOption) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(v.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_version_menu.templ`, Line: 41, Col: 97}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_version_menu.templ`, Line: 35, Col: 97}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -125,7 +119,7 @@ func boardVersionMenu(versions []BoardVersionOption) templ.Component {
 				var templ_7745c5c3_Var6 templ.SafeURL
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(v.URL))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_version_menu.templ`, Line: 43, Col: 32}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_version_menu.templ`, Line: 37, Col: 32}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -138,7 +132,7 @@ func boardVersionMenu(versions []BoardVersionOption) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(v.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_version_menu.templ`, Line: 43, Col: 117}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_version_menu.templ`, Line: 37, Col: 117}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {

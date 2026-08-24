@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/a-h/templ"
 	"github.com/ghmeier/rankanything/internal/constants"
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/services"
@@ -14,15 +15,17 @@ import (
 	"github.com/google/uuid"
 )
 
-// requireDraftVersion rejects a request against a published version with
-// 403, before it reaches a handler that would otherwise mutate it. A
-// version is immutable once published, so this wraps every board route in
-// routes_rankings.go that writes to one — everything except reading the
-// board, updating the ranking's title/description (not version-scoped, see
-// handleUpdateRanking), and creating a new version off a published one
-// (which requires a published version to run at all). It must sit inside
-// RequireRankingAccess, which is what resolves and stashes the version this
-// reads from context.
+// boardScope reads back what RequireRankingAccess resolved, so it panics
+// rather than misbehaving on a board route that forgot the middleware.
+func boardScope(r *http.Request) (uuid.UUID, db.RankingVersion) {
+	ctx := r.Context()
+	return ctx.Value(constants.RankingUUIDKey).(uuid.UUID),
+		ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+}
+
+// requireDraftVersion rejects writes to a published version, which is
+// immutable. It must sit inside RequireRankingAccess, which is what resolves
+// the version this reads from context.
 func (a *App) requireDraftVersion(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		version := r.Context().Value(constants.RankingVersionKey).(db.RankingVersion)
@@ -34,16 +37,13 @@ func (a *App) requireDraftVersion(next http.Handler) http.Handler {
 	})
 }
 
-// handleViewRanking is GET /r/{uuid} or GET /r/{uuid}/v/{short} — render the
-// board for the version RequireRankingAccess resolved.
 func (a *App) handleViewRanking(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
-	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+	rankingUUID, version := boardScope(r)
 
 	ranking, err := a.RankingSvc.GetRanking(ctx, rankingUUID)
 	if err != nil {
-		rankError(a, w, r, err)
+		a.rankError(w, r, err)
 		return
 	}
 
@@ -53,47 +53,36 @@ func (a *App) handleViewRanking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := a.RenderRankingPage(w, r, board); err != nil {
-		a.serverError(w, r, err)
-	}
+	a.renderRankingPage(w, r, board)
 }
 
-// handleUpdateRanking is POST /r/{uuid} — update title or description.
 func (a *App) handleUpdateRanking(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
-	rankingVersion := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+	rankingUUID, version := boardScope(r)
 
-	updated, err := a.RankingSvc.UpdateRanking(ctx, services.UpdateRankingRequest{
+	updated, err := a.RankingSvc.UpdateRanking(r.Context(), services.UpdateRankingRequest{
 		UUID:        rankingUUID,
 		Name:        r.FormValue("title"),
 		Description: r.FormValue("description"),
 	})
 	if err != nil {
-		rankError(a, w, r, err)
+		a.rankError(w, r, err)
 		return
 	}
 
-	props := rankingMetaProps(rankingUUID.String(), rankingVersion.ShortUuid, updated, !rankingVersion.PublishedAt.Valid)
-	if err := renderComponent(w, r, http.StatusOK, ui.RankingMeta(props)); err != nil {
-		a.serverError(w, r, err)
-	}
+	props := rankingMetaProps(rankingUUID.String(), version.ShortUuid, updated, !version.PublishedAt.Valid)
+	a.render(w, r, http.StatusOK, ui.RankingMeta(props))
 }
 
-// handleAddItem is POST /r/{uuid}/v/{short}/items — add a new item to the version
-// being viewed.
 func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
-	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
-	title := strings.TrimSpace(r.FormValue("label"))
+	rankingUUID, version := boardScope(r)
 
+	title := strings.TrimSpace(r.FormValue("label"))
 	if title == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	item, err := a.RankingSvc.AddItem(ctx, services.AddItemRequest{
+	item, err := a.RankingSvc.AddItem(r.Context(), services.AddItemRequest{
 		VersionID:      version.ID,
 		Title:          title,
 		ImageSourceURL: r.FormValue("image_url"),
@@ -103,148 +92,101 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	oob, err := a.boardVersionActionsOOB(ctx, rankingUUID.String(), version)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-	if err = renderComponent(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item, true)), oob); err != nil {
-		a.serverError(w, r, err)
-	}
+	card := ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item, true))
+	a.renderWithVersionActions(w, r, http.StatusOK, rankingUUID, version, card)
 }
 
-// handleDeleteItem is DELETE /r/{uuid}/v/{short}/items/{itemID}. The
-// response carries only the out-of-band publish-action fragment: with
-// nothing left over for the primary target (the item card's own
-// hx-target="#ranking-item-{id}" hx-swap="outerHTML"), htmx swaps in
-// nothing, which is what removes the card — the same technique
-// handleDeleteTier uses for the tier row.
+// handleDeleteItem answers with nothing for the primary target, which is what
+// htmx swaps in to remove the card — the same trick handleDeleteTier uses.
 func (a *App) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
-	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+	rankingUUID, version := boardScope(r)
 
-	id, err := strconv.ParseInt(r.PathValue("itemID"), 10, 64)
-	a.Logger.Info("parsing item", "itemID", id, "err", err)
-	if err != nil {
-		a.notFound(w, r)
+	id, ok := a.pathID(w, r, "itemID")
+	if !ok {
 		return
 	}
 
-	if err := a.RankingSvc.DeleteItem(ctx, services.DeleteItemRequest{VersionID: version.ID, ItemID: id}); err != nil {
-		a.Logger.Info("error deleting item", "err", err)
-		rankError(a, w, r, err)
+	if err := a.RankingSvc.DeleteItem(r.Context(), services.DeleteItemRequest{VersionID: version.ID, ItemID: id}); err != nil {
+		a.rankError(w, r, err)
 		return
 	}
 
-	oob, err := a.boardVersionActionsOOB(ctx, rankingUUID.String(), version)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-	if err := renderComponent(w, r, http.StatusAccepted, oob); err != nil {
-		a.serverError(w, r, err)
-	}
+	a.renderWithVersionActions(w, r, http.StatusAccepted, rankingUUID, version)
 }
 
-// handleAddTier is POST /r/{uuid}/v/{short}/tiers — add a new tier.
 func (a *App) handleAddTier(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
-	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+	rankingUUID, version := boardScope(r)
 
-	tier, err := a.RankingSvc.AddTier(ctx, services.AddTierRequest{
+	tier, err := a.RankingSvc.AddTier(r.Context(), services.AddTierRequest{
 		VersionID: version.ID,
 		RankingID: version.RankingID,
 		Title:     r.FormValue("label"),
 		Color:     r.FormValue("color"),
 	})
 	if err != nil {
-		rankError(a, w, r, err)
+		a.rankError(w, r, err)
 		return
 	}
 
-	oob, err := a.boardVersionActionsOOB(ctx, rankingUUID.String(), version)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-	if err := renderComponent(w, r, http.StatusOK, ui.TierRow(tierRowProps(rankingUUID.String(), version.ShortUuid, tier, nil, true)), oob); err != nil {
-		a.serverError(w, r, err)
-	}
+	row := ui.TierRow(tierRowProps(rankingUUID.String(), version.ShortUuid, tier, nil, true))
+	a.renderWithVersionActions(w, r, http.StatusOK, rankingUUID, version, row)
 }
 
-// handleEditTier is POST /r/{uuid}/v/{short}/tiers/{tierID}/edit — enable editing a tier.
 func (a *App) handleEditTier(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
-	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+	rankingUUID, version := boardScope(r)
 
-	id, err := strconv.ParseInt(r.PathValue("tierID"), 10, 64)
-	if err != nil {
-		a.notFound(w, r)
+	id, ok := a.pathID(w, r, "tierID")
+	if !ok {
 		return
 	}
 
-	tier, err := a.RankingSvc.GetTier(ctx, services.GetTierRequest{VersionID: version.ID, TierID: id})
+	tier, err := a.RankingSvc.GetTier(r.Context(), services.GetTierRequest{VersionID: version.ID, TierID: id})
 	if err != nil {
-		rankError(a, w, r, err)
+		a.rankError(w, r, err)
 		return
 	}
 
 	props := tierRowLabelProps(rankingUUID.String(), version.ShortUuid, tier, true, true)
-	if err := renderComponent(w, r, http.StatusAccepted, ui.TierRowLabel(props)); err != nil {
-		a.serverError(w, r, err)
-	}
+	a.render(w, r, http.StatusAccepted, ui.TierRowLabel(props))
 }
 
-// handleUpdateTier is PUT /r/{uuid}/v/{short}/tiers/{tierID} — rename or recolor.
 func (a *App) handleUpdateTier(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
-	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+	rankingUUID, version := boardScope(r)
 
-	id, err := strconv.ParseInt(r.PathValue("tierID"), 10, 64)
-	if err != nil {
-		a.notFound(w, r)
+	id, ok := a.pathID(w, r, "tierID")
+	if !ok {
 		return
 	}
 
-	tier, err := a.RankingSvc.UpdateTier(ctx, services.UpdateTierRequest{
+	tier, err := a.RankingSvc.UpdateTier(r.Context(), services.UpdateTierRequest{
 		VersionID: version.ID,
 		TierID:    id,
 		Title:     r.FormValue("label"),
 		Color:     r.FormValue("color"),
 	})
 	if err != nil {
-		rankError(a, w, r, err)
+		a.rankError(w, r, err)
 		return
 	}
 
 	props := tierRowLabelProps(rankingUUID.String(), version.ShortUuid, tier, false, true)
-	if err := renderComponent(w, r, http.StatusOK, ui.TierRowLabel(props)); err != nil {
-		a.serverError(w, r, err)
-	}
+	a.render(w, r, http.StatusOK, ui.TierRowLabel(props))
 }
 
-// handleDeleteTier is DELETE /r/{uuid}/v/{short}/tiers/{tierID} — remove a tier. Its
-// items return to the unassigned tray rather than being deleted: the empty
-// response removes the tier row (hx-target="closest .tier-row" on the
-// button), and the out-of-band #tray-items block refreshes the tray in the
-// same swap.
+// handleDeleteTier returns the tier's items to the tray rather than deleting
+// them, so the response refreshes the tray out of band alongside the empty
+// body that removes the row.
 func (a *App) handleDeleteTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
-	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+	rankingUUID, version := boardScope(r)
 
-	id, err := strconv.ParseInt(r.PathValue("tierID"), 10, 64)
-	if err != nil {
-		a.notFound(w, r)
+	id, ok := a.pathID(w, r, "tierID")
+	if !ok {
 		return
 	}
 
 	if err := a.RankingSvc.DeleteTier(ctx, services.DeleteTierRequest{VersionID: version.ID, TierID: id}); err != nil {
-		rankError(a, w, r, err)
+		a.rankError(w, r, err)
 		return
 	}
 
@@ -258,26 +200,14 @@ func (a *App) handleDeleteTier(w http.ResponseWriter, r *http.Request) {
 	for _, it := range unranked {
 		tray.Items = append(tray.Items, itemCardProps(rankingUUID.String(), version.ShortUuid, it, true))
 	}
-	oob, err := a.boardVersionActionsOOB(ctx, rankingUUID.String(), version)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-	if err := renderComponent(w, r, http.StatusAccepted, ui.TrayItems(tray), oob); err != nil {
-		a.serverError(w, r, err)
-	}
+	a.renderWithVersionActions(w, r, http.StatusAccepted, rankingUUID, version, ui.TrayItems(tray))
 }
 
-// handleAddItemToTier is POST /r/{uuid}/v/{short}/tiers/{tierID}/items — place an item
-// in a tier, via drag-and-drop.
 func (a *App) handleAddItemToTier(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
-	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+	rankingUUID, version := boardScope(r)
 
-	tierID, err := strconv.ParseInt(r.PathValue("tierID"), 10, 64)
-	if err != nil {
-		a.notFound(w, r)
+	tierID, ok := a.pathID(w, r, "tierID")
+	if !ok {
 		return
 	}
 	itemID, err := strconv.ParseInt(r.FormValue("item_id"), 10, 64)
@@ -286,69 +216,41 @@ func (a *App) handleAddItemToTier(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := a.RankingSvc.AddItemToTier(ctx, services.AddItemToTierRequest{
+	item, err := a.RankingSvc.AddItemToTier(r.Context(), services.AddItemToTierRequest{
 		VersionID: version.ID,
 		TierID:    tierID,
 		ItemID:    itemID,
 	})
 	if err != nil {
-		if errors.Is(err, services.ErrInvalidTierPlacement) {
-			w.WriteHeader(http.StatusConflict)
-			return
-		}
-		rankError(a, w, r, err)
+		a.rankError(w, r, err)
 		return
 	}
 
-	oob, err := a.boardVersionActionsOOB(ctx, rankingUUID.String(), version)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-	if err = renderComponent(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item, true)), oob); err != nil {
-		a.serverError(w, r, err)
-	}
+	card := ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item, true))
+	a.renderWithVersionActions(w, r, http.StatusOK, rankingUUID, version, card)
 }
 
-// handleReorderTierItems is POST /r/{uuid}/v/{short}/tiers/{tierID}/items/reorder —
-// drag-and-drop sets a tier's full item order in one call. The dragged item
-// may be arriving from another tier or the tray; either way it's inserted
-// at the position it landed, which can move it out of the tray and change
-// the publish gate — so the response carries the publish-action fragment
-// out of band alongside the tier's item container. Both are plain fetch()
-// calls from board.js rather than htmx (see persistItemDrop), so
-// applyOOBSwaps there mirrors htmx's own hx-swap-oob handling by hand.
+// handleReorderTierItems takes a tier's full item order in one call, since a
+// drag can pull the item in from another tier or the tray.
 func (a *App) handleReorderTierItems(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
-	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+	rankingUUID, version := boardScope(r)
 
-	tierID, err := strconv.ParseInt(r.PathValue("tierID"), 10, 64)
-	if err != nil {
-		a.notFound(w, r)
+	tierID, ok := a.pathID(w, r, "tierID")
+	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-	itemIDs, err := parseIDList(r.Form["item_id"])
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+	itemIDs, ok := a.formIDList(w, r, "item_id")
+	if !ok {
 		return
 	}
 
-	items, err := a.RankingSvc.ReorderTierItems(ctx, services.ReorderTierItemsRequest{
+	items, err := a.RankingSvc.ReorderTierItems(r.Context(), services.ReorderTierItemsRequest{
 		VersionID: version.ID,
 		TierID:    tierID,
 		ItemIDs:   itemIDs,
 	})
 	if err != nil {
-		if errors.Is(err, services.ErrInvalidTierPlacement) {
-			w.WriteHeader(http.StatusConflict)
-			return
-		}
-		rankError(a, w, r, err)
+		a.rankError(w, r, err)
 		return
 	}
 
@@ -356,42 +258,28 @@ func (a *App) handleReorderTierItems(w http.ResponseWriter, r *http.Request) {
 	for _, it := range items {
 		props.Items = append(props.Items, itemCardProps(rankingUUID.String(), version.ShortUuid, it, true))
 	}
-	oob, err := a.boardVersionActionsOOB(ctx, rankingUUID.String(), version)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-	if err := renderComponent(w, r, http.StatusOK, ui.TierItems(props), oob); err != nil {
-		a.serverError(w, r, err)
-	}
+	a.renderWithVersionActions(w, r, http.StatusOK, rankingUUID, version, ui.TierItems(props))
 }
 
-// handleReorderTiers is POST /r/{uuid}/v/{short}/tiers/reorder — drag-and-drop sets
-// the tier order in one call. The response re-renders every tier row so the
-// client can swap the whole #tier-rows container.
+// handleReorderTiers re-renders every tier row so the client can swap the
+// whole #tier-rows container.
 func (a *App) handleReorderTiers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
-	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+	rankingUUID, version := boardScope(r)
 
-	if err := r.ParseForm(); err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-	tierIDs, err := parseIDList(r.Form["tier_id"])
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+	tierIDs, ok := a.formIDList(w, r, "tier_id")
+	if !ok {
 		return
 	}
 
 	if err := a.RankingSvc.ReorderTiers(ctx, services.ReorderTiersRequest{VersionID: version.ID, TierIDs: tierIDs}); err != nil {
-		rankError(a, w, r, err)
+		a.rankError(w, r, err)
 		return
 	}
 
 	ranking, err := a.RankingSvc.GetRanking(ctx, rankingUUID)
 	if err != nil {
-		rankError(a, w, r, err)
+		a.rankError(w, r, err)
 		return
 	}
 	board, err := a.RankingSvc.GetBoard(ctx, ranking, version)
@@ -405,67 +293,36 @@ func (a *App) handleReorderTiers(w http.ResponseWriter, r *http.Request) {
 	for _, t := range board.Tiers {
 		rowsProps.Tiers = append(rowsProps.Tiers, tierRowProps(rankingUUID.String(), version.ShortUuid, t, tierItems[t.ID], true))
 	}
-	if err := renderComponent(w, r, http.StatusOK, ui.TierRows(rowsProps)); err != nil {
-		a.serverError(w, r, err)
-	}
+	a.render(w, r, http.StatusOK, ui.TierRows(rowsProps))
 }
 
-// handleUnrankItem is POST /r/{uuid}/v/{short}/items/{itemID}/unrank — drag-and-drop
-// dropping an item back on the tray clears its tier placement, which can
-// flip the publish gate, so the response carries the publish-action
-// fragment out of band alongside the item card. This is a plain fetch()
-// call from board.js (see persistItemDrop) rather than htmx, so
-// applyOOBSwaps there mirrors htmx's own hx-swap-oob handling by hand.
 func (a *App) handleUnrankItem(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
-	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+	rankingUUID, version := boardScope(r)
 
-	itemID, err := strconv.ParseInt(r.PathValue("itemID"), 10, 64)
-	if err != nil {
-		a.notFound(w, r)
+	itemID, ok := a.pathID(w, r, "itemID")
+	if !ok {
 		return
 	}
 
-	item, err := a.RankingSvc.UnrankItem(ctx, services.UnrankItemRequest{VersionID: version.ID, ItemID: itemID})
+	item, err := a.RankingSvc.UnrankItem(r.Context(), services.UnrankItemRequest{VersionID: version.ID, ItemID: itemID})
 	if err != nil {
-		if errors.Is(err, services.ErrInvalidTierPlacement) {
-			w.WriteHeader(http.StatusConflict)
-			return
-		}
-		rankError(a, w, r, err)
+		a.rankError(w, r, err)
 		return
 	}
 
-	oob, err := a.boardVersionActionsOOB(ctx, rankingUUID.String(), version)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-	if err := renderComponent(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item, true)), oob); err != nil {
-		a.serverError(w, r, err)
-	}
+	card := ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item, true))
+	a.renderWithVersionActions(w, r, http.StatusOK, rankingUUID, version, card)
 }
 
-// handlePublishVersion is POST /r/{uuid}/publish — publish the draft being
-// viewed, refusing (409) when it fails the publish gate. The UI only shows
-// the publish action when the gate already passes, so a 409 here means a
-// stale page or a direct request. On success, HX-Redirect sends the browser
-// to the now-published version, since publishing changes enough of the page
-// (status text, the version dropdown, the branch action) that a full
-// re-render is simpler than patching pieces.
+// handlePublishVersion redirects rather than patching the page, because
+// publishing changes the status text, the version dropdown, and the branch
+// action all at once.
 func (a *App) handlePublishVersion(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
-	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+	rankingUUID, version := boardScope(r)
 
-	published, err := a.RankingSvc.PublishVersion(ctx, services.PublishVersionRequest{VersionID: version.ID})
+	published, err := a.RankingSvc.PublishVersion(r.Context(), services.PublishVersionRequest{VersionID: version.ID})
 	if err != nil {
-		if errors.Is(err, services.ErrNotPublishable) {
-			w.WriteHeader(http.StatusConflict)
-			return
-		}
-		rankError(a, w, r, err)
+		a.rankError(w, r, err)
 		return
 	}
 
@@ -473,31 +330,20 @@ func (a *App) handlePublishVersion(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// handleCreateVersion is POST /r/{uuid}/versions — branch a new draft off
-// the published version being viewed. Refuses (409) if the version being
-// viewed isn't published, or if the ranking already has a draft; the UI
-// only shows the action when neither applies. HX-Redirect sends the browser
-// to the new draft, for the same reason handlePublishVersion does.
 func (a *App) handleCreateVersion(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
-	version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
+	rankingUUID, version := boardScope(r)
 
 	if !version.PublishedAt.Valid {
 		w.WriteHeader(http.StatusConflict)
 		return
 	}
 
-	draft, err := a.RankingSvc.CreateVersionFromPublished(ctx, services.CreateVersionFromPublishedRequest{
+	draft, err := a.RankingSvc.CreateVersionFromPublished(r.Context(), services.CreateVersionFromPublishedRequest{
 		RankingID:       version.RankingID,
 		SourceVersionID: version.ID,
 	})
 	if err != nil {
-		if errors.Is(err, services.ErrDraftAlreadyExists) {
-			w.WriteHeader(http.StatusConflict)
-			return
-		}
-		rankError(a, w, r, err)
+		a.rankError(w, r, err)
 		return
 	}
 
@@ -505,27 +351,59 @@ func (a *App) handleCreateVersion(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// parseIDList parses a batch of form values (repeated item_id or tier_id
-// fields, in drag order) into int64 ids, rejecting the request outright if
-// any of them isn't one — a malformed id here means a client bug, not a
-// user-correctable error.
-func parseIDList(values []string) ([]int64, error) {
+// renderWithVersionActions renders a mutation's own fragments plus the
+// publish action out of band, since any board mutation can flip the publish
+// gate. The drag endpoints are plain fetch() calls rather than htmx, so
+// board.js applies the out-of-band swap by hand (see applyOOBSwaps).
+func (a *App) renderWithVersionActions(w http.ResponseWriter, r *http.Request, status int, rankingUUID uuid.UUID, version db.RankingVersion, fragments ...templ.Component) {
+	actions, err := a.boardVersionActionsOOB(r.Context(), rankingUUID.String(), version)
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+	a.render(w, r, status, append(fragments, actions)...)
+}
+
+func (a *App) pathID(w http.ResponseWriter, r *http.Request, name string) (int64, bool) {
+	id, err := strconv.ParseInt(r.PathValue(name), 10, 64)
+	if err != nil {
+		a.notFound(w, r)
+		return 0, false
+	}
+	return id, true
+}
+
+// formIDList reads repeated form fields (in drag order) as ids. A malformed
+// one means a client bug, not a user-correctable error, so it rejects the
+// whole request.
+func (a *App) formIDList(w http.ResponseWriter, r *http.Request, name string) ([]int64, bool) {
+	if err := r.ParseForm(); err != nil {
+		a.serverError(w, r, err)
+		return nil, false
+	}
+
+	values := r.Form[name]
 	ids := make([]int64, len(values))
 	for i, v := range values {
 		id, err := strconv.ParseInt(v, 10, 64)
 		if err != nil {
-			return nil, err
+			w.WriteHeader(http.StatusBadRequest)
+			return nil, false
 		}
 		ids[i] = id
 	}
-	return ids, nil
+	return ids, true
 }
 
-// rankError maps service errors to HTTP responses.
-func rankError(a *App, w http.ResponseWriter, r *http.Request, err error) {
-	if errors.Is(err, services.ErrRankingNotFound) {
+func (a *App) rankError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, services.ErrRankingNotFound):
 		a.notFound(w, r)
-		return
+	case errors.Is(err, services.ErrInvalidTierPlacement),
+		errors.Is(err, services.ErrNotPublishable),
+		errors.Is(err, services.ErrDraftAlreadyExists):
+		w.WriteHeader(http.StatusConflict)
+	default:
+		a.serverError(w, r, err)
 	}
-	a.serverError(w, r, err)
 }

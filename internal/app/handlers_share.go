@@ -10,18 +10,15 @@ import (
 	"github.com/google/uuid"
 )
 
-// handleEnableShare is POST /r/{uuid}/share — turn on public sharing for
-// the ranking, minting a fresh public_slug. It re-derives ShareGate itself
-// rather than trusting the client: the board only shows this control's
-// enable action when the gate already passed, but a stale page or a direct
-// request could still reach here after the gate flips back closed.
+// handleEnableShare re-derives the share gate rather than trusting the
+// client, since a stale page can reach here after the gate closes.
 func (a *App) handleEnableShare(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
 
 	ranking, err := a.RankingSvc.GetRanking(ctx, rankingUUID)
 	if err != nil {
-		rankError(a, w, r, err)
+		a.rankError(w, r, err)
 		return
 	}
 
@@ -43,21 +40,17 @@ func (a *App) handleEnableShare(w http.ResponseWriter, r *http.Request) {
 
 	props := shareControlProps(rankingUUID.String(), gate, link)
 	props.Open = true
-	if err := renderComponent(w, r, http.StatusOK, ui.ShareControl(props)); err != nil {
-		a.serverError(w, r, err)
-	}
+	a.render(w, r, http.StatusOK, ui.ShareControl(props))
 }
 
-// handleDisableShare is DELETE /r/{uuid}/share — turn off public sharing
-// and clear the slug. The old link is dead permanently: re-sharing later
-// mints a different one.
+// handleDisableShare kills the old link for good; re-sharing mints a new one.
 func (a *App) handleDisableShare(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
 
 	ranking, err := a.RankingSvc.GetRanking(ctx, rankingUUID)
 	if err != nil {
-		rankError(a, w, r, err)
+		a.rankError(w, r, err)
 		return
 	}
 
@@ -74,7 +67,5 @@ func (a *App) handleDisableShare(w http.ResponseWriter, r *http.Request) {
 
 	props := shareControlProps(rankingUUID.String(), gate, services.LinkShare{})
 	props.Open = true
-	if err := renderComponent(w, r, http.StatusOK, ui.ShareControl(props)); err != nil {
-		a.serverError(w, r, err)
-	}
+	a.render(w, r, http.StatusOK, ui.ShareControl(props))
 }

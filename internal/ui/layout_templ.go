@@ -13,37 +13,26 @@ import (
 	"fmt"
 )
 
-// LayoutProps configures the page shell: the <html>/<head> boilerplate, the
-// NavBar, an optional flash notice, and a <main> the caller's content renders
-// into. Ported from assets/templates/layout.html — the CSRF token still rides
-// on body's hx-headers so every htmx mutation carries X-CSRF-Token.
+// LayoutProps configures the page shell. The CSRF token rides on body's
+// hx-headers, so every htmx mutation carries X-CSRF-Token.
 type LayoutProps struct {
 	Title string
-	// Description overrides the default meta description; empty renders
-	// the site's own pitch, unchanged from before this field existed.
+	// Empty renders the site's own pitch.
 	Description string
 	CSRFToken   string
 	LoggedIn    bool
 	Flash       string
-	// Theme is a signed-in user's explicit preference: "system", "light",
-	// or "dark". It lands on <html data-theme="..."> in this same response
-	// — not applied by client-side JS after paint — so there's no flash of
-	// the wrong theme. Left empty for a signed-out visitor, which renders
-	// <html> with no data-theme attribute at all so input.css's
-	// prefers-color-scheme media query is the only thing deciding the
-	// palette, exactly as it did before this preference existed.
+	// Theme lands on <html data-theme> in this same response rather than
+	// being applied by JS after paint, so there's no flash of the wrong
+	// theme. Empty omits the attribute, leaving prefers-color-scheme to
+	// decide.
 	Theme string
-	// OpenGraph gives a page its own social preview — a shared tier list's
-	// og:title and og:description differ from the site default, and
-	// matter more here than almost anywhere else in the app, since a
-	// shared link is the app's best organic acquisition surface. Nil
-	// renders no og: tags at all.
+	// OpenGraph gives a shared tier list its own social preview. Nil renders
+	// no og: tags.
 	OpenGraph *OpenGraphProps
 }
 
-// OpenGraphProps configures a page's Open Graph tags, read by link
-// unfurlers (Slack, Discord, iMessage, social platforms) when its URL gets
-// pasted somewhere.
+// OpenGraphProps configures the tags link unfurlers read.
 type OpenGraphProps struct {
 	Title       string
 	Description string
@@ -82,7 +71,7 @@ func Layout(props LayoutProps) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.Theme)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layout.templ`, Line: 51, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layout.templ`, Line: 40, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -95,7 +84,7 @@ func Layout(props LayoutProps) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(cmp.Or(props.Title, "Rank Anything"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layout.templ`, Line: 55, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layout.templ`, Line: 44, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -108,7 +97,7 @@ func Layout(props LayoutProps) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(cmp.Or(props.Description, defaultDescription))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layout.templ`, Line: 58, Col: 59}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layout.templ`, Line: 47, Col: 59}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -126,7 +115,7 @@ func Layout(props LayoutProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(cmp.Or(props.OpenGraph.Title, cmp.Or(props.Title, "Rank Anything")))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layout.templ`, Line: 61, Col: 107}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layout.templ`, Line: 50, Col: 107}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 			if templ_7745c5c3_Err != nil {
@@ -139,7 +128,7 @@ func Layout(props LayoutProps) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(cmp.Or(props.OpenGraph.Description, cmp.Or(props.Description, defaultDescription)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layout.templ`, Line: 62, Col: 128}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layout.templ`, Line: 51, Col: 128}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 			if templ_7745c5c3_Err != nil {
@@ -152,7 +141,7 @@ func Layout(props LayoutProps) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(cmp.Or(props.OpenGraph.Type, "website"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layout.templ`, Line: 63, Col: 78}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layout.templ`, Line: 52, Col: 78}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 			if templ_7745c5c3_Err != nil {
@@ -170,7 +159,7 @@ func Layout(props LayoutProps) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.OpenGraph.URL)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layout.templ`, Line: 65, Col: 58}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layout.templ`, Line: 54, Col: 58}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 				if templ_7745c5c3_Err != nil {
@@ -189,7 +178,7 @@ func Layout(props LayoutProps) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf(`{"X-CSRF-Token": "%s"}`, props.CSRFToken))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layout.templ`, Line: 73, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layout.templ`, Line: 62, Col: 70}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 		if templ_7745c5c3_Err != nil {
@@ -223,7 +212,7 @@ func Layout(props LayoutProps) templ.Component {
 				var templ_7745c5c3_Var11 string
 				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(props.Flash)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layout.templ`, Line: 79, Col: 19}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/layout.templ`, Line: 68, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 				if templ_7745c5c3_Err != nil {

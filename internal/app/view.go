@@ -12,9 +12,8 @@ type BaseView struct {
 	User      *db.User
 	CSRFToken string
 	Flash     string
-	// Theme is User.ThemePreference as a string, or "" for a signed-out
-	// visitor — see LayoutProps.Theme for what that does to the rendered
-	// <html> tag.
+	// Theme is empty for a signed-out visitor — see LayoutProps.Theme for
+	// what that does to the rendered <html> tag.
 	Theme string
 }
 
@@ -33,27 +32,35 @@ func (a *App) base(r *http.Request) BaseView {
 	return v
 }
 
-// renderComponent writes the appropriate header and status, then renders
-// each templ component in order. A handler passes more than one when a
-// mutation carries an out-of-band swap alongside its primary fragment (see
-// App.boardVersionActionsOOB) — htmx pulls any hx-swap-oob element out of
-// the combined body regardless of where it falls, so concatenating them is
-// enough.
-func renderComponent(w http.ResponseWriter, r *http.Request, status int, cs ...templ.Component) error {
+// render writes the status, then each component in order. A handler passes
+// more than one when a mutation carries an out-of-band swap alongside its
+// primary fragment — htmx pulls any hx-swap-oob element out of the combined
+// body regardless of where it falls. A failure is logged rather than
+// answered with a 500, since the status line is already on the wire.
+func (a *App) render(w http.ResponseWriter, r *http.Request, status int, cs ...templ.Component) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	for _, c := range cs {
 		if err := c.Render(r.Context(), w); err != nil {
-			return err
+			a.Logger.Error("render component", "err", err, "path", r.URL.Path)
+			return
 		}
 	}
-	return nil
 }
 
-// isHTMXRequest helps know if the request was initiated from HTMX or plain HTML so
-// we can support progressive enhancement.
 func isHTMXRequest(r *http.Request) bool {
 	return r.Header.Get("HX-Request") == "true"
+}
+
+// redirect sends an htmx caller via HX-Redirect and everyone else via 303, so
+// a form works with or without JavaScript.
+func redirect(w http.ResponseWriter, r *http.Request, target string) {
+	if isHTMXRequest(r) {
+		w.Header().Set("HX-Redirect", target)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
 func (a *App) notFound(w http.ResponseWriter, _ *http.Request) {
