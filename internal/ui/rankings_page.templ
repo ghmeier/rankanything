@@ -1,7 +1,5 @@
 package ui
 
-// RankingsIndexProps configures RankingsIndexPage. VerificationNotice renders
-// above the heading; nil renders nothing.
 type RankingsIndexProps struct {
 	CSRFToken          string
 	LoggedIn           bool
@@ -11,10 +9,7 @@ type RankingsIndexProps struct {
 	Rankings           []RankingsIndexCard
 }
 
-// RankingsIndexCard names both versions when a draft sits on a publish, so a
-// reader can tell the live version is stale. Either string is empty on its
-// own: a never-published ranking has no PublishedAt, and one with nothing
-// unpublished has no DraftURL.
+// RankingsIndexCard displays a summary and link of a ranking.
 type RankingsIndexCard struct {
 	URL         string
 	Name        string
@@ -23,13 +18,13 @@ type RankingsIndexCard struct {
 }
 
 templ RankingsIndexPage(props RankingsIndexProps) {
-	@Layout(LayoutProps{Title: "Your rankings", CSRFToken: props.CSRFToken, LoggedIn: props.LoggedIn, Flash: props.Flash, Theme: props.Theme}) {
+	@Layout(LayoutProps{Title: "Rankings", CSRFToken: props.CSRFToken, LoggedIn: props.LoggedIn, Flash: props.Flash, Theme: props.Theme}) {
 		<div class="space-y-6">
 			if props.VerificationNotice != nil {
 				@props.VerificationNotice
 			}
 			<div class="flex items-center justify-between">
-				<h1 class="text-2xl font-bold tracking-tight">Your rankings</h1>
+				<h1 class="text-2xl font-bold tracking-tight">Rankings</h1>
 				@Button(ButtonProps{Variant: ButtonPrimary, Attrs: templ.Attributes{"hx-post": "/new"}}) {
 					Create ranking
 				}

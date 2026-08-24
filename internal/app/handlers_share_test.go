@@ -17,7 +17,7 @@ import (
 
 // publishOwnerDraft adds one item, places it in the first tier, and
 // publishes the owner's draft — the minimum a version needs to pass
-// RankingsService's publish gate. Mirrors
+// RankingsService's publish validation. Mirrors
 // TestPublishSucceedsAndRedirectsToThePublishedVersion in
 // handlers_board_test.go.
 func publishOwnerDraft(t *testing.T, env *testsupport.Env, owner *testsupport.OwnerClient) {
@@ -61,7 +61,7 @@ func extractShareURL(t *testing.T, body string) string {
 }
 
 // ---------------------------------------------------------------------------
-// The share control's gate
+// The share control's validation
 // ---------------------------------------------------------------------------
 
 func TestShareControlBlockedWhenNothingIsPublished(t *testing.T) {
@@ -129,6 +129,27 @@ func TestEnablingShareMintsASlugAndThePublicURLResolves(t *testing.T) {
 	assert.Contains(t, Body(page.Body), owner.Ranking.Name)
 }
 
+func TestASharedBoardsMetaDescriptionIsPlainText(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	publishOwnerDraft(t, env, owner)
+	verifyOwnerEmail(t, env, owner)
+
+	owner.HTMX(http.MethodPost, "/r/"+owner.Ranking.Uuid.String()+"/description",
+		url.Values{"description": {"Ranked **by hand**"}})
+
+	res := owner.Post("/r/"+owner.Ranking.Uuid.String()+"/share", nil)
+	require.Equal(t, http.StatusOK, res.Status)
+	shareURL := extractShareURL(t, res.Body)
+
+	page := env.NewClient().Get(shareURL[strings.Index(shareURL, "/s/"):])
+
+	require.Equal(t, http.StatusOK, page.Status)
+	body := Body(page.Body)
+	assert.Contains(t, body, `content="Ranked by hand"`, "the social preview reads as words, not markdown")
+	assert.Contains(t, body, "<strong>by hand</strong>", "the page itself still renders the markdown")
+}
+
 func TestDisablingShareKillsTheOldSlugPermanentlyAndResharingMintsANewOne(t *testing.T) {
 	env := testsupport.NewEnv(t)
 	owner := env.NewOwnerClient()
@@ -160,13 +181,13 @@ func TestDisablingShareKillsTheOldSlugPermanentlyAndResharingMintsANewOne(t *tes
 	assert.Equal(t, http.StatusNotFound, env.NewClient().Get(firstPath).Status, "the old link stays dead even after a fresh share exists")
 }
 
-func TestEnablingShareIsRejectedWhenTheGateFails(t *testing.T) {
+func TestEnablingShareIsRejectedWhenTheRankingIsNotShareable(t *testing.T) {
 	env := testsupport.NewEnv(t)
 	owner := env.NewOwnerClient()
 
 	res := owner.Post("/r/"+owner.Ranking.Uuid.String()+"/share", nil)
 
-	assert.Equal(t, http.StatusForbidden, res.Status, "a direct request can't bypass the publish/verification gate")
+	assert.Equal(t, http.StatusForbidden, res.Status, "a direct request can't bypass the publish and verification checks")
 }
 
 // ---------------------------------------------------------------------------
@@ -211,7 +232,7 @@ func TestPublicSlugThatDoesNotResolveIs404(t *testing.T) {
 }
 
 func TestPublicSlugForARankingWithNoPublishedVersionIs404(t *testing.T) {
-	// EnableLinkShare doesn't itself enforce ShareGate (only the handler
+	// EnableLinkShare doesn't itself enforce ShareValidation (only the handler
 	// does), so a share row can in principle exist with is_public true but
 	// nothing published behind it; the public route still has to 404 it.
 	env := testsupport.NewEnv(t)

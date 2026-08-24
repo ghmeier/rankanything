@@ -38,7 +38,7 @@ type RankingMetaProps struct {
 }
 
 templ BoardPage(props BoardPageProps) {
-	@Layout(LayoutProps{Title: cmp.Or(props.RankingMeta.Name, "Untitled ranking"), CSRFToken: props.CSRFToken, LoggedIn: props.LoggedIn, Flash: props.Flash, Theme: props.Theme}) {
+	@Layout(LayoutProps{Title: cmp.Or(props.RankingMeta.Name, "Untitled ranking"), CSRFToken: props.CSRFToken, LoggedIn: props.LoggedIn, Flash: props.Flash, Theme: props.Theme, Wide: true}) {
 		<div class="space-y-4">
 			<section class="flex flex-row items-start justify-between gap-2">
 				<form
@@ -81,8 +81,8 @@ type BoardVersionActionsProps struct {
 	BlockedReasons   []string
 	HasOtherDraft    bool
 	DraftURL         string
-	// OOB rides along with a mutation's own fragment, so the publish button
-	// re-evaluates the moment a change flips the gate.
+	// Include OOB the mutation's fragment, so the publish button re-evaluates
+	// its state each time.
 	OOB bool
 }
 
@@ -99,15 +99,14 @@ templ BoardVersionActions(props BoardVersionActionsProps) {
 				Publish
 			}
 			if !props.Publishable {
-				<div class="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full left-1/2 z-10 mb-2 w-48 -translate-x-1/2 rounded bg-surface p-2 text-xs text-text">
+				@Tooltip(TooltipProps{Width: "w-48", Placement: TooltipBottom}) {
 					<p>To publish this version:</p>
-					<ul class="list-disc list-inside">
+					<ul class="list-inside list-disc">
 						for _, reason := range props.BlockedReasons {
 							<li class="whitespace-nowrap">{ reason }</li>
 						}
 					</ul>
-					<div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-surface"></div>
-				</div>
+				}
 			}
 		} else if props.HasOtherDraft {
 			<a href={ templ.URL(props.DraftURL) } class={ ButtonClass(ButtonSecondary), splitButtonPrimaryClass }>
@@ -203,22 +202,13 @@ templ RankingMeta(props RankingMetaProps) {
 				hx-swap="outerHTML"
 				hx-trigger="change"
 			/>
-			<input
-				name="description"
-				value={ props.Description }
-				aria-label="Ranking description"
-				class="w-full text-sm text-muted outline-none placeholder:text-subtle"
-				placeholder="What are you ranking?"
-				hx-post={ fmt.Sprintf("/r/%s", props.RankingUUID) }
-				hx-target="#ranking-meta"
-				hx-swap="outerHTML"
-				hx-trigger="change"
-			/>
 		} else {
 			<p class="w-full text-2xl font-bold tracking-tight text-text">{ cmp.Or(props.Name, "Untitled ranking") }</p>
-			if props.Description != "" {
-				<p class="w-full text-sm text-muted">{ props.Description }</p>
-			}
 		}
+		@RankingDescription(RankingDescriptionProps{
+			RankingUUID: props.RankingUUID,
+			Description: props.Description,
+			Editable:    props.Editable,
+		})
 	</div>
 }

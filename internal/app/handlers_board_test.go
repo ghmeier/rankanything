@@ -35,6 +35,77 @@ func TestAddItemRequiresLabel(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, res.Status)
 }
 
+func TestAddItemWithALinkRendersAClickableCard(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+
+	res := owner.HTMX(http.MethodPost, "/r/"+owner.Ranking.Uuid.String()+"/v/"+owner.Draft.ShortUuid+"/items",
+		url.Values{"label": {"Tartine"}, "source_url": {"https://tartinebakery.com"}})
+
+	require.Equal(t, http.StatusOK, res.Status)
+	body := Body(res.Body)
+	assert.Contains(t, body, `href="https://tartinebakery.com"`)
+	assert.Contains(t, body, `rel="noopener noreferrer"`)
+	assert.Contains(t, body, `draggable="false"`, "the anchor must not hijack the card's drag")
+}
+
+func TestAddItemRejectsALinkThatIsNotHTTP(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+
+	res := owner.HTMX(http.MethodPost, "/r/"+owner.Ranking.Uuid.String()+"/v/"+owner.Draft.ShortUuid+"/items",
+		url.Values{"label": {"Hostile"}, "source_url": {"javascript:alert(1)"}})
+
+	assert.Equal(t, http.StatusUnprocessableEntity, res.Status)
+}
+
+func TestEditItemRendersTheFormAndUpdateSavesTheLink(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	ctx := context.Background()
+	base := "/r/" + owner.Ranking.Uuid.String() + "/v/" + owner.Draft.ShortUuid
+
+	owner.HTMX(http.MethodPost, base+"/items", url.Values{"label": {"Tartine"}})
+	items, err := env.Queries.ListRankingItemsForVersion(ctx, owner.Draft.ID)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	itemPath := base + "/items/" + strconv.FormatInt(items[0].ID, 10)
+
+	res := owner.HTMX(http.MethodGet, itemPath+"/edit", nil)
+	require.Equal(t, http.StatusOK, res.Status)
+	assert.Contains(t, Body(res.Body), `name="source_url"`)
+
+	res = owner.HTMX(http.MethodPut, itemPath,
+		url.Values{"label": {"Tartine"}, "source_url": {"https://tartinebakery.com"}})
+	require.Equal(t, http.StatusOK, res.Status)
+	assert.Contains(t, Body(res.Body), `href="https://tartinebakery.com"`)
+
+	stored, err := env.Queries.GetRankingItem(ctx, items[0].ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.SourceUrl)
+	assert.Equal(t, "https://tartinebakery.com", *stored.SourceUrl)
+}
+
+func TestUpdateItemIsRejectedAgainstAPublishedVersion(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	ctx := context.Background()
+	base := "/r/" + owner.Ranking.Uuid.String() + "/v/" + owner.Draft.ShortUuid
+
+	owner.HTMX(http.MethodPost, base+"/items", url.Values{"label": {"Tartine"}})
+	items, err := env.Queries.ListRankingItemsForVersion(ctx, owner.Draft.ID)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+
+	_, err = env.Queries.PublishRankingVersion(ctx, owner.Draft.ID)
+	require.NoError(t, err)
+
+	res := owner.HTMX(http.MethodPut, base+"/items/"+strconv.FormatInt(items[0].ID, 10),
+		url.Values{"label": {"Renamed"}})
+
+	assert.Equal(t, http.StatusForbidden, res.Status)
+}
+
 func TestAddItemsToTier(t *testing.T) {
 	env := testsupport.NewEnv(t)
 	owner := env.NewOwnerClient()
@@ -99,7 +170,9 @@ func TestUpdateRankingTitleReturnsMetaPartial(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, res.Status)
 	assert.Contains(t, Body(res.Body), `value="Best snacks"`)
-	assert.Contains(t, Body(res.Body), `value="2026 edition"`)
+	// The description comes back rendered, not as an input: it is only an
+	// editor once clicked.
+	assert.Contains(t, Body(res.Body), "<p>2026 edition</p>")
 	assert.NotContains(t, Body(res.Body), "<html")
 }
 
@@ -412,7 +485,7 @@ func TestDeleteTierReturnsItsItemsToTheTrayOutOfBand(t *testing.T) {
 // Publishing and version branching
 // ---------------------------------------------------------------------------
 
-func TestPublishIsBlockedUntilTheGatePasses(t *testing.T) {
+func TestPublishIsBlockedUntilTheVersionIsPublishable(t *testing.T) {
 	env := testsupport.NewEnv(t)
 	owner := env.NewOwnerClient()
 
@@ -609,6 +682,89 @@ func TestUpdatingTheRankingTitleStaysAllowedWhileViewingAPublishedVersion(t *tes
 }
 
 // ---------------------------------------------------------------------------
+// The description: markdown, rendered, edited on click
+// ---------------------------------------------------------------------------
+
+func TestDescriptionRendersAsMarkdown(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	slug := owner.Ranking.Uuid.String()
+
+	res := owner.HTMX(http.MethodPost, "/r/"+slug+"/description", url.Values{"description": {"Ranked **by hand**"}})
+	require.Equal(t, http.StatusOK, res.Status)
+
+	body := Body(res.Body)
+	assert.Contains(t, body, "<strong>by hand</strong>")
+	assert.NotContains(t, body, "**", "the markdown source doesn't reach the page")
+}
+
+func TestDescriptionMarkdownIsSanitized(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	slug := owner.Ranking.Uuid.String()
+
+	form := url.Values{"description": {"<script>alert(1)</script> [x](javascript:alert(1))"}}
+	res := owner.HTMX(http.MethodPost, "/r/"+slug+"/description", form)
+	require.Equal(t, http.StatusOK, res.Status)
+
+	body := Body(res.Body)
+	assert.NotContains(t, body, "<script>")
+	assert.NotContains(t, body, "javascript:")
+}
+
+func TestEditingTheDescriptionSwapsInATextarea(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	slug := owner.Ranking.Uuid.String()
+
+	owner.HTMX(http.MethodPost, "/r/"+slug+"/description", url.Values{"description": {"Ranked by hand"}})
+
+	res := owner.HTMX(http.MethodGet, "/r/"+slug+"/description/edit", nil)
+
+	require.Equal(t, http.StatusOK, res.Status)
+	body := Body(res.Body)
+	assert.Contains(t, body, "<textarea")
+	assert.Contains(t, body, "Ranked by hand", "the editor opens on the markdown source")
+
+	cancelled := owner.HTMX(http.MethodGet, "/r/"+slug+"/description", nil)
+	require.Equal(t, http.StatusOK, cancelled.Status)
+	assert.NotContains(t, Body(cancelled.Body), "<textarea", "cancelling returns the reading state")
+}
+
+func TestSavingTheDescriptionLeavesTheTitleAlone(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	ctx := context.Background()
+	slug := owner.Ranking.Uuid.String()
+
+	owner.HTMX(http.MethodPost, "/r/"+slug, url.Values{"title": {"Best pastries"}})
+	owner.HTMX(http.MethodPost, "/r/"+slug+"/description", url.Values{"description": {"Ranked by hand"}})
+
+	stored, err := env.Queries.GetRankingByUUID(ctx, owner.Ranking.Uuid)
+	require.NoError(t, err)
+	assert.Equal(t, "Best pastries", stored.Name)
+	assert.Equal(t, "Ranked by hand", stored.Description)
+}
+
+func TestAPublishedVersionRendersNoDescriptionEditor(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	ctx := context.Background()
+	slug := owner.Ranking.Uuid.String()
+
+	owner.HTMX(http.MethodPost, "/r/"+slug+"/description", url.Values{"description": {"Ranked by hand"}})
+	published, err := env.Queries.PublishRankingVersion(ctx, owner.Draft.ID)
+	require.NoError(t, err)
+
+	res := owner.Get("/r/" + slug + "/v/" + published.ShortUuid)
+
+	require.Equal(t, http.StatusOK, res.Status)
+	body := Body(res.Body)
+	assert.Contains(t, body, "Ranked by hand")
+	assert.NotContains(t, body, `aria-label="Edit description"`)
+}
+
+// ---------------------------------------------------------------------------
 // The publish button re-evaluates as the board changes
 // ---------------------------------------------------------------------------
 
@@ -656,7 +812,7 @@ func TestRenameTierDoesNotCarryThePublishActionOutOfBand(t *testing.T) {
 		url.Values{"label": {"Renamed"}, "color": {"#123456"}})
 
 	require.Equal(t, http.StatusOK, res.Status)
-	assert.NotContains(t, Body(res.Body), `id="board-version-actions"`, "renaming a tier can't flip the publish gate")
+	assert.NotContains(t, Body(res.Body), `id="board-version-actions"`, "renaming a tier can't flip whether the version is publishable")
 }
 
 // ---------------------------------------------------------------------------

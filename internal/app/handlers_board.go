@@ -59,11 +59,20 @@ func (a *App) handleViewRanking(w http.ResponseWriter, r *http.Request) {
 func (a *App) handleUpdateRanking(w http.ResponseWriter, r *http.Request) {
 	rankingUUID, version := boardScope(r)
 
-	updated, err := a.RankingSvc.UpdateRanking(r.Context(), services.UpdateRankingRequest{
-		UUID:        rankingUUID,
-		Name:        r.FormValue("title"),
-		Description: r.FormValue("description"),
-	})
+	if err := r.ParseForm(); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	req := services.UpdateRankingRequest{UUID: rankingUUID}
+	if values, ok := r.Form["title"]; ok {
+		req.Name = &values[0]
+	}
+	if values, ok := r.Form["description"]; ok {
+		req.Description = &values[0]
+	}
+
+	updated, err := a.RankingSvc.UpdateRanking(r.Context(), req)
 	if err != nil {
 		a.rankError(w, r, err)
 		return
@@ -71,6 +80,49 @@ func (a *App) handleUpdateRanking(w http.ResponseWriter, r *http.Request) {
 
 	props := rankingMetaProps(rankingUUID.String(), version.ShortUuid, updated, !version.PublishedAt.Valid)
 	a.render(w, r, http.StatusOK, ui.RankingMeta(props))
+}
+
+// handleViewDescription and handleEditDescription are the two halves of
+// click-to-edit: the description reads as prose until it is clicked, and the
+// editor is a fragment the server hands back, not a state the page holds.
+func (a *App) handleViewDescription(w http.ResponseWriter, r *http.Request) {
+	a.renderDescription(w, r, ui.RankingDescription)
+}
+
+func (a *App) handleEditDescription(w http.ResponseWriter, r *http.Request) {
+	a.renderDescription(w, r, ui.RankingDescriptionForm)
+}
+
+// handleUpdateDescription answers with the display half, so saving closes the
+// editor.
+func (a *App) handleUpdateDescription(w http.ResponseWriter, r *http.Request) {
+	rankingUUID, version := boardScope(r)
+
+	description := r.FormValue("description")
+	updated, err := a.RankingSvc.UpdateRanking(r.Context(), services.UpdateRankingRequest{
+		UUID:        rankingUUID,
+		Description: &description,
+	})
+	if err != nil {
+		a.rankError(w, r, err)
+		return
+	}
+
+	props := rankingDescriptionProps(rankingUUID.String(), updated, !version.PublishedAt.Valid)
+	a.render(w, r, http.StatusOK, ui.RankingDescription(props))
+}
+
+func (a *App) renderDescription(w http.ResponseWriter, r *http.Request, component func(ui.RankingDescriptionProps) templ.Component) {
+	rankingUUID, version := boardScope(r)
+
+	ranking, err := a.RankingSvc.GetRanking(r.Context(), rankingUUID)
+	if err != nil {
+		a.rankError(w, r, err)
+		return
+	}
+
+	props := rankingDescriptionProps(rankingUUID.String(), ranking, !version.PublishedAt.Valid)
+	a.render(w, r, http.StatusOK, component(props))
 }
 
 func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
@@ -86,14 +138,82 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 		VersionID:      version.ID,
 		Title:          title,
 		ImageSourceURL: r.FormValue("image_url"),
+		SourceURL:      r.FormValue("source_url"),
 	})
 	if err != nil {
-		a.serverError(w, r, err)
+		a.rankError(w, r, err)
 		return
 	}
 
 	card := ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item, true))
 	a.renderWithVersionActions(w, r, http.StatusOK, rankingUUID, version, card)
+}
+
+// handleViewItem re-renders one card. It exists for the edit form's cancel
+// button, which needs the card back without saving anything.
+func (a *App) handleViewItem(w http.ResponseWriter, r *http.Request) {
+	rankingUUID, version := boardScope(r)
+
+	id, ok := a.pathID(w, r, "itemID")
+	if !ok {
+		return
+	}
+
+	item, err := a.RankingSvc.GetItem(r.Context(), services.GetItemRequest{VersionID: version.ID, ItemID: id})
+	if err != nil {
+		a.rankError(w, r, err)
+		return
+	}
+
+	a.render(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item, true)))
+}
+
+// handleEditItem swaps a card for the form that edits it. It is a GET because
+// opening the form changes nothing.
+func (a *App) handleEditItem(w http.ResponseWriter, r *http.Request) {
+	rankingUUID, version := boardScope(r)
+
+	id, ok := a.pathID(w, r, "itemID")
+	if !ok {
+		return
+	}
+
+	item, err := a.RankingSvc.GetItem(r.Context(), services.GetItemRequest{VersionID: version.ID, ItemID: id})
+	if err != nil {
+		a.rankError(w, r, err)
+		return
+	}
+
+	a.render(w, r, http.StatusOK, ui.ItemCardForm(itemCardProps(rankingUUID.String(), version.ShortUuid, item, true)))
+}
+
+func (a *App) handleUpdateItem(w http.ResponseWriter, r *http.Request) {
+	rankingUUID, version := boardScope(r)
+
+	id, ok := a.pathID(w, r, "itemID")
+	if !ok {
+		return
+	}
+
+	title := strings.TrimSpace(r.FormValue("label"))
+	if title == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	item, err := a.RankingSvc.UpdateItem(r.Context(), services.UpdateItemRequest{
+		VersionID:      version.ID,
+		ItemID:         id,
+		Title:          title,
+		ImageSourceURL: r.FormValue("image_url"),
+		SourceURL:      r.FormValue("source_url"),
+	})
+	if err != nil {
+		a.rankError(w, r, err)
+		return
+	}
+
+	a.render(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item, true)))
 }
 
 // handleDeleteItem answers with nothing for the primary target, which is what
@@ -352,8 +472,8 @@ func (a *App) handleCreateVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 // renderWithVersionActions renders a mutation's own fragments plus the
-// publish action out of band, since any board mutation can flip the publish
-// gate.
+// publish action out of band, since any board mutation can flip whether the
+// version is publishable.
 func (a *App) renderWithVersionActions(w http.ResponseWriter, r *http.Request, status int, rankingUUID uuid.UUID, version db.RankingVersion, fragments ...templ.Component) {
 	actions, err := a.boardVersionActionsOOB(r.Context(), rankingUUID.String(), version)
 	if err != nil {
@@ -402,6 +522,8 @@ func (a *App) rankError(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, services.ErrNotPublishable),
 		errors.Is(err, services.ErrDraftAlreadyExists):
 		w.WriteHeader(http.StatusConflict)
+	case errors.Is(err, services.ErrInvalidLink):
+		w.WriteHeader(http.StatusUnprocessableEntity)
 	default:
 		a.serverError(w, r, err)
 	}

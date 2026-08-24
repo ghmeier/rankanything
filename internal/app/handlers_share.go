@@ -10,8 +10,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// handleEnableShare re-derives the share gate rather than trusting the
-// client, since a stale page can reach here after the gate closes.
+// handleEnableShare re-validates rather than trusting the client, since a
+// stale page can reach here after the ranking stops being shareable.
 func (a *App) handleEnableShare(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
@@ -22,13 +22,13 @@ func (a *App) handleEnableShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	gate, err := a.ShareSvc.EvaluateShareGate(ctx, ranking)
+	validation, err := a.ShareSvc.ValidateShareable(ctx, ranking)
 	if err != nil {
 		a.serverError(w, r, err)
 		return
 	}
-	if !gate.Shareable {
-		a.forbidden(w, r, strings.Join(gate.Reasons, " "))
+	if !validation.Shareable {
+		a.forbidden(w, r, strings.Join(validation.Reasons, " "))
 		return
 	}
 
@@ -38,7 +38,7 @@ func (a *App) handleEnableShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := shareControlProps(rankingUUID.String(), gate, link)
+	props := shareControlProps(rankingUUID.String(), validation, link)
 	props.Open = true
 	a.render(w, r, http.StatusOK, ui.ShareControl(props))
 }
@@ -59,13 +59,13 @@ func (a *App) handleDisableShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	gate, err := a.ShareSvc.EvaluateShareGate(ctx, ranking)
+	validation, err := a.ShareSvc.ValidateShareable(ctx, ranking)
 	if err != nil {
 		a.serverError(w, r, err)
 		return
 	}
 
-	props := shareControlProps(rankingUUID.String(), gate, services.LinkShare{})
+	props := shareControlProps(rankingUUID.String(), validation, services.LinkShare{})
 	props.Open = true
 	a.render(w, r, http.StatusOK, ui.ShareControl(props))
 }

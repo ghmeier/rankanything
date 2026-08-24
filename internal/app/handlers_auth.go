@@ -185,7 +185,7 @@ func (a *App) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 	tok := r.URL.Query().Get("token")
 
 	if tok == "" || a.VerificationSvc.RedeemEmailVerification(ctx, tok) != nil {
-		a.Sessions.Flash(ctx, "That verification link has expired or was already used. You can request a new one from your rankings page.")
+		a.Sessions.Flash(ctx, "That verification link has expired or was already used. You can request a new one from the rankings page.")
 	} else {
 		a.Sessions.Flash(ctx, "Email verified!")
 	}

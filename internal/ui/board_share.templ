@@ -7,7 +7,7 @@ import "fmt"
 // is worse than no control.
 type ShareControlProps struct {
 	RankingUUID string
-	// From services.ShareGate; Reasons lists every unmet condition.
+	// From services.ShareValidation; Reasons lists every unmet condition.
 	Shareable bool
 	Reasons   []string
 	// PublicURL is unused when IsPublic is false.
@@ -54,15 +54,14 @@ templ ShareControl(props ShareControlProps) {
 			}
 		}
 		if !props.Shareable {
-			<div class="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full left-1/2 z-10 mb-2 w-48 -translate-x-1/2 rounded bg-surface p-2 text-xs text-text">
+			@Tooltip(TooltipProps{Width: "w-48", Placement: TooltipLeft}) {
 				<p>To share this ranking:</p>
-				<ul class="list-disc list-inside">
+				<ul class="list-inside list-disc">
 					for _, reason := range props.Reasons {
 						<li class="whitespace-nowrap">{ reason }</li>
 					}
 				</ul>
-				<div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-surface"></div>
-			</div>
+			}
 		}
 	</div>
 }

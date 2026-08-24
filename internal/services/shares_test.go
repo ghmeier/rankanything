@@ -17,10 +17,10 @@ func newShareService(rankingSvc *services.RankingsService) *services.ShareServic
 }
 
 // ---------------------------------------------------------------------------
-// EvaluateShareGate
+// ValidateShareable
 // ---------------------------------------------------------------------------
 
-func TestEvaluateShareGateBlocksWhenNothingIsPublished(t *testing.T) {
+func TestValidateShareableBlocksWhenNothingIsPublished(t *testing.T) {
 	t.Parallel()
 
 	rankingSvc, ctx, ranking, _ := newOwnedRanking(t)
@@ -28,14 +28,14 @@ func TestEvaluateShareGateBlocksWhenNothingIsPublished(t *testing.T) {
 	_, err := rankingSvc.Queries.MarkUserEmailVerified(ctx, ranking.UserID)
 	require.NoError(t, err)
 
-	gate, err := shareSvc.EvaluateShareGate(ctx, ranking)
+	validation, err := shareSvc.ValidateShareable(ctx, ranking)
 
 	require.NoError(t, err)
-	assert.False(t, gate.Shareable)
-	assert.Contains(t, gate.Reasons, "Publish at least one version.")
+	assert.False(t, validation.Shareable)
+	assert.Contains(t, validation.Reasons, "Publish at least one version.")
 }
 
-func TestEvaluateShareGateBlocksWhenTheOwnerEmailIsUnverified(t *testing.T) {
+func TestValidateShareableBlocksWhenTheOwnerEmailIsUnverified(t *testing.T) {
 	t.Parallel()
 
 	rankingSvc, ctx, ranking, version := newOwnedRanking(t)
@@ -43,14 +43,14 @@ func TestEvaluateShareGateBlocksWhenTheOwnerEmailIsUnverified(t *testing.T) {
 	_, err := rankingSvc.Queries.PublishRankingVersion(ctx, version.ID)
 	require.NoError(t, err)
 
-	gate, err := shareSvc.EvaluateShareGate(ctx, ranking)
+	validation, err := shareSvc.ValidateShareable(ctx, ranking)
 
 	require.NoError(t, err)
-	assert.False(t, gate.Shareable)
-	assert.Contains(t, gate.Reasons, "Verify your email.")
+	assert.False(t, validation.Shareable)
+	assert.Contains(t, validation.Reasons, "Verify your email.")
 }
 
-func TestEvaluateShareGateAllowsWhenBothConditionsHold(t *testing.T) {
+func TestValidateShareableAllowsWhenBothConditionsHold(t *testing.T) {
 	t.Parallel()
 
 	rankingSvc, ctx, ranking, version := newOwnedRanking(t)
@@ -60,11 +60,11 @@ func TestEvaluateShareGateAllowsWhenBothConditionsHold(t *testing.T) {
 	_, err = rankingSvc.Queries.MarkUserEmailVerified(ctx, ranking.UserID)
 	require.NoError(t, err)
 
-	gate, err := shareSvc.EvaluateShareGate(ctx, ranking)
+	validation, err := shareSvc.ValidateShareable(ctx, ranking)
 
 	require.NoError(t, err)
-	assert.True(t, gate.Shareable)
-	assert.Empty(t, gate.Reasons)
+	assert.True(t, validation.Shareable)
+	assert.Empty(t, validation.Reasons)
 }
 
 // ---------------------------------------------------------------------------

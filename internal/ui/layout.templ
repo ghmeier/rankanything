@@ -22,6 +22,9 @@ type LayoutProps struct {
 	// OpenGraph gives a shared tier list its own social preview. Nil renders
 	// no og: tags.
 	OpenGraph *OpenGraphProps
+	// Wide widens the content column for the pages that are a board rather
+	// than prose. Text pages stay narrow enough to stay readable.
+	Wide bool
 }
 
 // OpenGraphProps configures the tags link unfurlers read.
@@ -61,17 +64,28 @@ templ Layout(props LayoutProps) {
 			class="min-h-full bg-background text-text antialiased"
 			hx-headers={ fmt.Sprintf(`{"X-CSRF-Token": "%s"}`, props.CSRFToken) }
 		>
-			@NavBar(NavBarProps{LoggedIn: props.LoggedIn})
-			if props.Flash != "" {
-				<div class="mx-auto mt-4 max-w-6xl px-6">
-					@Notice(NoticeProps{Variant: NoticeSuccess, Dismissable: true, ID: "flash"}) {
-						{ props.Flash }
-					}
-				</div>
-			}
-			<main class="mx-auto max-w-6xl px-6 py-4">
-				{ children... }
-			</main>
+			@SideNav(SideNavProps{LoggedIn: props.LoggedIn})
+			// The padding clears the nav rail, which is fixed: on md and up it
+			// runs down the left edge, below that it sits across the bottom.
+			<div class="pb-16 md:pb-0 md:pl-14">
+				if props.Flash != "" {
+					<div class={ layoutContainerClass(props.Wide), "mt-4" }>
+						@Notice(NoticeProps{Variant: NoticeSuccess, Dismissable: true, ID: "flash"}) {
+							{ props.Flash }
+						}
+					</div>
+				}
+				<main class={ layoutContainerClass(props.Wide), "py-4" }>
+					{ children... }
+				</main>
+			</div>
 		</body>
 	</html>
+}
+
+func layoutContainerClass(wide bool) string {
+	if wide {
+		return "mx-auto w-full max-w-[96rem] px-6"
+	}
+	return "mx-auto w-full max-w-6xl px-6"
 }

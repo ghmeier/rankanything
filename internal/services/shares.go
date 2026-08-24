@@ -29,17 +29,17 @@ type LinkShare struct {
 	URL      string
 }
 
-// ShareGate lists every missing condition at once, not just the first.
-type ShareGate struct {
+// ShareValidation lists every missing condition at once, not just the first.
+type ShareValidation struct {
 	Shareable bool
 	Reasons   []string
 }
 
-// EvaluateShareGate wants a published version and a verified owner email.
-func (s *ShareService) EvaluateShareGate(ctx context.Context, ranking db.Ranking) (ShareGate, error) {
+// ValidateShareable wants a published version and a verified owner email.
+func (s *ShareService) ValidateShareable(ctx context.Context, ranking db.Ranking) (ShareValidation, error) {
 	versions, err := s.Queries.ListRankingVersionsForRanking(ctx, ranking.ID)
 	if err != nil {
-		return ShareGate{}, err
+		return ShareValidation{}, err
 	}
 	hasPublished := false
 	for _, v := range versions {
@@ -51,7 +51,7 @@ func (s *ShareService) EvaluateShareGate(ctx context.Context, ranking db.Ranking
 
 	owner, err := s.Queries.GetUserByID(ctx, ranking.UserID)
 	if err != nil {
-		return ShareGate{}, err
+		return ShareValidation{}, err
 	}
 
 	var reasons []string
@@ -61,7 +61,7 @@ func (s *ShareService) EvaluateShareGate(ctx context.Context, ranking db.Ranking
 	if !owner.EmailVerified {
 		reasons = append(reasons, "Verify your email.")
 	}
-	return ShareGate{Shareable: len(reasons) == 0, Reasons: reasons}, nil
+	return ShareValidation{Shareable: len(reasons) == 0, Reasons: reasons}, nil
 }
 
 func (s *ShareService) GetLinkShare(ctx context.Context, rankingID int64) (LinkShare, error) {
@@ -82,7 +82,7 @@ func (s *ShareService) GetLinkShare(ctx context.Context, rankingID int64) (LinkS
 	return LinkShare{}, nil
 }
 
-// EnableLinkShare mints a fresh public_slug. The caller checks ShareGate.
+// EnableLinkShare mints a fresh public_slug. The caller checks ShareValidation.
 func (s *ShareService) EnableLinkShare(ctx context.Context, rankingID int64) (LinkShare, error) {
 	const maxAttempts = 5
 	var lastErr error

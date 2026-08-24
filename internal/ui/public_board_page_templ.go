@@ -91,6 +91,7 @@ func PublicBoardPage(props PublicBoardPageProps) templ.Component {
 			LoggedIn:    props.LoggedIn,
 			Flash:       props.Flash,
 			Theme:       props.Theme,
+			Wide:        true,
 			OpenGraph: &OpenGraphProps{
 				Title:       props.Title,
 				Description: props.Description,

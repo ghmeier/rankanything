@@ -172,8 +172,8 @@ func TestUpdateRankingChangesTitleAndDescription(t *testing.T) {
 
 	updated, err := svc.UpdateRanking(ctx, services.UpdateRankingRequest{
 		UUID:        ranking.Uuid,
-		Name:        "My Ranking",
-		Description: "A test ranking",
+		Name:        stringPtr("My Ranking"),
+		Description: stringPtr("A test ranking"),
 	})
 	require.NoError(t, err)
 
@@ -181,12 +181,36 @@ func TestUpdateRankingChangesTitleAndDescription(t *testing.T) {
 	assert.Equal(t, "A test ranking", updated.Description)
 }
 
+func TestUpdateRankingLeavesAnOmittedFieldAlone(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, ranking, _ := newOwnedRanking(t)
+
+	_, err := svc.UpdateRanking(ctx, services.UpdateRankingRequest{
+		UUID:        ranking.Uuid,
+		Name:        stringPtr("My Ranking"),
+		Description: stringPtr("A test ranking"),
+	})
+	require.NoError(t, err)
+
+	renamed, err := svc.UpdateRanking(ctx, services.UpdateRankingRequest{
+		UUID: ranking.Uuid,
+		Name: stringPtr("Renamed"),
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "Renamed", renamed.Name)
+	assert.Equal(t, "A test ranking", renamed.Description, "a title edit carries no description and must not clear it")
+}
+
+func stringPtr(s string) *string { return &s }
+
 func TestUpdateRankingUnknownUUIDNotFound(t *testing.T) {
 	t.Parallel()
 
 	svc, ctx, _, _ := newOwnedRanking(t)
 
-	_, err := svc.UpdateRanking(ctx, services.UpdateRankingRequest{UUID: uuid.New(), Name: "Nope"})
+	_, err := svc.UpdateRanking(ctx, services.UpdateRankingRequest{UUID: uuid.New(), Name: stringPtr("Nope")})
 	assert.ErrorIs(t, err, services.ErrRankingNotFound)
 }
 
@@ -224,6 +248,105 @@ func TestAddItemWithoutAnImageLeavesItNil(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Nil(t, item.ImageSourceUrl)
+}
+
+func TestAddItemStoresItsLink(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, _, version := newOwnedRanking(t)
+
+	item, err := svc.AddItem(ctx, services.AddItemRequest{
+		VersionID: version.ID,
+		Title:     "Tartine",
+		SourceURL: "https://tartinebakery.com",
+	})
+	require.NoError(t, err)
+
+	require.NotNil(t, item.SourceUrl)
+	assert.Equal(t, "https://tartinebakery.com", *item.SourceUrl)
+}
+
+func TestAddItemWithoutALinkLeavesItNil(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, _, version := newOwnedRanking(t)
+
+	item, err := svc.AddItem(ctx, services.AddItemRequest{VersionID: version.ID, Title: "No link"})
+	require.NoError(t, err)
+
+	assert.Nil(t, item.SourceUrl)
+}
+
+func TestAddItemRejectsALinkThatIsNotHTTP(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, _, version := newOwnedRanking(t)
+
+	_, err := svc.AddItem(ctx, services.AddItemRequest{
+		VersionID: version.ID,
+		Title:     "Hostile",
+		SourceURL: "javascript:alert(1)",
+	})
+	assert.ErrorIs(t, err, services.ErrInvalidLink)
+}
+
+func TestUpdateItemChangesTitleAndLink(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, _, version := newOwnedRanking(t)
+
+	item, err := svc.AddItem(ctx, services.AddItemRequest{VersionID: version.ID, Title: "Tartine"})
+	require.NoError(t, err)
+
+	updated, err := svc.UpdateItem(ctx, services.UpdateItemRequest{
+		VersionID: version.ID,
+		ItemID:    item.ID,
+		Title:     "Tartine Manufactory",
+		SourceURL: "https://tartinebakery.com/manufactory",
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "Tartine Manufactory", updated.Title)
+	require.NotNil(t, updated.SourceUrl)
+	assert.Equal(t, "https://tartinebakery.com/manufactory", *updated.SourceUrl)
+}
+
+func TestUpdateItemClearsALinkWhenTheFieldIsBlank(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, _, version := newOwnedRanking(t)
+
+	item, err := svc.AddItem(ctx, services.AddItemRequest{
+		VersionID: version.ID,
+		Title:     "Tartine",
+		SourceURL: "https://tartinebakery.com",
+	})
+	require.NoError(t, err)
+
+	updated, err := svc.UpdateItem(ctx, services.UpdateItemRequest{
+		VersionID: version.ID,
+		ItemID:    item.ID,
+		Title:     item.Title,
+	})
+	require.NoError(t, err)
+
+	assert.Nil(t, updated.SourceUrl)
+}
+
+func TestUpdateItemFromAnotherRankingsVersionIsRejected(t *testing.T) {
+	t.Parallel()
+
+	svc, ctx, versionA, versionB := twoOwnedRankings(t)
+
+	item, err := svc.AddItem(ctx, services.AddItemRequest{VersionID: versionB.ID, Title: "Elsewhere"})
+	require.NoError(t, err)
+
+	_, err = svc.UpdateItem(ctx, services.UpdateItemRequest{
+		VersionID: versionA.ID,
+		ItemID:    item.ID,
+		Title:     "Stolen",
+	})
+	assert.ErrorIs(t, err, services.ErrRankingNotFound)
 }
 
 func TestDeleteItemRemovesItAndItsTierPlacement(t *testing.T) {
@@ -701,10 +824,10 @@ func TestListUnrankedItemsExcludesPlacedItems(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// EvaluatePublishGate / PublishVersion
+// ValidatePublishable / PublishVersion
 // ---------------------------------------------------------------------------
 
-func TestEvaluatePublishGateBlocksWhenThereAreNoTiers(t *testing.T) {
+func TestValidatePublishableBlocksWhenThereAreNoTiers(t *testing.T) {
 	t.Parallel()
 
 	svc, ctx, _, version := newOwnedRanking(t)
@@ -714,26 +837,26 @@ func TestEvaluatePublishGateBlocksWhenThereAreNoTiers(t *testing.T) {
 		require.NoError(t, svc.Queries.DeleteRankingTier(ctx, tier.ID))
 	}
 
-	gate, err := svc.EvaluatePublishGate(ctx, version.ID)
+	validation, err := svc.ValidatePublishable(ctx, version.ID)
 	require.NoError(t, err)
 
-	assert.False(t, gate.Publishable)
-	assert.Contains(t, gate.Reasons, "Add at least one tier.")
+	assert.False(t, validation.Publishable)
+	assert.Contains(t, validation.Reasons, "Add at least one tier.")
 }
 
-func TestEvaluatePublishGateBlocksWhenThereAreNoItems(t *testing.T) {
+func TestValidatePublishableBlocksWhenThereAreNoItems(t *testing.T) {
 	t.Parallel()
 
 	svc, ctx, _, version := newOwnedRanking(t)
 
-	gate, err := svc.EvaluatePublishGate(ctx, version.ID)
+	validation, err := svc.ValidatePublishable(ctx, version.ID)
 	require.NoError(t, err)
 
-	assert.False(t, gate.Publishable)
-	assert.Contains(t, gate.Reasons, "Add at least one item.")
+	assert.False(t, validation.Publishable)
+	assert.Contains(t, validation.Reasons, "Add at least one item.")
 }
 
-func TestEvaluatePublishGateBlocksWhenAnItemIsUnplaced(t *testing.T) {
+func TestValidatePublishableBlocksWhenAnItemIsUnplaced(t *testing.T) {
 	t.Parallel()
 
 	svc, ctx, _, version := newOwnedRanking(t)
@@ -746,14 +869,14 @@ func TestEvaluatePublishGateBlocksWhenAnItemIsUnplaced(t *testing.T) {
 	_, err = svc.AddItemToTier(ctx, services.AddItemToTierRequest{VersionID: version.ID, TierID: tiers[0].ID, ItemID: placed.ID})
 	require.NoError(t, err)
 
-	gate, err := svc.EvaluatePublishGate(ctx, version.ID)
+	validation, err := svc.ValidatePublishable(ctx, version.ID)
 	require.NoError(t, err)
 
-	assert.False(t, gate.Publishable)
-	assert.Contains(t, gate.Reasons, "Place 1 more item into a tier.")
+	assert.False(t, validation.Publishable)
+	assert.Contains(t, validation.Reasons, "Place 1 more item into a tier.")
 }
 
-func TestEvaluatePublishGatePassesWhenEveryItemIsPlaced(t *testing.T) {
+func TestValidatePublishablePassesWhenEveryItemIsPlaced(t *testing.T) {
 	t.Parallel()
 
 	svc, ctx, _, version := newOwnedRanking(t)
@@ -764,14 +887,14 @@ func TestEvaluatePublishGatePassesWhenEveryItemIsPlaced(t *testing.T) {
 	_, err = svc.AddItemToTier(ctx, services.AddItemToTierRequest{VersionID: version.ID, TierID: tiers[0].ID, ItemID: item.ID})
 	require.NoError(t, err)
 
-	gate, err := svc.EvaluatePublishGate(ctx, version.ID)
+	validation, err := svc.ValidatePublishable(ctx, version.ID)
 	require.NoError(t, err)
 
-	assert.True(t, gate.Publishable)
-	assert.Empty(t, gate.Reasons)
+	assert.True(t, validation.Publishable)
+	assert.Empty(t, validation.Reasons)
 }
 
-func TestPublishVersionSucceedsWhenTheGatePasses(t *testing.T) {
+func TestPublishVersionSucceedsWhenTheVersionIsPublishable(t *testing.T) {
 	t.Parallel()
 
 	svc, ctx, _, version := newOwnedRanking(t)
@@ -787,7 +910,7 @@ func TestPublishVersionSucceedsWhenTheGatePasses(t *testing.T) {
 	assert.True(t, published.PublishedAt.Valid)
 }
 
-func TestPublishVersionFailsWhenTheGateBlocks(t *testing.T) {
+func TestPublishVersionFailsWhenTheVersionIsNotPublishable(t *testing.T) {
 	t.Parallel()
 
 	svc, ctx, _, version := newOwnedRanking(t)

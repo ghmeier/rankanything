@@ -93,14 +93,49 @@ templ ComponentsGallery() {
 				</div>
 			</section>
 			<section class="space-y-4">
-				<h2 class="text-lg font-semibold">NavBar</h2>
+				<h2 class="text-lg font-semibold">Tooltip</h2>
+				<p class="text-sm text-text-muted">Hover a trigger.</p>
+				<div class="flex items-center gap-12 py-8">
+					<div class="group relative">
+						@Button(ButtonProps{Variant: ButtonPrimary}) {
+							Above
+						}
+						@Tooltip(TooltipProps{Width: "w-48", Placement: TooltipTop}) {
+							<p>Sits above its trigger.</p>
+						}
+					</div>
+					<div class="group relative">
+						@Button(ButtonProps{Variant: ButtonSecondary}) {
+							Beside
+						}
+						@Tooltip(TooltipProps{Placement: TooltipRight}) {
+							Sits beside its trigger.
+						}
+					</div>
+					<div class="group relative">
+						@Button(ButtonProps{Variant: ButtonTertiary}) {
+							Below
+						}
+						@Tooltip(TooltipProps{Width: "whitespace-nowrap"}) {
+							Sits below its trigger.
+						}
+					</div>
+				</div>
+			</section>
+			<section class="space-y-4">
+				<h2 class="text-lg font-semibold">SideNav</h2>
+				<p class="text-sm text-text-muted">
+					The rail is position: fixed in the real layout. Each preview box sets a
+					transform, which makes the box itself the containing block, so the rail
+					lands inside it instead of over the page.
+				</p>
 				<p class="text-sm text-text-muted">Signed out</p>
-				<div class="overflow-hidden rounded-md border border-border">
-					@NavBar(NavBarProps{LoggedIn: false})
+				<div class="relative h-64 translate-x-0 overflow-hidden rounded-md border border-border">
+					@SideNav(SideNavProps{LoggedIn: false})
 				</div>
 				<p class="text-sm text-text-muted">Signed in</p>
-				<div class="overflow-hidden rounded-md border border-border">
-					@NavBar(NavBarProps{LoggedIn: true})
+				<div class="relative h-64 translate-x-0 overflow-hidden rounded-md border border-border">
+					@SideNav(SideNavProps{LoggedIn: true})
 				</div>
 			</section>
 		</div>

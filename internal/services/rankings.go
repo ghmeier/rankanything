@@ -8,6 +8,7 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -21,6 +22,7 @@ var (
 	// Also covers placing an item against a tier from another version.
 	ErrInvalidTierPlacement = errors.New("Item cannot be placed on this tier.")
 	ErrNotPublishable       = errors.New("This version is not ready to publish.")
+	ErrInvalidLink          = errors.New("A link must be an http or https URL.")
 	// Guards ranking_versions_one_draft_idx: one draft per ranking.
 	ErrDraftAlreadyExists = errors.New("This ranking already has a draft in progress.")
 )
@@ -99,9 +101,13 @@ func (s *RankingsService) ResolveVersion(ctx context.Context, ranking db.Ranking
 }
 
 type UpdateRankingRequest struct {
-	UUID        uuid.UUID
-	Name        string
-	Description string
+	UUID uuid.UUID
+	// Nil leaves the stored value alone. The title and the description are
+	// edited by separate controls, and a request from one carries nothing
+	// about the other — an empty string means "clear this", which is not the
+	// same thing.
+	Name        *string
+	Description *string
 }
 
 func (s *RankingsService) UpdateRanking(ctx context.Context, req UpdateRankingRequest) (db.Ranking, error) {
@@ -110,10 +116,19 @@ func (s *RankingsService) UpdateRanking(ctx context.Context, req UpdateRankingRe
 		return db.Ranking{}, err
 	}
 
+	name := ranking.Name
+	if req.Name != nil {
+		name = *req.Name
+	}
+	description := ranking.Description
+	if req.Description != nil {
+		description = *req.Description
+	}
+
 	return s.Queries.UpdateRanking(ctx, db.UpdateRankingParams{
 		ID:          ranking.ID,
-		Name:        req.Name,
-		Description: req.Description,
+		Name:        name,
+		Description: description,
 	})
 }
 
@@ -121,19 +136,91 @@ type AddItemRequest struct {
 	VersionID      int64
 	Title          string
 	ImageSourceURL string
+	// SourceURL is where the item lives on the web — the restaurant's page,
+	// the film's listing. Empty leaves the card unlinked.
+	SourceURL string
 }
 
 func (s *RankingsService) AddItem(ctx context.Context, req AddItemRequest) (db.RankingItem, error) {
-	var imageURL *string
-	if req.ImageSourceURL != "" {
-		imageURL = &req.ImageSourceURL
+	imageURL, err := normalizeExternalURL(req.ImageSourceURL)
+	if err != nil {
+		return db.RankingItem{}, err
+	}
+	sourceURL, err := normalizeExternalURL(req.SourceURL)
+	if err != nil {
+		return db.RankingItem{}, err
 	}
 
 	return s.Queries.CreateRankingItem(ctx, db.CreateRankingItemParams{
 		RankingVersionID: req.VersionID,
 		Title:            req.Title,
 		ImageSourceUrl:   imageURL,
+		SourceUrl:        sourceURL,
 	})
+}
+
+type GetItemRequest struct {
+	VersionID int64
+	ItemID    int64
+}
+
+// GetItem answers only for an item that belongs to the given version, so a
+// handler cannot render one ranking's item inside another's board.
+func (s *RankingsService) GetItem(ctx context.Context, req GetItemRequest) (db.RankingItem, error) {
+	return itemForVersion(ctx, s.Queries, req.ItemID, req.VersionID, ErrRankingNotFound)
+}
+
+// UpdateItemRequest carries the item whole rather than a patch: it is filled
+// from an edit form that shows every field at once.
+type UpdateItemRequest struct {
+	VersionID      int64
+	ItemID         int64
+	Title          string
+	ImageSourceURL string
+	SourceURL      string
+}
+
+func (s *RankingsService) UpdateItem(ctx context.Context, req UpdateItemRequest) (db.RankingItem, error) {
+	item, err := itemForVersion(ctx, s.Queries, req.ItemID, req.VersionID, ErrRankingNotFound)
+	if err != nil {
+		return db.RankingItem{}, err
+	}
+
+	imageURL, err := normalizeExternalURL(req.ImageSourceURL)
+	if err != nil {
+		return db.RankingItem{}, err
+	}
+	sourceURL, err := normalizeExternalURL(req.SourceURL)
+	if err != nil {
+		return db.RankingItem{}, err
+	}
+
+	return s.Queries.UpdateRankingItem(ctx, db.UpdateRankingItemParams{
+		ID:             item.ID,
+		Title:          req.Title,
+		ImageSourceUrl: imageURL,
+		// Nothing writes an uploaded image yet, but the query sets every
+		// column, so carry the stored value through rather than clearing it.
+		ImageUploadUrl: item.ImageUploadUrl,
+		SourceUrl:      sourceURL,
+	})
+}
+
+// normalizeExternalURL keeps stored links to schemes a browser follows
+// safely. templ.URL sanitizes again at render time, but a javascript: URL has
+// no business reaching the database, and refusing it here is the difference
+// between a rejected form and a link that quietly never works.
+func normalizeExternalURL(raw string) (*string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return nil, ErrInvalidLink
+	}
+	return &trimmed, nil
 }
 
 type DeleteItemRequest struct {
@@ -480,22 +567,22 @@ func (s *RankingsService) ListVersions(ctx context.Context, req ListVersionsRequ
 	return s.Queries.ListRankingVersionsForRanking(ctx, req.RankingID)
 }
 
-// PublishGate reports whether a version has enough structure to publish, and
+// PublishValidation reports whether a version has enough structure to publish, and
 // why not when it doesn't. Nothing in the schema expresses this rule.
-type PublishGate struct {
+type PublishValidation struct {
 	Publishable bool
 	Reasons     []string
 }
 
-// EvaluatePublishGate requires a tier, an item, and every item placed.
-func (s *RankingsService) EvaluatePublishGate(ctx context.Context, versionID int64) (PublishGate, error) {
+// ValidatePublishable requires a tier, an item, and every item placed.
+func (s *RankingsService) ValidatePublishable(ctx context.Context, versionID int64) (PublishValidation, error) {
 	tiers, err := s.Queries.ListRankingTiersForVersion(ctx, versionID)
 	if err != nil {
-		return PublishGate{}, err
+		return PublishValidation{}, err
 	}
 	items, err := s.Queries.ListRankingItemsForVersion(ctx, versionID)
 	if err != nil {
-		return PublishGate{}, err
+		return PublishValidation{}, err
 	}
 
 	var reasons []string
@@ -507,7 +594,7 @@ func (s *RankingsService) EvaluatePublishGate(ctx context.Context, versionID int
 	} else {
 		placements, err := s.Queries.ListRankingItemTiersForVersion(ctx, versionID)
 		if err != nil {
-			return PublishGate{}, err
+			return PublishValidation{}, err
 		}
 		unplaced := len(unplacedItems(items, placements))
 		if unplaced == 1 {
@@ -517,7 +604,7 @@ func (s *RankingsService) EvaluatePublishGate(ctx context.Context, versionID int
 		}
 	}
 
-	return PublishGate{Publishable: len(reasons) == 0, Reasons: reasons}, nil
+	return PublishValidation{Publishable: len(reasons) == 0, Reasons: reasons}, nil
 }
 
 type PublishVersionRequest struct {
@@ -525,11 +612,11 @@ type PublishVersionRequest struct {
 }
 
 func (s *RankingsService) PublishVersion(ctx context.Context, req PublishVersionRequest) (db.RankingVersion, error) {
-	gate, err := s.EvaluatePublishGate(ctx, req.VersionID)
+	validation, err := s.ValidatePublishable(ctx, req.VersionID)
 	if err != nil {
 		return db.RankingVersion{}, err
 	}
-	if !gate.Publishable {
+	if !validation.Publishable {
 		return db.RankingVersion{}, ErrNotPublishable
 	}
 	return s.Queries.PublishRankingVersion(ctx, req.VersionID)

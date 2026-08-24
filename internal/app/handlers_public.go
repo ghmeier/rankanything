@@ -51,12 +51,15 @@ func (a *App) publicBoardPageProps(base BaseView, board services.RankingBoard, s
 	tierItems := boardTierItems(board)
 
 	props := ui.PublicBoardPageProps{
-		CSRFToken:    base.CSRFToken,
-		LoggedIn:     base.User != nil,
-		Flash:        base.Flash,
-		Theme:        base.Theme,
-		Title:        cmp.Or(board.Ranking.Name, "Untitled ranking") + " · Rank Anything",
-		Description:  cmp.Or(board.Ranking.Description, defaultPublicDescription),
+		CSRFToken: base.CSRFToken,
+		LoggedIn:  base.User != nil,
+		Flash:     base.Flash,
+		Theme:     base.Theme,
+		Title:     cmp.Or(board.Ranking.Name, "Untitled ranking") + " · Rank Anything",
+		// The stored description is markdown; the meta and og: tags are
+		// attribute values, where markup reads as broken rather than as
+		// formatting.
+		Description:  cmp.Or(ui.PlainText(board.Ranking.Description), defaultPublicDescription),
 		CanonicalURL: a.ShareSvc.PublicURL(slug),
 		RankingMeta: ui.RankingMetaProps{
 			Name:        board.Ranking.Name,

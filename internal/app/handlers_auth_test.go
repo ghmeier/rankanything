@@ -303,7 +303,7 @@ func TestLogin(t *testing.T) {
 
 		me := c.Get("/me")
 		assert.Equal(t, http.StatusOK, me.Status)
-		assert.Contains(t, Body(me.Body), "Your rankings")
+		assert.Contains(t, Body(me.Body), "Rankings")
 	})
 
 	t.Run("open redirects are refused", func(t *testing.T) {

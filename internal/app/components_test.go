@@ -36,10 +36,17 @@ func TestComponentsGalleryRendersEveryVariant(t *testing.T) {
 	assert.Contains(t, body, "Ranking saved.")
 	assert.Contains(t, body, "Something went wrong. Try again.")
 
-	// NavBar, both signed-out and signed-in states.
-	assert.Contains(t, body, "Create account")
-	assert.Contains(t, body, "Your rankings")
-	assert.Contains(t, body, "Sign out")
+	// Tooltip, both placements.
+	assert.Contains(t, body, "Sits above its trigger.")
+	assert.Contains(t, body, "Sits beside its trigger.")
+	assert.Contains(t, body, "border-t-surface", "the tooltip arrow points down at a top-placed panel")
+	assert.Contains(t, body, "border-r-surface", "the tooltip arrow points left at a right-placed panel")
+
+	// SideNav, both signed-out and signed-in states. Its labels live in
+	// aria-label and the hover tooltip, since the buttons are icons.
+	assert.Contains(t, body, `aria-label="Create account"`)
+	assert.Contains(t, body, `aria-label="Rankings"`)
+	assert.Contains(t, body, `aria-label="Sign out"`)
 
 	// The theme toggle.
 	assert.Contains(t, body, "rankanythingToggleTheme")

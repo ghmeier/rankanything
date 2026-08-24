@@ -16,13 +16,26 @@ func itemCardProps(rankingUUID string, versionShortUUID string, item db.RankingI
 	if item.ImageSourceUrl != nil {
 		imageURL = *item.ImageSourceUrl
 	}
+	linkURL := ""
+	if item.SourceUrl != nil {
+		linkURL = *item.SourceUrl
+	}
 	return ui.ItemCardProps{
 		RankingUUID:      rankingUUID,
 		VersionShortUUID: versionShortUUID,
 		ItemID:           item.ID,
 		Title:            item.Title,
 		ImageURL:         imageURL,
+		LinkURL:          linkURL,
 		Editable:         editable,
+	}
+}
+
+func rankingDescriptionProps(rankingUUID string, ranking db.Ranking, editable bool) ui.RankingDescriptionProps {
+	return ui.RankingDescriptionProps{
+		RankingUUID: rankingUUID,
+		Description: ranking.Description,
+		Editable:    editable,
 	}
 }
 
@@ -118,13 +131,13 @@ func boardTierItems(board services.RankingBoard) map[int64][]db.RankingItem {
 	return tierItems
 }
 
-func boardVersionActionsProps(rankingUUID string, version db.RankingVersion, versions []db.RankingVersion, gate services.PublishGate) ui.BoardVersionActionsProps {
+func boardVersionActionsProps(rankingUUID string, version db.RankingVersion, versions []db.RankingVersion, validation services.PublishValidation) ui.BoardVersionActionsProps {
 	props := ui.BoardVersionActionsProps{
 		RankingUUID:      rankingUUID,
 		VersionShortUUID: version.ShortUuid,
 		IsDraft:          !version.PublishedAt.Valid,
-		Publishable:      gate.Publishable,
-		BlockedReasons:   gate.Reasons,
+		Publishable:      validation.Publishable,
+		BlockedReasons:   validation.Reasons,
 	}
 	if props.IsDraft {
 		return props
@@ -139,7 +152,7 @@ func boardVersionActionsProps(rankingUUID string, version db.RankingVersion, ver
 	return props
 }
 
-func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoard, versions []db.RankingVersion, gate services.PublishGate) ui.BoardPageProps {
+func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoard, versions []db.RankingVersion, validation services.PublishValidation) ui.BoardPageProps {
 	tierItems := boardTierItems(board)
 	editable := !board.Version.PublishedAt.Valid
 
@@ -150,7 +163,7 @@ func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoa
 		Theme:         base.Theme,
 		RankingMeta:   rankingMetaProps(rankingUUID, board.Version.ShortUuid, board.Ranking, editable),
 		Versions:      boardVersionOptions(rankingUUID, versions, board.Version),
-		VersionAction: boardVersionActionsProps(rankingUUID, board.Version, versions, gate),
+		VersionAction: boardVersionActionsProps(rankingUUID, board.Version, versions, validation),
 		Editable:      editable,
 		TierForm:      ui.TierFormProps{RankingUUID: rankingUUID, VersionShortUUID: board.Version.ShortUuid},
 
@@ -172,11 +185,11 @@ func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoa
 	return props
 }
 
-func shareControlProps(rankingUUID string, gate services.ShareGate, link services.LinkShare) ui.ShareControlProps {
+func shareControlProps(rankingUUID string, validation services.ShareValidation, link services.LinkShare) ui.ShareControlProps {
 	return ui.ShareControlProps{
 		RankingUUID: rankingUUID,
-		Shareable:   gate.Shareable,
-		Reasons:     gate.Reasons,
+		Shareable:   validation.Shareable,
+		Reasons:     validation.Reasons,
 		IsPublic:    link.IsPublic,
 		PublicURL:   link.URL,
 	}
@@ -190,19 +203,19 @@ func (a *App) renderRankingPage(w http.ResponseWriter, r *http.Request, board se
 		return
 	}
 
-	// A published version has nothing to gate, so skip the queries.
-	var gate services.PublishGate
+	// A published version has nothing left to validate, so skip the queries.
+	var validation services.PublishValidation
 	if !board.Version.PublishedAt.Valid {
-		gate, err = a.RankingSvc.EvaluatePublishGate(ctx, board.Version.ID)
+		validation, err = a.RankingSvc.ValidatePublishable(ctx, board.Version.ID)
 		if err != nil {
 			a.serverError(w, r, err)
 			return
 		}
 	}
 
-	// The share gate asks whether the ranking ever published anything, not
+	// Shareability asks whether the ranking ever published anything, not
 	// whether this request landed on a draft.
-	shareGate, err := a.ShareSvc.EvaluateShareGate(ctx, board.Ranking)
+	shareValidation, err := a.ShareSvc.ValidateShareable(ctx, board.Ranking)
 	if err != nil {
 		a.serverError(w, r, err)
 		return
@@ -214,19 +227,19 @@ func (a *App) renderRankingPage(w http.ResponseWriter, r *http.Request, board se
 	}
 
 	rankingUUID := board.Ranking.Uuid.String()
-	props := boardPageProps(a.base(r), rankingUUID, board, versions, gate)
-	props.ShareControl = ui.ShareControl(shareControlProps(rankingUUID, shareGate, link))
+	props := boardPageProps(a.base(r), rankingUUID, board, versions, validation)
+	props.ShareControl = ui.ShareControl(shareControlProps(rankingUUID, shareValidation, link))
 	a.render(w, r, http.StatusOK, ui.BoardPage(props))
 }
 
-// boardVersionActionsOOB always recomputes the gate rather than branching on
+// boardVersionActionsOOB always revalidates rather than branching on
 // version state, because requireDraftVersion means callers only see drafts.
 func (a *App) boardVersionActionsOOB(ctx context.Context, rankingUUID string, version db.RankingVersion) (templ.Component, error) {
-	gate, err := a.RankingSvc.EvaluatePublishGate(ctx, version.ID)
+	validation, err := a.RankingSvc.ValidatePublishable(ctx, version.ID)
 	if err != nil {
 		return nil, err
 	}
-	props := boardVersionActionsProps(rankingUUID, version, nil, gate)
+	props := boardVersionActionsProps(rankingUUID, version, nil, validation)
 	props.OOB = true
 	return ui.BoardVersionActions(props), nil
 }

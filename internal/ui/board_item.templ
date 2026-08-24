@@ -13,6 +13,9 @@ type ItemCardProps struct {
 	ItemID           int64
 	Title            string
 	ImageURL         string
+	// LinkURL is where the item lives on the web. Empty leaves the title as
+	// plain text.
+	LinkURL string
 	// A published version is immutable: no drag handle, no delete control.
 	Editable bool
 }
@@ -33,9 +36,37 @@ templ ItemCard(props ItemCardProps) {
 			/>
 		}
 		<div class="min-w-0 flex-1">
-			<p class="truncate font-medium text-text">{ props.Title }</p>
+			if props.LinkURL != "" {
+				// draggable="false" matters: an anchor is draggable by
+				// default, and a link drag would start instead of the card
+				// drag board.js listens for.
+				<a
+					href={ templ.URL(props.LinkURL) }
+					target="_blank"
+					rel="noopener noreferrer"
+					draggable="false"
+					title={ props.LinkURL }
+					class="flex min-w-0 items-center gap-1 text-text hover:underline"
+				>
+					<span class="truncate font-medium">{ props.Title }</span>
+					<span class="shrink-0 text-xs text-text-muted">
+						@ExternalLinkIcon()
+					</span>
+				</a>
+			} else {
+				<p class="truncate font-medium text-text">{ props.Title }</p>
+			}
 		</div>
 		if props.Editable {
+			<button
+				hx-get={ fmt.Sprintf("/r/%s/v/%s/items/%d/edit", props.RankingUUID, props.VersionShortUUID, props.ItemID) }
+				hx-target={ fmt.Sprintf("#ranking-item-%d", props.ItemID) }
+				hx-swap="outerHTML"
+				aria-label={ "Edit " + props.Title }
+				class="text-text-muted opacity-0 transition group-hover:opacity-100 hover:text-text"
+			>
+				@EditIcon()
+			</button>
 			<button
 				hx-delete={ fmt.Sprintf("/r/%s/v/%s/items/%d", props.RankingUUID, props.VersionShortUUID, props.ItemID) }
 				hx-target={ fmt.Sprintf("#ranking-item-%d", props.ItemID) }
@@ -59,6 +90,57 @@ func itemCardClass(editable bool) string {
 	return className
 }
 
+// ItemCardForm edits an item in place: it keeps the card's id, so the save
+// and cancel responses swap the card straight back over it. It is wider than
+// the card because three inputs at card width are unusable.
+templ ItemCardForm(props ItemCardProps) {
+	<form
+		id={ fmt.Sprintf("ranking-item-%d", props.ItemID) }
+		class="flex w-56 flex-col gap-1 rounded-md border border-border bg-surface p-2 text-sm shadow-sm"
+		hx-put={ fmt.Sprintf("/r/%s/v/%s/items/%d", props.RankingUUID, props.VersionShortUUID, props.ItemID) }
+		hx-target="this"
+		hx-swap="outerHTML"
+	>
+		<input
+			name="label"
+			value={ props.Title }
+			required
+			aria-label="Item label"
+			class={ itemFormInputClass }
+		/>
+		<input
+			name="image_url"
+			value={ props.ImageURL }
+			placeholder="Image URL"
+			aria-label="Item image URL"
+			class={ itemFormInputClass }
+		/>
+		<input
+			name="source_url"
+			value={ props.LinkURL }
+			placeholder="Link"
+			aria-label="Item link"
+			class={ itemFormInputClass }
+		/>
+		<div class="flex justify-end gap-1">
+			<button
+				type="button"
+				hx-get={ fmt.Sprintf("/r/%s/v/%s/items/%d", props.RankingUUID, props.VersionShortUUID, props.ItemID) }
+				hx-target="closest form"
+				hx-swap="outerHTML"
+				class="cursor-pointer rounded-md px-2 py-1 text-xs text-text-muted hover:bg-surface-hover hover:text-text-muted-hover"
+			>
+				Cancel
+			</button>
+			<button class="cursor-pointer rounded-md border border-border bg-secondary px-2 py-1 text-xs text-background hover:bg-secondary-hover">
+				Save
+			</button>
+		</div>
+	</form>
+}
+
+const itemFormInputClass = "w-full rounded-md border border-border bg-surface px-2 py-1 text-sm outline-none focus:bg-surface-hover"
+
 // ItemTrayProps renders the add-item form and every unplaced item.
 type ItemTrayProps struct {
 	RankingUUID      string
@@ -74,7 +156,7 @@ templ ItemTray(props ItemTrayProps) {
 		<div class="flex items-center justify-end">
 			if props.Editable {
 				<form
-					class="flex gap-2"
+					class="flex flex-wrap items-center justify-end gap-2"
 					hx-post={ fmt.Sprintf("/r/%s/v/%s/items", props.RankingUUID, props.VersionShortUUID) }
 					hx-target="#tray-items"
 					hx-swap="beforeend"
@@ -91,7 +173,13 @@ templ ItemTray(props ItemTrayProps) {
 						name="image_url"
 						placeholder="Image URL (optional)"
 						aria-label="Item image URL"
-						class="w-48 rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:bg-surface-hover"
+						class="w-40 rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:bg-surface-hover"
+					/>
+					<input
+						name="source_url"
+						placeholder="Link (optional)"
+						aria-label="Item link"
+						class="w-40 rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:bg-surface-hover"
 					/>
 					<button class="rounded-md border border-border bg-secondary px-3 py-1.5 text-sm text-background hover:bg-secondary-hover">
 						Add

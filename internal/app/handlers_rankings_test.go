@@ -43,7 +43,7 @@ func TestRankingsIndexShowsEmptyStateWithNoRankings(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, res.Status)
 	body := Body(res.Body)
-	assert.Contains(t, body, "Your rankings")
+	assert.Contains(t, body, "Rankings")
 	assert.Contains(t, body, "Create your first ranking")
 }
 

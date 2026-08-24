@@ -21,7 +21,17 @@ func (a *App) registerRankingRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /r/{uuid}/export", a.RequireRankingAccess(http.HandlerFunc(a.handleExportBoard)))
 	mux.Handle("GET /r/{uuid}/v/{short}/export", a.RequireRankingAccess(http.HandlerFunc(a.handleExportBoard)))
 	mux.Handle("POST /r/{uuid}", a.RequireRankingAccess(http.HandlerFunc(a.handleUpdateRanking)))
+
+	// The description is a property of the ranking, not of a version, so
+	// these skip requireDraftVersion for the same reason handleUpdateRanking
+	// does.
+	mux.Handle("GET /r/{uuid}/description", a.RequireRankingAccess(http.HandlerFunc(a.handleViewDescription)))
+	mux.Handle("GET /r/{uuid}/description/edit", a.RequireRankingAccess(http.HandlerFunc(a.handleEditDescription)))
+	mux.Handle("POST /r/{uuid}/description", a.RequireRankingAccess(http.HandlerFunc(a.handleUpdateDescription)))
 	mux.Handle("POST /r/{uuid}/v/{short}/items", mutable(a.handleAddItem))
+	mux.Handle("GET /r/{uuid}/v/{short}/items/{itemID}", mutable(a.handleViewItem))
+	mux.Handle("GET /r/{uuid}/v/{short}/items/{itemID}/edit", mutable(a.handleEditItem))
+	mux.Handle("PUT /r/{uuid}/v/{short}/items/{itemID}", mutable(a.handleUpdateItem))
 	mux.Handle("DELETE /r/{uuid}/v/{short}/items/{itemID}", mutable(a.handleDeleteItem))
 	mux.Handle("POST /r/{uuid}/v/{short}/items/{itemID}/unrank", mutable(a.handleUnrankItem))
 	mux.Handle("POST /r/{uuid}/v/{short}/tiers", mutable(a.handleAddTier))
