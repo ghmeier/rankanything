@@ -32,7 +32,7 @@ func (a *App) handleAccountPage(w http.ResponseWriter, r *http.Request) {
 func (a *App) handleUpdateTheme(w http.ResponseWriter, r *http.Request) {
 	userID := a.Sessions.UserID(r.Context())
 
-	user, err := a.UserSvc.UpdateThemePreference(r.Context(), services.UpdateThemePreferenceRequest{
+	_, err := a.UserSvc.UpdateThemePreference(r.Context(), services.UpdateThemePreferenceRequest{
 		UserID:     userID,
 		Preference: db.UserThemePreference(r.FormValue("theme")),
 	})
@@ -45,7 +45,5 @@ func (a *App) handleUpdateTheme(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := renderComponent(w, r, http.StatusOK, ui.ThemeSettings(string(user.ThemePreference))); err != nil {
-		a.serverError(w, r, err)
-	}
+	w.WriteHeader(http.StatusOK)
 }

@@ -39,7 +39,6 @@ func TestUpdateThemeRendersTheRequestedThemeOnTheNextLoad(t *testing.T) {
 
 			update := owner.HTMX(http.MethodPost, "/account/theme", url.Values{"theme": {theme}})
 			require.Equal(t, http.StatusOK, update.Status)
-			assert.Contains(t, Body(update.Body), `checked`, "the fragment must mark the selected option checked")
 
 			res := owner.Get("/account")
 			require.Equal(t, http.StatusOK, res.Status)

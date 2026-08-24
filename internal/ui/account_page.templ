@@ -27,13 +27,9 @@ templ AccountPage(props AccountProps) {
 // the POST /account/theme handler can re-render just this fragment as the
 // htmx swap target.
 templ ThemeSettings(theme string) {
-	<form
+	<div
 		id="theme-settings"
 		class="space-y-2"
-		hx-post="/account/theme"
-		hx-target="#theme-settings"
-		hx-swap="outerHTML"
-		hx-trigger="change"
 	>
 		<span class="block text-xs uppercase tracking-wide text-text-muted">Theme</span>
 		<div class="flex gap-4 text-sm">
@@ -41,12 +37,21 @@ templ ThemeSettings(theme string) {
 			@themeOption(theme, "light", "Light")
 			@themeOption(theme, "dark", "Dark")
 		</div>
-	</form>
+	</div>
 }
 
 templ themeOption(current, value, label string) {
 	<label class="inline-flex cursor-pointer items-center gap-2">
-		<input type="radio" name="theme" value={ value } checked?={ current == value }/>
+		<input
+			hx-post="/account/theme"
+			hx-swap="none"
+			hx-trigger="change"
+			type="radio"
+			name="theme"
+			value={ value }
+			hx-on::after-request="document.documentElement.dataset.theme = this.value"
+			checked?={ current == value }
+		/>
 		<span class="text-text">{ label }</span>
 	</label>
 }
