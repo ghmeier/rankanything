@@ -171,7 +171,7 @@ templ RankingMeta(props RankingMetaProps) {
 				name="title"
 				value={ props.Name }
 				aria-label="Ranking title"
-				class="w-full text-2xl font-bold tracking-tight text-text outline-none placeholder:text-subtle focus:border-b focus:border-border"
+				class="w-full border-b border-transparent text-2xl font-bold tracking-tight text-text outline-none placeholder:text-text-subtle hover:border-border focus:border-border"
 				placeholder="Untitled ranking"
 				hx-post={ fmt.Sprintf("/r/%s", props.RankingUUID) }
 				hx-target="#ranking-meta"

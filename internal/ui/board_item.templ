@@ -72,7 +72,7 @@ templ ItemCard(props ItemCardProps) {
 				hx-target={ fmt.Sprintf("#ranking-item-%d", props.ItemID) }
 				hx-swap="outerHTML"
 				aria-label={ "Remove " + props.Title }
-				class="text-slate-500 opacity-0 transition group-hover:opacity-100 hover:text-rose-400"
+				class="text-text-muted opacity-0 transition group-hover:opacity-100 hover:text-danger"
 			>
 				&times;
 			</button>
@@ -85,7 +85,7 @@ func itemCardClass(editable bool) string {
 	if editable {
 		className += " cursor-grab"
 	} else {
-		className += "cursor-not-allowed"
+		className += " cursor-default"
 	}
 	return className
 }
@@ -128,11 +128,11 @@ templ ItemCardForm(props ItemCardProps) {
 				hx-get={ fmt.Sprintf("/r/%s/v/%s/items/%d", props.RankingUUID, props.VersionShortUUID, props.ItemID) }
 				hx-target="closest form"
 				hx-swap="outerHTML"
-				class="cursor-pointer rounded-md px-2 py-1 text-xs text-text-muted hover:bg-surface-hover hover:text-text-muted-hover"
+				class={ ButtonClassSize(ButtonTertiary, ButtonSizeXS) }
 			>
 				Cancel
 			</button>
-			<button class="cursor-pointer rounded-md border border-border bg-secondary px-2 py-1 text-xs text-background hover:bg-secondary-hover">
+			<button class={ ButtonClassSize(ButtonSecondary, ButtonSizeXS) }>
 				Save
 			</button>
 		</div>
@@ -181,7 +181,7 @@ templ ItemTray(props ItemTrayProps) {
 						aria-label="Item link"
 						class="w-40 rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:bg-surface-hover"
 					/>
-					<button class="rounded-md border border-border bg-secondary px-3 py-1.5 text-sm text-background hover:bg-secondary-hover">
+					<button type="submit" class={ ButtonClassSize(ButtonSecondary, ButtonSizeSmall) }>
 						Add
 					</button>
 				</form>
