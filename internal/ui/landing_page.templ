@@ -23,39 +23,103 @@ var demoTiers = []demoTier{
 	{Label: "F", Color: "#94a3b8", Items: []string{"Neon Pink"}},
 }
 
-// LandingPage previews the tier board every new account starts with.
 templ LandingPage(props LandingPageProps) {
 	@Layout(LayoutProps{Title: "Rank Anything - free tier list maker", CSRFToken: props.CSRFToken, LoggedIn: false}) {
-		<div class="space-y-16 py-8">
+		<div class="space-y-24 py-12">
+			<!-- Hero -->
 			<section class="mx-auto max-w-2xl space-y-6 text-center">
 				<h1 class="text-4xl font-bold tracking-tight sm:text-5xl">
 					Rank anything.
 				</h1>
-				<p class="text-lg text-text-muted">
-					Drag your favorites into tiers and share the result — a tier
-					list for movies, snacks, coworkers, or whatever you're arguing
-					about tonight. Free, forever, no credit card.
+				<p class="text-lg leading-relaxed text-text-muted">
+					Create shareable tier lists for movies, music, food — anything
+					worth debating. Drag your picks into tiers, publish, and
+					send the link. Free forever, no credit card.
 				</p>
 				<div>
-					<a href="/register" class={ ButtonClass(ButtonPrimary) + " px-6 py-3 text-base" }>
+					<a
+						href="/register"
+						class="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-6 py-3 text-base font-medium text-background transition-colors hover:bg-primary-hover"
+					>
 						Create your first ranking
 					</a>
 				</div>
 			</section>
+			<!-- Demo board -->
 			<section class="mx-auto max-w-3xl space-y-4">
 				<div class="text-center">
-					<h2 class="text-sm font-semibold tracking-wide text-text-muted uppercase">
-						What you'll build
-					</h2>
-					<p class="mt-1 text-sm text-text-subtle">
-						A preview of favorite colors, ranked S through F. Sign up and this
-						becomes yours to edit and share.
+					<p class="text-sm text-text-subtle">
+						A preview of favorite colors, ranked S through F
 					</p>
 				</div>
 				@demoBoard()
 			</section>
+			<!-- How it works -->
+			<section class="mx-auto max-w-3xl space-y-8">
+				<h2 class="text-center text-2xl font-semibold tracking-tight">
+					How it works
+				</h2>
+				<div class="grid grid-cols-1 gap-8 md:grid-cols-3">
+					@howItWorksStep("1", "Create", "Name your ranking and pick your tiers. Start from the defaults or customize the labels and colors.")
+					@howItWorksStep("2", "Add", "Drop in items with images and markdown descriptions. Drag them into the tier where they belong.")
+					@howItWorksStep("3", "Share", "Publish your ranking and send the link to anyone. They see exactly what you built.")
+				</div>
+			</section>
+			<!-- Features -->
+			<section class="mx-auto max-w-3xl space-y-8">
+				<h2 class="text-center text-2xl font-semibold tracking-tight">
+					Everything you need, nothing you don't
+				</h2>
+				<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+					@featureCard("Drag and drop", "Reorder items and move them between tiers by dragging. Works on desktop and mobile.")
+					@featureCard("Markdown descriptions", "Add context to any item with full markdown support — links, lists, bold, code.")
+					@featureCard("Version history", "Every published ranking is a snapshot. Edit and republish without losing what came before.")
+					@featureCard("Dark mode", "Follows your system preference automatically, or set it yourself in account settings.")
+				</div>
+			</section>
+			<!-- Bottom CTA -->
+			<section class="mx-auto max-w-xl space-y-4 text-center">
+				<h2 class="text-2xl font-semibold tracking-tight">
+					Ready to rank?
+				</h2>
+				<p class="text-text-muted">
+					Sign up in seconds. Your first ranking is one click away.
+				</p>
+				<div>
+					<a
+						href="/register"
+						class="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-6 py-3 text-base font-medium text-background transition-colors hover:bg-primary-hover"
+					>
+						Get started
+					</a>
+				</div>
+			</section>
 		</div>
+		<!-- Footer -->
+		<footer class="border-t border-border py-8">
+			<div class="mx-auto flex max-w-3xl items-center justify-between px-6 text-sm text-text-muted">
+				<span>Rankanything</span>
+				<a href="/login" class="transition-colors hover:text-text-muted-hover">Sign in</a>
+			</div>
+		</footer>
 	}
+}
+
+templ howItWorksStep(number string, title string, description string) {
+	<div class="space-y-2 text-center">
+		<div class="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-surface-muted text-sm font-semibold text-text-muted">
+			{ number }
+		</div>
+		<h3 class="text-lg font-semibold">{ title }</h3>
+		<p class="text-sm leading-relaxed text-text-muted">{ description }</p>
+	</div>
+}
+
+templ featureCard(title string, description string) {
+	<div class="rounded-lg border border-border bg-surface p-5 space-y-2">
+		<h3 class="font-semibold">{ title }</h3>
+		<p class="text-sm leading-relaxed text-text-muted">{ description }</p>
+	</div>
 }
 
 // demoBoard shares no markup with the real board: there is no session, no
