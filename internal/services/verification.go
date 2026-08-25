@@ -14,22 +14,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// Covers unknown, expired, and already-used alike, so retrying a token
-// reveals nothing.
 var ErrTokenInvalid = errors.New("This link has expired or was already used.")
 
 type VerificationService struct {
 	Queries *db.Queries
 	Sender  email.Sender
 
-	// Sessions is needed only to invalidate sessions on a password reset.
 	Sessions *auth.Sessions
-
-	// BaseURL is this site's absolute origin, for the links mailed out.
-	BaseURL string
+	BaseURL  string
 }
 
-// SendVerificationEmail stores the token's hash and mails the plaintext.
 func (s *VerificationService) SendVerificationEmail(ctx context.Context, userID int64, to string) error {
 	plaintext, hash, expiresAt, err := token.Generate(token.VerificationTTL)
 	if err != nil {
@@ -66,8 +60,6 @@ func (s *VerificationService) RedeemEmailVerification(ctx context.Context, plain
 		return ErrTokenInvalid
 	}
 
-	// The query re-checks is_verified and expires_at atomically, so a
-	// concurrent redemption loses the race rather than double-applying.
 	if _, err := s.Queries.RedeemEmailVerification(ctx, hash); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrTokenInvalid
@@ -81,8 +73,7 @@ func (s *VerificationService) RedeemEmailVerification(ctx context.Context, plain
 	return nil
 }
 
-// RequestPasswordReset sends nothing for an unknown address and still returns
-// nil, so a response can never test which addresses have accounts.
+// Returns nil for unknown addresses to prevent account enumeration.
 func (s *VerificationService) RequestPasswordReset(ctx context.Context, to string) error {
 	user, err := s.Queries.GetUserByEmail(ctx, to)
 	if err != nil {
@@ -112,10 +103,7 @@ func (s *VerificationService) RequestPasswordReset(ctx context.Context, to strin
 	return s.Sender.Send(ctx, msg)
 }
 
-// RedeemPasswordReset hashes newPassword here rather than in the caller so
-// hashing happens strictly after the token check. Hashing first would let an
-// anonymous caller burn a bcrypt round per invented token, and this endpoint
-// is not rate-limited.
+// Hashes after the token check so callers cannot burn bcrypt rounds with bad tokens.
 func (s *VerificationService) RedeemPasswordReset(ctx context.Context, plaintextToken, newPassword string) error {
 	hash := token.Hash(plaintextToken)
 
@@ -150,8 +138,6 @@ func (s *VerificationService) RedeemPasswordReset(ctx context.Context, plaintext
 		return fmt.Errorf("password reset: update password: %w", err)
 	}
 
-	// A reset takes an account back, so sessions opened against the old
-	// password must stop working. Not the caller's own; see the method.
 	if err := s.Sessions.DestroyAllForUser(ctx, row.UserID); err != nil {
 		return fmt.Errorf("password reset: drop sessions: %w", err)
 	}

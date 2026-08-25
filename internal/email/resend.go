@@ -12,8 +12,6 @@ import (
 
 const resendAPIBaseURL = "https://api.resend.com"
 
-// ResendSender sends mail through the Resend HTTP API directly — no SDK,
-// since the surface used here is one POST endpoint.
 type ResendSender struct {
 	apiKey     string
 	from       string
@@ -21,14 +19,10 @@ type ResendSender struct {
 	httpClient *http.Client
 }
 
-// NewResendSender builds a sender that authenticates with apiKey and sends
-// as from (e.g. "Rank Anything <hello@rankanything.app>").
 func NewResendSender(apiKey, from string) *ResendSender {
 	return newResendSender(apiKey, from, resendAPIBaseURL)
 }
 
-// newResendSender is the internal constructor used by tests to point at an
-// httptest.Server instead of the real API.
 func newResendSender(apiKey, from, baseURL string) *ResendSender {
 	return &ResendSender{
 		apiKey:     apiKey,

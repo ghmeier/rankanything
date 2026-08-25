@@ -5,7 +5,6 @@ import (
 	"fmt"
 )
 
-// BoardPageProps configures the whole tier board for one version.
 type BoardPageProps struct {
 	CSRFToken     string
 	LoggedIn      bool
@@ -14,26 +13,19 @@ type BoardPageProps struct {
 	RankingMeta   RankingMetaProps
 	Versions      []BoardVersionOption
 	VersionAction BoardVersionActionsProps
-	// A published version is immutable, so editing affordances are left
-	// unrendered rather than merely disabled.
 	Editable bool
 	Tiers    []TierRowProps
 	TierForm TierFormProps
 	ItemTray ItemTrayProps
-	// Nil renders nothing for either control.
 	ShareControl  templ.Component
 	ExportControl templ.Component
 }
 
-// RankingMetaProps carries RankingUUID because editing a field renders this
-// standalone as an htmx swap target, with no surrounding page.
 type RankingMetaProps struct {
 	RankingUUID      string
 	VersionShortUUID string
 	Name             string
 	Description      string
-	// A ranking's name is not version-scoped, but this page shouldn't offer
-	// inputs that look like they edit the published version on screen.
 	Editable bool
 }
 
@@ -70,8 +62,6 @@ templ BoardPage(props BoardPageProps) {
 	}
 }
 
-// BoardVersionActionsProps renders the publish action for a draft, or the
-// branch action for a published version with no draft in progress.
 type BoardVersionActionsProps struct {
 	RankingUUID      string
 	VersionShortUUID string
@@ -80,8 +70,6 @@ type BoardVersionActionsProps struct {
 	BlockedReasons   []string
 	HasOtherDraft    bool
 	DraftURL         string
-	// Include OOB the mutation's fragment, so the publish button re-evaluates
-	// its state each time.
 	OOB bool
 }
 
@@ -119,10 +107,6 @@ templ BoardVersionActions(props BoardVersionActionsProps) {
 	</div>
 }
 
-// boardActionsMenu stays styled as primary or secondary to match the action
-// half it hangs off, even beside a disabled Publish button, because the
-// actions behind it are still available. The share control keeps its own
-// nested disclosure because its panel is a form, not a link.
 templ boardActionsMenu(props BoardPageProps) {
 	@Dropdown(DropdownProps{
 		Icon:      MoreIcon(),
@@ -143,11 +127,7 @@ templ boardActionsMenu(props BoardPageProps) {
 	}
 }
 
-// editTiersToggle is a checkbox rather than a button because edit-tiers mode
-// is pure client-side UI state: input.css keys the tier affordances and this
-// control's own label off :checked, so the mode works with board.js blocked,
-// and a checkbox is what a screen reader should hear for a toggle anyway.
-// board.js only listens for the change to close the menu.
+// Checkbox so CSS can key off :checked without JS.
 templ editTiersToggle() {
 	<input type="checkbox" id="edit-tiers" class="peer sr-only"/>
 	<label for="edit-tiers" class={ DropdownItemClass + " peer-focus-visible:bg-surface-hover" }>

@@ -8,7 +8,6 @@ package ui
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// DropdownAlign names the edge of the trigger the panel lines up with.
 type DropdownAlign string
 
 const (
@@ -16,36 +15,20 @@ const (
 	DropdownLeft  DropdownAlign = "left"
 )
 
-// DropdownProps configures Dropdown. The trigger is either a Label, which
-// renders with a chevron that flips while the panel is open, or an Icon; an
-// icon on its own is not a label, so an icon trigger needs AriaLabel.
 type DropdownProps struct {
-	Label     string
-	Icon      templ.Component
-	AriaLabel string
-	Variant   ButtonVariant
-	// Empty aligns the panel with the trigger's left edge.
-	Align DropdownAlign
-	// Width sizes the panel; empty fits it to its widest item.
-	Width string
-	// Split squares off the trigger's left corners and adds the dividing
-	// border, for the menu half of a SplitButton.
-	Split bool
-	// Extra trigger classes must arrive here rather than through Attrs, for
-	// the same reason as ButtonProps.Class: the browser keeps the first of
-	// two class attributes.
+	Label        string
+	Icon         templ.Component
+	AriaLabel    string
+	Variant      ButtonVariant
+	Align        DropdownAlign
+	Width        string
+	Split        bool
 	TriggerClass string
 	ID           string
 	Attrs        templ.Attributes
 }
 
-// Dropdown is a native <details>, so it opens with JS blocked. dropdown.js
-// adds only what <details> lacks — closing on a click outside the menu or on
-// Escape, which is what something shaped like a menu is expected to do.
-//
-// The group is named, because Tooltip claims the unnamed one: an unnamed
-// group here would mean hovering anywhere in the dropdown revealed the
-// tooltip of any control inside it.
+// Named group so Tooltip's unnamed group does not leak in.
 func Dropdown(props DropdownProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -79,7 +62,7 @@ func Dropdown(props DropdownProps) templ.Component {
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.ID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dropdown.templ`, Line: 44, Col: 16}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dropdown.templ`, Line: 27, Col: 16}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 			if templ_7745c5c3_Err != nil {
@@ -119,7 +102,7 @@ func Dropdown(props DropdownProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.AriaLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dropdown.templ`, Line: 52, Col: 32}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dropdown.templ`, Line: 35, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 			if templ_7745c5c3_Err != nil {
@@ -132,7 +115,7 @@ func Dropdown(props DropdownProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.AriaLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dropdown.templ`, Line: 53, Col: 27}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dropdown.templ`, Line: 36, Col: 27}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 			if templ_7745c5c3_Err != nil {
@@ -174,7 +157,7 @@ func Dropdown(props DropdownProps) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(props.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dropdown.templ`, Line: 61, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dropdown.templ`, Line: 44, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -227,11 +210,8 @@ func Dropdown(props DropdownProps) templ.Component {
 	})
 }
 
-// DropdownItemProps renders a link when Href is set and a button otherwise.
 type DropdownItemProps struct {
-	Href string
-	// Current marks the entry the page is already showing: inert text rather
-	// than a link back to where you are.
+	Href     string
 	Current  bool
 	Disabled bool
 	Attrs    templ.Attributes
@@ -302,7 +282,7 @@ func DropdownItem(props DropdownItemProps) templ.Component {
 			var templ_7745c5c3_Var14 templ.SafeURL
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(props.Href))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dropdown.templ`, Line: 87, Col: 33}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/dropdown.templ`, Line: 67, Col: 33}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -395,19 +375,11 @@ func DropdownItem(props DropdownItemProps) templ.Component {
 	})
 }
 
-// DropdownItemClass lets an element DropdownItem doesn't cover — the label of
-// a checkbox, say — sit in a panel and match its neighbours.
 const DropdownItemClass = "flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-left text-sm text-text-muted whitespace-nowrap hover:bg-surface-hover hover:text-text-muted-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:pointer-events-none"
 
 const dropdownCurrentItemClass = "flex w-full items-center gap-2 rounded px-3 py-2 text-left text-sm font-medium text-text whitespace-nowrap"
 
-// The panel sits above the tooltips inside it (z-10) and below the nav rail
-// (z-30). Alignment classes are whole literals rather than assembled from
-// parts, because Tailwind finds classes by scanning source text.
 func dropdownPanelClass(align DropdownAlign) string {
-	// The panel is absolutely positioned, so it already shrink-wraps its
-	// content; min-w-full only keeps it from ending up narrower than the
-	// trigger. Width, when given, overrides both.
 	const base = "absolute z-20 mt-1 min-w-full rounded-md border border-border bg-surface p-1 text-left shadow-md"
 	if align == DropdownRight {
 		return base + " right-0"
@@ -415,8 +387,7 @@ func dropdownPanelClass(align DropdownAlign) string {
 	return base + " left-0"
 }
 
-// The marker is hidden in both spellings: Safari still wants the WebKit
-// pseudo-element even though list-none covers everyone else.
+// Safari needs the WebKit pseudo-element even with list-none.
 func dropdownTriggerClass(split bool) string {
 	const base = "list-none [&::-webkit-details-marker]:hidden"
 	if split {

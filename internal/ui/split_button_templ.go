@@ -8,23 +8,16 @@ package ui
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// SplitButtonProps configures the action half. The menu half is the
-// component's children — normally a Dropdown with Split set, so the two
-// halves meet on one border.
 type SplitButtonProps struct {
-	Label   string
-	Variant ButtonVariant
-	// Href renders the action half as a link rather than a button.
+	Label    string
+	Variant  ButtonVariant
 	Href     string
 	Disabled bool
 	Attrs    templ.Attributes
-	// Action replaces the built-in action half. The board's publish button is
-	// swapped out-of-band on its own, so that caller passes a component
-	// carrying its own id instead of letting SplitButton render the half.
+	// Overrides the built-in action half with a custom component.
 	Action templ.Component
 }
 
-// SplitButton joins one action to a menu of related ones.
 func SplitButton(props SplitButtonProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -68,7 +61,7 @@ func SplitButton(props SplitButtonProps) templ.Component {
 			var templ_7745c5c3_Var3 templ.SafeURL
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(props.Href))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/split_button.templ`, Line: 25, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/split_button.templ`, Line: 18, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -102,7 +95,7 @@ func SplitButton(props SplitButtonProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(props.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/split_button.templ`, Line: 26, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/split_button.templ`, Line: 19, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -128,7 +121,7 @@ func SplitButton(props SplitButtonProps) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(props.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/split_button.templ`, Line: 35, Col: 17}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/split_button.templ`, Line: 28, Col: 17}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -158,8 +151,6 @@ func SplitButton(props SplitButtonProps) templ.Component {
 	})
 }
 
-// The halves drop their adjoining corners and share one border, so they read
-// as a single control rather than two buttons that happen to touch.
 const (
 	SplitButtonActionClass = "rounded-r-none"
 	SplitButtonMenuClass   = "h-full rounded-l-none border-l border-border"

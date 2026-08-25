@@ -15,14 +15,12 @@ var (
 	ErrInvalidEmail       = errors.New("Enter a valid email address.")
 )
 
-// prehash defeats bcrypt's 72-byte truncation by feeding it a fixed-length
-// SHA-256 hex digest (64 bytes) instead of the raw password.
+// Defeats bcrypt's 72-byte truncation with a fixed-length SHA-256 digest.
 func prehash(plain string) []byte {
 	h := sha256.Sum256([]byte(plain))
 	return []byte(hex.EncodeToString(h[:]))
 }
 
-// HashPassword returns a bcrypt hash suitable for users.password_hash.
 func HashPassword(plain string) (string, error) {
 	if len([]rune(plain)) < 8 {
 		return "", ErrWeakPassword
@@ -31,10 +29,7 @@ func HashPassword(plain string) (string, error) {
 	return string(h), err
 }
 
-// CheckPassword reports whether plain matches the stored hash. It tries the
-// current SHA-256+bcrypt scheme first, then falls back to raw bcrypt for
-// hashes created before the prehash migration. Callers that see a successful
-// fallback should re-hash the password with HashPassword to upgrade the row.
+// Falls back to raw bcrypt for hashes created before the prehash migration.
 func CheckPassword(hash, plain string) bool {
 	if bcrypt.CompareHashAndPassword([]byte(hash), prehash(plain)) == nil {
 		return true
@@ -42,8 +37,6 @@ func CheckPassword(hash, plain string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(plain)) == nil
 }
 
-// NormalizeEmail trims and lowercases; the column is citext, this keeps the
-// value we store tidy.
 func NormalizeEmail(email string) (string, error) {
 	e := strings.ToLower(strings.TrimSpace(email))
 	at := strings.Index(e, "@")

@@ -11,16 +11,12 @@ type ListForUserRequest struct {
 	UserID int64
 }
 
-// RankingSummary carries both versions separately, because a ranking can
-// have a published version and a newer draft at once.
 type RankingSummary struct {
 	Ranking   db.Ranking
 	Published *db.RankingVersion
 	Draft     *db.RankingVersion
 }
 
-// ListForUser runs three queries regardless of how many rankings a user owns,
-// rather than the per-ranking lookup each card would otherwise cost.
 func (s *RankingsService) ListForUser(ctx context.Context, req ListForUserRequest) ([]RankingSummary, error) {
 	rankings, err := s.Queries.ListRankingsByUser(ctx, req.UserID)
 	if err != nil {

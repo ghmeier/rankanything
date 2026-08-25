@@ -52,12 +52,9 @@ func TestComponentsGalleryRendersEveryVariant(t *testing.T) {
 	assert.Contains(t, body, "rounded-l-none", "the menu half")
 	assert.Contains(t, body, `aria-label="More publish actions"`)
 
-	// SideNav, which is now the signed-in rail only. Its labels live in
-	// aria-label and the hover tooltip, since the buttons are icons.
 	assert.Contains(t, body, `aria-label="Rankings"`)
 	assert.Contains(t, body, `aria-label="Sign out"`)
 
-	// TopNav, the signed-out header, with both account actions spelled out.
 	assert.Contains(t, body, `href="/login"`)
 	assert.Contains(t, body, `href="/register"`)
 	assert.Contains(t, body, "Create account")

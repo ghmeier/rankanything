@@ -41,9 +41,6 @@ func newOwnedRanking(t *testing.T) (*services.RankingsService, context.Context, 
 	return svc, ctx, ranking, version
 }
 
-// ---------------------------------------------------------------------------
-// CreateForUser
-// ---------------------------------------------------------------------------
 
 func TestCreateForUserSeedsTheDraftVersionWithDefaultTiers(t *testing.T) {
 	t.Parallel()
@@ -62,9 +59,6 @@ func TestCreateForUserSeedsTheDraftVersionWithDefaultTiers(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// GetRanking
-// ---------------------------------------------------------------------------
 
 func TestGetRankingReturnsOwnedRanking(t *testing.T) {
 	t.Parallel()
@@ -85,9 +79,6 @@ func TestGetRankingUnknownUUIDNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, services.ErrRankingNotFound)
 }
 
-// ---------------------------------------------------------------------------
-// ResolveVersion
-// ---------------------------------------------------------------------------
 
 func TestResolveVersionWithNoShortUUIDReturnsTheLiveVersion(t *testing.T) {
 	t.Parallel()
@@ -118,9 +109,6 @@ func TestResolveVersionUnknownShortUUIDErrors(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// ---------------------------------------------------------------------------
-// ListVersions
-// ---------------------------------------------------------------------------
 
 func TestListVersionsReturnsOnlyTheGivenRankingsVersions(t *testing.T) {
 	t.Parallel()
@@ -161,9 +149,6 @@ func TestListVersionsIncludesBothPublishedAndDraftVersions(t *testing.T) {
 	assert.Contains(t, ids, newDraft.ID)
 }
 
-// ---------------------------------------------------------------------------
-// UpdateRanking
-// ---------------------------------------------------------------------------
 
 func TestUpdateRankingChangesTitleAndDescription(t *testing.T) {
 	t.Parallel()
@@ -214,9 +199,6 @@ func TestUpdateRankingUnknownUUIDNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, services.ErrRankingNotFound)
 }
 
-// ---------------------------------------------------------------------------
-// AddItem / DeleteItem
-// ---------------------------------------------------------------------------
 
 func TestAddItemAddsToTheGivenVersion(t *testing.T) {
 	t.Parallel()
@@ -386,9 +368,6 @@ func TestDeleteItemFromAnotherRankingsVersionIsRejected(t *testing.T) {
 	assert.ErrorIs(t, err, services.ErrRankingNotFound)
 }
 
-// ---------------------------------------------------------------------------
-// AddTier / UpdateTier / GetTier / DeleteTier
-// ---------------------------------------------------------------------------
 
 func TestAddTierAppendsAtTheEnd(t *testing.T) {
 	t.Parallel()
@@ -531,9 +510,6 @@ func TestDeleteTierFromAnotherVersionIsRejected(t *testing.T) {
 	assert.ErrorIs(t, err, services.ErrRankingNotFound)
 }
 
-// ---------------------------------------------------------------------------
-// AddItemToTier
-// ---------------------------------------------------------------------------
 
 func TestAddItemToTierPlacesTheItem(t *testing.T) {
 	t.Parallel()
@@ -602,9 +578,6 @@ func TestAddItemToTierRejectsAnItemFromAnotherVersion(t *testing.T) {
 	assert.ErrorIs(t, err, services.ErrInvalidTierPlacement)
 }
 
-// ---------------------------------------------------------------------------
-// GetBoard
-// ---------------------------------------------------------------------------
 
 func TestGetBoardListsTiersItemsAndPlacements(t *testing.T) {
 	t.Parallel()
@@ -657,9 +630,6 @@ func twoOwnedRankings(t *testing.T) (*services.RankingsService, context.Context,
 	return svc, ctx, versionA, versionB
 }
 
-// ---------------------------------------------------------------------------
-// ReorderTierItems
-// ---------------------------------------------------------------------------
 
 func TestReorderTierItemsChangesOrderWithinATier(t *testing.T) {
 	t.Parallel()
@@ -732,9 +702,6 @@ func TestReorderTierItemsRejectsAnItemFromAnotherVersion(t *testing.T) {
 	assert.ErrorIs(t, err, services.ErrInvalidTierPlacement)
 }
 
-// ---------------------------------------------------------------------------
-// ReorderTiers
-// ---------------------------------------------------------------------------
 
 func TestReorderTiersSetsTheGivenOrder(t *testing.T) {
 	t.Parallel()
@@ -769,9 +736,6 @@ func TestReorderTiersRejectsATierFromAnotherVersion(t *testing.T) {
 	assert.ErrorIs(t, err, services.ErrRankingNotFound)
 }
 
-// ---------------------------------------------------------------------------
-// UnrankItem / ListUnrankedItems
-// ---------------------------------------------------------------------------
 
 func TestUnrankItemClearsItsTierPlacement(t *testing.T) {
 	t.Parallel()
@@ -823,9 +787,6 @@ func TestListUnrankedItemsExcludesPlacedItems(t *testing.T) {
 	assert.Equal(t, unplaced.ID, unranked[0].ID)
 }
 
-// ---------------------------------------------------------------------------
-// ValidatePublishable / PublishVersion
-// ---------------------------------------------------------------------------
 
 func TestValidatePublishableBlocksWhenThereAreNoTiers(t *testing.T) {
 	t.Parallel()
@@ -919,9 +880,6 @@ func TestPublishVersionFailsWhenTheVersionIsNotPublishable(t *testing.T) {
 	assert.ErrorIs(t, err, services.ErrNotPublishable)
 }
 
-// ---------------------------------------------------------------------------
-// CreateVersionFromPublished
-// ---------------------------------------------------------------------------
 
 func TestCreateVersionFromPublishedCopiesTiersItemsAndPlacements(t *testing.T) {
 	t.Parallel()
@@ -971,9 +929,6 @@ func TestCreateVersionFromPublishedRejectsWhenADraftAlreadyExists(t *testing.T) 
 	assert.ErrorIs(t, err, services.ErrDraftAlreadyExists, "the seeded draft itself is the conflicting one")
 }
 
-// ---------------------------------------------------------------------------
-// FormatPublishedAt
-// ---------------------------------------------------------------------------
 
 func publishedAt(t time.Time) db.RankingVersion {
 	return db.RankingVersion{PublishedAt: pgtype.Timestamptz{Time: t, Valid: true}}

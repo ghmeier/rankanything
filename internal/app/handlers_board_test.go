@@ -170,15 +170,10 @@ func TestUpdateRankingTitleReturnsMetaPartial(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, res.Status)
 	assert.Contains(t, Body(res.Body), `value="Best snacks"`)
-	// The description comes back rendered, not as an input: it is only an
-	// editor once clicked.
 	assert.Contains(t, Body(res.Body), "<p>2026 edition</p>")
 	assert.NotContains(t, Body(res.Body), "<html")
 }
 
-// ---------------------------------------------------------------------------
-// Version resolution (RequireRankingAccess)
-// ---------------------------------------------------------------------------
 
 func TestViewRankingWithNoVersionInPathLoadsTheLiveVersion(t *testing.T) {
 	env := testsupport.NewEnv(t)
@@ -224,9 +219,6 @@ func TestOwnedRankingsAreNotReadableByOthers(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, write.Status)
 }
 
-// ---------------------------------------------------------------------------
-// Version dropdown
-// ---------------------------------------------------------------------------
 
 func TestBoardVersionButtonReadsDraftWhileViewingTheDraft(t *testing.T) {
 	env := testsupport.NewEnv(t)
@@ -277,8 +269,6 @@ func TestBoardVersionNumberingFollowsPublishOrderAcrossThreeVersions(t *testing.
 	third, err := env.Queries.PublishRankingVersion(ctx, thirdDraft.ID)
 	require.NoError(t, err)
 
-	// The dropdown lists every version regardless of which one is being
-	// viewed, so any of the three pages carries all three numbers.
 	body := Body(owner.Get("/r/" + owner.Ranking.Uuid.String() + "/v/" + third.ShortUuid).Body)
 	assert.Contains(t, body, "v1 · Published "+services.FormatPublishedAt(first))
 	assert.Contains(t, body, "v2 · Published "+services.FormatPublishedAt(second))
@@ -299,14 +289,10 @@ func TestBoardVersionButtonMatchesThePinnedVersionRatherThanTheLiveOne(t *testin
 	})
 	require.NoError(t, err)
 
-	// /r/{uuid} with no pinned version resolves to the published one per
-	// ResolveLiveRankingVersion, so the button there reads the publish label.
 	onLive := Body(owner.Get("/r/" + owner.Ranking.Uuid.String()).Body)
 	assert.Contains(t, onLive, "v1 · Published "+services.FormatPublishedAt(published))
 	assert.NotContains(t, onLive, "<span>Draft</span>")
 
-	// Pinning the draft's own short uuid makes the button track it instead,
-	// even though it's not the version /r/{uuid} would resolve to.
 	onPinnedDraft := Body(owner.Get("/r/" + owner.Ranking.Uuid.String() + "/v/" + secondDraft.ShortUuid).Body)
 	assert.Contains(t, onPinnedDraft, "<span>Draft</span>")
 }
@@ -325,24 +311,15 @@ func TestBoardVersionDropdownListsEveryVersionAndMarksTheOneBeingViewed(t *testi
 	})
 	require.NoError(t, err)
 
-	// Viewing the published version: its dropdown entry is marked as the
-	// current one, the new draft's is present but unmarked.
 	onPublished := owner.Get("/r/" + owner.Ranking.Uuid.String() + "/v/" + published.ShortUuid).Body
 	assert.Contains(t, Body(onPublished), `aria-current="true"`)
 	assert.Contains(t, Body(onPublished), "/r/"+owner.Ranking.Uuid.String()+"/v/"+secondDraft.ShortUuid)
 
-	// Viewing the new draft: the live version (/r/{uuid} with no pinned
-	// version) resolves to the published one per ResolveLiveRankingVersion,
-	// so the draft has to be reached by its own short uuid to become "the
-	// one being viewed".
 	onDraft := owner.Get("/r/" + owner.Ranking.Uuid.String() + "/v/" + secondDraft.ShortUuid).Body
 	assert.Contains(t, Body(onDraft), "<span>Draft</span>")
 	assert.Contains(t, Body(onDraft), "/r/"+owner.Ranking.Uuid.String()+"/v/"+published.ShortUuid)
 }
 
-// ---------------------------------------------------------------------------
-// Drag-and-drop reordering
-// ---------------------------------------------------------------------------
 
 func TestReorderTierItemsPersistsTheGivenOrder(t *testing.T) {
 	env := testsupport.NewEnv(t)
@@ -481,9 +458,6 @@ func TestDeleteTierReturnsItsItemsToTheTrayOutOfBand(t *testing.T) {
 	assert.Empty(t, placements)
 }
 
-// ---------------------------------------------------------------------------
-// Publishing and version branching
-// ---------------------------------------------------------------------------
 
 func TestPublishIsBlockedUntilTheVersionIsPublishable(t *testing.T) {
 	env := testsupport.NewEnv(t)
@@ -604,9 +578,6 @@ func TestViewingTheLiveRankingResolvesToTheMostRecentlyPublishedVersion(t *testi
 	assert.Contains(t, Body(res.Body), "Published "+services.FormatPublishedAt(published))
 }
 
-// ---------------------------------------------------------------------------
-// Published versions are immutable
-// ---------------------------------------------------------------------------
 
 func TestMutatingRequestsAgainstAPublishedVersionAreRejected(t *testing.T) {
 	env := testsupport.NewEnv(t)
@@ -681,9 +652,6 @@ func TestUpdatingTheRankingTitleStaysAllowedWhileViewingAPublishedVersion(t *tes
 	assert.Contains(t, Body(res.Body), "Renamed while published", "the ranking's name isn't version-scoped, so this stays allowed")
 }
 
-// ---------------------------------------------------------------------------
-// The description: markdown, rendered, edited on click
-// ---------------------------------------------------------------------------
 
 func TestDescriptionRendersAsMarkdown(t *testing.T) {
 	env := testsupport.NewEnv(t)
@@ -764,9 +732,6 @@ func TestAPublishedVersionRendersNoDescriptionEditor(t *testing.T) {
 	assert.NotContains(t, body, `aria-label="Edit description"`)
 }
 
-// ---------------------------------------------------------------------------
-// The publish button re-evaluates as the board changes
-// ---------------------------------------------------------------------------
 
 func TestAddItemResponseCarriesThePublishActionOutOfBand(t *testing.T) {
 	env := testsupport.NewEnv(t)
@@ -815,15 +780,8 @@ func TestRenameTierDoesNotCarryThePublishActionOutOfBand(t *testing.T) {
 	assert.NotContains(t, Body(res.Body), `id="board-version-actions"`, "renaming a tier can't flip whether the version is publishable")
 }
 
-// ---------------------------------------------------------------------------
-// Published versions hide editing controls
-// ---------------------------------------------------------------------------
 
-// The browser treats draggable as an enumerated attribute, not a boolean
-// one: a bare `draggable` is invalid and falls back to "auto", which leaves
-// an <article> or <section> undraggable. board.js delegates dragstart from
-// the board container and so depends entirely on the browser honouring the
-// attribute, which makes the explicit value the whole feature rests on.
+// A bare `draggable` attribute is invalid; it must be "true" or "false".
 func TestBoardRendersDraggableWithAnExplicitValue(t *testing.T) {
 	env := testsupport.NewEnv(t)
 	owner := env.NewOwnerClient()

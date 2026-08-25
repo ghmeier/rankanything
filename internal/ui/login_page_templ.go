@@ -8,8 +8,6 @@ package ui
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// LoginProps carries in Next the path the visitor wanted before RequireUser
-// sent them here.
 type LoginProps struct {
 	CSRFToken string
 	LoggedIn  bool
@@ -74,8 +72,6 @@ func LoginPage(props LoginProps) templ.Component {
 	})
 }
 
-// LoginContainer is both the form's swap target and what a rejected sign-in
-// answers with, so it renders without a layout around it.
 func LoginContainer(props LoginProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

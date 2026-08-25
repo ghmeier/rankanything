@@ -1,7 +1,5 @@
 package ui
 
-// RegisterProps configures RegisterPage. EmailAlreadyRegistered is the one
-// rejection that isn't just an error string; see AuthFormProps.
 type RegisterProps struct {
 	CSRFToken              string
 	LoggedIn               bool
@@ -19,7 +17,6 @@ templ RegisterPage(props RegisterProps) {
 	}
 }
 
-// RegisterContainer is LoginContainer's counterpart for registration.
 templ RegisterContainer(props RegisterProps) {
 	<div class="auth-container mx-auto max-w-sm space-y-6">
 		<h1 class="text-2xl font-bold tracking-tight">Create your account</h1>

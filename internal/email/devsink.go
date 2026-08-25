@@ -6,9 +6,6 @@ import (
 	"sync"
 )
 
-// DevSink logs mail instead of sending it, so development and tests need no
-// network. It logs the token-bearing link deliberately: the log is the only
-// place to read it, and no API key means this never runs in production.
 type DevSink struct {
 	logger *slog.Logger
 
@@ -30,7 +27,6 @@ func (d *DevSink) Send(_ context.Context, msg Message) error {
 	return nil
 }
 
-// Sent returns every captured message, oldest first, for tests to assert on.
 func (d *DevSink) Sent() []Message {
 	d.mu.Lock()
 	defer d.mu.Unlock()

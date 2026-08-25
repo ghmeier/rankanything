@@ -2,9 +2,6 @@ package app
 
 import "net/http"
 
-// registerPublicRoutes mounts the routes with no ownership check. The share
-// view skips RequireRankingAccess deliberately: anyone with the slug may
-// read it, and it renders no edit affordances.
 func (a *App) registerPublicRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /{$}", a.handleRoot)
 	mux.HandleFunc("GET /robots.txt", a.handleRobotsTxt)

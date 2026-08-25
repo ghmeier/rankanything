@@ -1,8 +1,5 @@
 package ui
 
-// AuthFormProps is shared by the sign-in and create-account pages; only
-// Action and Submit differ. EmailAlreadyRegistered is separate from Error
-// because it is the one rejection that needs links rather than a sentence.
 type AuthFormProps struct {
 	Action                 string
 	Submit                 string
@@ -11,16 +8,10 @@ type AuthFormProps struct {
 	Error                  string
 	EmailAlreadyRegistered bool
 
-	// Tells a password manager whether to offer a saved credential
-	// ("current-password") or generate one ("new-password").
 	PasswordAutocomplete string
 }
 
-// AuthErrorSwapScript opts 401 and 422 back into htmx swapping, since htmx
-// swaps only 2xx by default and a rejected attempt answers with the form.
-//
-// It belongs on the page, not in AuthForm: the form is inside the element the
-// swap replaces, so a copy there would add a listener on every failure.
+// Must live on the page, not in AuthForm, to avoid stacking listeners.
 templ AuthErrorSwapScript() {
 	<script>
 		document.addEventListener("htmx:beforeSwap", (event) => {
@@ -68,8 +59,6 @@ templ AuthForm(props AuthFormProps) {
 			Required: true,
 			Attrs:    templ.Attributes{"autocomplete": props.PasswordAutocomplete, "minlength": "8"},
 		})
-		// Not @Button: this spans the form's width, and Button writes its own
-		// class, so a second one through Attrs would be ignored.
 		<button type="submit" class={ ButtonClass(ButtonPrimary) + " w-full" }>
 			{ props.Submit }
 		</button>

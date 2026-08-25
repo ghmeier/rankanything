@@ -7,7 +7,6 @@ import (
 	"github.com/ghmeier/rankanything/internal/ui"
 )
 
-// handleRankingsIndex lists the rankings a user owns. RequireUser gates it.
 func (a *App) handleRankingsIndex(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	userID := a.Sessions.UserID(ctx)
@@ -35,9 +34,6 @@ func (a *App) handleRankingsIndex(w http.ResponseWriter, r *http.Request) {
 			Name: summary.Ranking.Name,
 		}
 
-		// A ranking that has never been published has no Published version,
-		// and one whose last draft is published has no Draft; a ranking with
-		// a draft on top of a publish has both.
 		if summary.Published != nil {
 			card.PublishedAt = services.FormatPublishedAt(*summary.Published)
 		}
@@ -51,8 +47,6 @@ func (a *App) handleRankingsIndex(w http.ResponseWriter, r *http.Request) {
 	a.render(w, r, http.StatusOK, ui.RankingsIndexPage(props))
 }
 
-// handleNew is a POST because a GET skips the CSRF check and is fair game for
-// link prefetch, and neither should mint a ranking.
 func (a *App) handleNew(w http.ResponseWriter, r *http.Request) {
 	userID := a.Sessions.UserID(r.Context())
 

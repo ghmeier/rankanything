@@ -13,7 +13,6 @@ import (
 	"fmt"
 )
 
-// BoardPageProps configures the whole tier board for one version.
 type BoardPageProps struct {
 	CSRFToken     string
 	LoggedIn      bool
@@ -22,27 +21,20 @@ type BoardPageProps struct {
 	RankingMeta   RankingMetaProps
 	Versions      []BoardVersionOption
 	VersionAction BoardVersionActionsProps
-	// A published version is immutable, so editing affordances are left
-	// unrendered rather than merely disabled.
-	Editable bool
-	Tiers    []TierRowProps
-	TierForm TierFormProps
-	ItemTray ItemTrayProps
-	// Nil renders nothing for either control.
+	Editable      bool
+	Tiers         []TierRowProps
+	TierForm      TierFormProps
+	ItemTray      ItemTrayProps
 	ShareControl  templ.Component
 	ExportControl templ.Component
 }
 
-// RankingMetaProps carries RankingUUID because editing a field renders this
-// standalone as an htmx swap target, with no surrounding page.
 type RankingMetaProps struct {
 	RankingUUID      string
 	VersionShortUUID string
 	Name             string
 	Description      string
-	// A ranking's name is not version-scoped, but this page shouldn't offer
-	// inputs that look like they edit the published version on screen.
-	Editable bool
+	Editable         bool
 }
 
 func BoardPage(props BoardPageProps) templ.Component {
@@ -85,7 +77,7 @@ func BoardPage(props BoardPageProps) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/r/%s", props.RankingMeta.RankingUUID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 46, Col: 66}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 38, Col: 66}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 			if templ_7745c5c3_Err != nil {
@@ -136,7 +128,7 @@ func BoardPage(props BoardPageProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.RankingMeta.RankingUUID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 59, Col: 68}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 51, Col: 68}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 			if templ_7745c5c3_Err != nil {
@@ -149,7 +141,7 @@ func BoardPage(props BoardPageProps) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.RankingMeta.VersionShortUUID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 59, Col: 125}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 51, Col: 125}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 			if templ_7745c5c3_Err != nil {
@@ -189,8 +181,6 @@ func BoardPage(props BoardPageProps) templ.Component {
 	})
 }
 
-// BoardVersionActionsProps renders the publish action for a draft, or the
-// branch action for a published version with no draft in progress.
 type BoardVersionActionsProps struct {
 	RankingUUID      string
 	VersionShortUUID string
@@ -199,9 +189,7 @@ type BoardVersionActionsProps struct {
 	BlockedReasons   []string
 	HasOtherDraft    bool
 	DraftURL         string
-	// Include OOB the mutation's fragment, so the publish button re-evaluates
-	// its state each time.
-	OOB bool
+	OOB              bool
 }
 
 func BoardVersionActions(props BoardVersionActionsProps) templ.Component {
@@ -291,7 +279,7 @@ func BoardVersionActions(props BoardVersionActionsProps) templ.Component {
 						var templ_7745c5c3_Var10 string
 						templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(reason)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 105, Col: 45}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 93, Col: 45}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 						if templ_7745c5c3_Err != nil {
@@ -326,7 +314,7 @@ func BoardVersionActions(props BoardVersionActionsProps) templ.Component {
 			var templ_7745c5c3_Var12 templ.SafeURL
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinURLErrs(templ.URL(props.DraftURL))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 111, Col: 38}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 99, Col: 38}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -381,10 +369,6 @@ func BoardVersionActions(props BoardVersionActionsProps) templ.Component {
 	})
 }
 
-// boardActionsMenu stays styled as primary or secondary to match the action
-// half it hangs off, even beside a disabled Publish button, because the
-// actions behind it are still available. The share control keeps its own
-// nested disclosure because its panel is a form, not a link.
 func boardActionsMenu(props BoardPageProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -460,11 +444,7 @@ func boardActionsMenu(props BoardPageProps) templ.Component {
 	})
 }
 
-// editTiersToggle is a checkbox rather than a button because edit-tiers mode
-// is pure client-side UI state: input.css keys the tier affordances and this
-// control's own label off :checked, so the mode works with board.js blocked,
-// and a checkbox is what a screen reader should hear for a toggle anyway.
-// board.js only listens for the change to close the menu.
+// Checkbox so CSS can key off :checked without JS.
 func editTiersToggle() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -564,7 +544,7 @@ func RankingMeta(props RankingMetaProps) templ.Component {
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.ResolveAttributeValue(props.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 172, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 152, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var21)
 			if templ_7745c5c3_Err != nil {
@@ -577,7 +557,7 @@ func RankingMeta(props RankingMetaProps) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.ResolveAttributeValue(fmt.Sprintf("/r/%s", props.RankingUUID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 176, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 156, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var22)
 			if templ_7745c5c3_Err != nil {
@@ -595,7 +575,7 @@ func RankingMeta(props RankingMetaProps) templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(cmp.Or(props.Name, "Untitled ranking"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 182, Col: 105}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_page.templ`, Line: 162, Col: 105}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 			if templ_7745c5c3_Err != nil {

@@ -14,8 +14,6 @@ import (
 	"github.com/ghmeier/rankanything/internal/testsupport"
 )
 
-// Body wraps an HTTP response body so that testify assertion errors show
-// a truncated version instead of the full HTML.
 type Body string
 
 const truncLen = 500
@@ -42,8 +40,6 @@ func TestNewRankingRequiresSignIn(t *testing.T) {
 	res := env.NewClient().Post("/new", nil)
 
 	require.Equal(t, http.StatusSeeOther, res.Status)
-	// No "next" is carried forward: it's a POST, and the redirect's
-	// follow-up request would be a GET, which /new does not answer.
 	assert.Equal(t, "/login", res.Location())
 }
 

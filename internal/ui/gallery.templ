@@ -1,8 +1,5 @@
 package ui
 
-// ComponentsGallery renders every component in every variant, so a look can
-// be checked without navigating to a page that uses it. Its theme toggle sets
-// data-theme, which input.css gives priority over prefers-color-scheme.
 templ ComponentsGallery() {
 	@Layout(LayoutProps{Title: "Components", CSRFToken: "gallery-preview-token", LoggedIn: false}) {
 		<div class="space-y-12 pb-16">

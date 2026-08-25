@@ -8,10 +8,6 @@ package ui
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// TopNav is the signed-out header. A visitor without an account is being
-// asked to do exactly one thing, so the two account actions are full-width
-// text buttons across the top rather than icons in the rail SideNav gives a
-// signed-in user, where they'd read as settings rather than as the offer.
 func TopNav() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

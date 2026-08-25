@@ -36,13 +36,11 @@ func Link(baseURL, path, plaintextToken string) string {
 	return strings.TrimRight(baseURL, "/") + path + "?token=" + url.QueryEscape(plaintextToken)
 }
 
-// VerificationMessage takes the one-shot token, never the stored hash.
 func VerificationMessage(to, baseURL, plaintextToken string) (Message, error) {
 	data := verificationData{Link: Link(baseURL, verifyPath, plaintextToken)}
 	return render("verification", "Verify your email for Rank Anything", to, data)
 }
 
-// PasswordResetMessage takes the one-shot token, never the stored hash.
 func PasswordResetMessage(to, baseURL, plaintextToken string) (Message, error) {
 	data := resetData{Email: to, Link: Link(baseURL, resetPath, plaintextToken)}
 	return render("reset", "Reset your Rank Anything password", to, data)

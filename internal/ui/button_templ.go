@@ -10,7 +10,6 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import "cmp"
 
-// ButtonVariant selects a Button's visual treatment.
 type ButtonVariant string
 
 const (
@@ -20,14 +19,11 @@ const (
 	ButtonDestructive ButtonVariant = "destructive"
 )
 
-// ButtonProps defaults Type to "button", so a Button never accidentally
-// submits a form it sits in.
 type ButtonProps struct {
 	Variant  ButtonVariant
 	Type     string
 	Disabled bool
-	// Extra classes must arrive here, not through Attrs: Button writes its
-	// own class, and the browser ignores a duplicate attribute.
+	// Attrs cannot carry class; Button writes its own.
 	Class string
 	Attrs templ.Attributes
 }
@@ -65,7 +61,7 @@ func Button(props ButtonProps) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(cmp.Or(props.Type, "button"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/button.templ`, Line: 29, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/button.templ`, Line: 25, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 		if templ_7745c5c3_Err != nil {
@@ -118,7 +114,6 @@ func Button(props ButtonProps) templ.Component {
 	})
 }
 
-// ButtonSize selects a Button's padding and font size.
 type ButtonSize string
 
 const (
@@ -127,12 +122,10 @@ const (
 	ButtonSizeXS      ButtonSize = "xs"
 )
 
-// ButtonClass lets a non-<button> element match Button's look.
 func ButtonClass(variant ButtonVariant) string {
 	return ButtonClassSize(variant, ButtonSizeDefault)
 }
 
-// ButtonClassSize lets callers pick both variant and size.
 func ButtonClassSize(variant ButtonVariant, size ButtonSize) string {
 	sizeClass := "px-4 py-2 text-sm"
 	switch size {

@@ -8,15 +8,12 @@ package ui
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// BoardVersionOption is one entry in the version-picker dropdown.
 type BoardVersionOption struct {
 	URL     string
 	Label   string
 	Current bool
 }
 
-// currentVersionLabel keeps the button reading as what you're looking at
-// while the menu is closed.
 func currentVersionLabel(versions []BoardVersionOption) string {
 	for _, v := range versions {
 		if v.Current {
@@ -75,7 +72,7 @@ func boardVersionMenu(versions []BoardVersionOption) templ.Component {
 					var templ_7745c5c3_Var4 string
 					templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(v.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_version_menu.templ`, Line: 30, Col: 13}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_version_menu.templ`, Line: 27, Col: 13}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 					if templ_7745c5c3_Err != nil {

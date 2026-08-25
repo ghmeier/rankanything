@@ -1,14 +1,11 @@
 package ui
 
-// BoardVersionOption is one entry in the version-picker dropdown.
 type BoardVersionOption struct {
 	URL     string
 	Label   string
 	Current bool
 }
 
-// currentVersionLabel keeps the button reading as what you're looking at
-// while the menu is closed.
 func currentVersionLabel(versions []BoardVersionOption) string {
 	for _, v := range versions {
 		if v.Current {

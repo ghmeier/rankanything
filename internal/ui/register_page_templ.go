@@ -8,8 +8,6 @@ package ui
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// RegisterProps configures RegisterPage. EmailAlreadyRegistered is the one
-// rejection that isn't just an error string; see AuthFormProps.
 type RegisterProps struct {
 	CSRFToken              string
 	LoggedIn               bool
@@ -75,7 +73,6 @@ func RegisterPage(props RegisterProps) templ.Component {
 	})
 }
 
-// RegisterContainer is LoginContainer's counterpart for registration.
 func RegisterContainer(props RegisterProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

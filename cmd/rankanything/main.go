@@ -111,9 +111,6 @@ func run(logger *slog.Logger) error {
 	return nil
 }
 
-// migrate runs on boot rather than as a separate deploy step, so a deploy
-// stays one artifact and one command. It opens its own database/sql handle
-// because that is what goose speaks, and closes it once the schema is current.
 func migrate(ctx context.Context, logger *slog.Logger, cfg config.Config) error {
 	sqlDB, err := sql.Open("pgx", cfg.DatabaseURL)
 	if err != nil {

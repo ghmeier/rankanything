@@ -11,31 +11,24 @@ import (
 	"github.com/ghmeier/rankanything/internal/db"
 )
 
-// Covers an unknown slug and a revoked one alike, so a 404 never leaks which
-// slugs have existed.
 var ErrShareNotPublic = errors.New("Share not found.")
 
 type ShareService struct {
 	Queries *db.Queries
 
-	// BaseURL is this site's absolute origin, for building copyable links.
 	BaseURL string
 }
 
-// LinkShare is the "anyone with the link" row's state. Never-shared and
-// revoked both report the zero value.
 type LinkShare struct {
 	IsPublic bool
 	URL      string
 }
 
-// ShareValidation lists every missing condition at once, not just the first.
 type ShareValidation struct {
 	Shareable bool
 	Reasons   []string
 }
 
-// ValidateShareable wants a published version and a verified owner email.
 func (s *ShareService) ValidateShareable(ctx context.Context, ranking db.Ranking) (ShareValidation, error) {
 	versions, err := s.Queries.ListRankingVersionsForRanking(ctx, ranking.ID)
 	if err != nil {
@@ -82,7 +75,6 @@ func (s *ShareService) GetLinkShare(ctx context.Context, rankingID int64) (LinkS
 	return LinkShare{}, nil
 }
 
-// EnableLinkShare mints a fresh public_slug. The caller checks ShareValidation.
 func (s *ShareService) EnableLinkShare(ctx context.Context, rankingID int64) (LinkShare, error) {
 	const maxAttempts = 5
 	var lastErr error
@@ -99,8 +91,6 @@ func (s *ShareService) EnableLinkShare(ctx context.Context, rankingID int64) (Li
 		if err == nil {
 			return LinkShare{IsPublic: true, URL: s.PublicURL(*share.PublicSlug)}, nil
 		}
-		// Retrying is insurance against a slug collision; 80 bits of
-		// randomness means this loop rarely runs twice.
 		if !isUniqueViolation(err) {
 			return LinkShare{}, err
 		}
@@ -109,8 +99,6 @@ func (s *ShareService) EnableLinkShare(ctx context.Context, rankingID int64) (Li
 	return LinkShare{}, fmt.Errorf("mint public slug: %w", lastErr)
 }
 
-// DisableLinkShare kills the old link for good; nothing keeps the cleared
-// slug around to be reused.
 func (s *ShareService) DisableLinkShare(ctx context.Context, rankingID int64) error {
 	return s.Queries.ClearRankingPublicSlug(ctx, rankingID)
 }
@@ -120,8 +108,6 @@ type PublicRanking struct {
 	Version db.RankingVersion
 }
 
-// ResolvePublicRanking fails identically for an unknown slug, a revoked one,
-// and one whose ranking has nothing published.
 func (s *ShareService) ResolvePublicRanking(ctx context.Context, slug string) (PublicRanking, error) {
 	share, err := s.Queries.GetRankingShareByPublicSlug(ctx, &slug)
 	if err != nil || !share.IsPublic {
@@ -133,8 +119,7 @@ func (s *ShareService) ResolvePublicRanking(ctx context.Context, slug string) (P
 		return PublicRanking{}, ErrShareNotPublic
 	}
 
-	// A ranking with only a draft resolves to that draft, which is exactly
-	// what must not be exposed publicly.
+	// A draft-only ranking must not be exposed publicly.
 	version, err := s.Queries.ResolveLiveRankingVersion(ctx, ranking.ID)
 	if err != nil || !version.PublishedAt.Valid {
 		return PublicRanking{}, ErrShareNotPublic
@@ -147,8 +132,6 @@ func (s *ShareService) PublicURL(slug string) string {
 	return strings.TrimRight(s.BaseURL, "/") + "/s/" + slug
 }
 
-// newPublicSlug takes more entropy than newShortUUID because a public slug
-// must be unguessable across every ranking, not unique within one.
 func newPublicSlug() (string, error) {
 	b := make([]byte, 10)
 	if _, err := rand.Read(b); err != nil {

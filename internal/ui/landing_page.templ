@@ -1,13 +1,9 @@
 package ui
 
-// LandingPageProps threads LoggedIn through rather than hardcoding false, so
-// Layout stays the single source of truth for the navbar.
 type LandingPageProps struct {
 	CSRFToken string
 }
 
-// demoTier reuses services.DefaultTiers' palette, extended with an F row, so
-// the demo introduces no color the real board lacks.
 type demoTier struct {
 	Label string
 	Color string
@@ -122,8 +118,6 @@ templ featureCard(title string, description string) {
 	</div>
 }
 
-// demoBoard shares no markup with the real board: there is no session, no
-// ranking row, and no drag behavior here, only a look-alike.
 templ demoBoard() {
 	<div
 		class="overflow-hidden rounded-lg border border-border bg-surface"

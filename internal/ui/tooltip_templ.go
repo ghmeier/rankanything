@@ -8,7 +8,6 @@ package ui
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// TooltipPlacement names the edge of the trigger the panel sits against.
 type TooltipPlacement string
 
 const (
@@ -18,16 +17,9 @@ const (
 	TooltipBottom TooltipPlacement = "bottom"
 )
 
-// TooltipProps configures Tooltip. The panel is revealed by hover on an
-// ancestor, so the element that wraps both the trigger and the tooltip must
-// carry "group relative" — the tooltip positions itself against that ancestor
-// and has no way to add the classes itself.
 type TooltipProps struct {
-	// Empty places the panel above the trigger.
 	Placement TooltipPlacement
-	// Width is a Tailwind width class such as "w-48". Empty lets the panel
-	// size to its content, which is what a one-line label wants.
-	Width string
+	Width     string
 }
 
 func Tooltip(props TooltipProps) templ.Component {
@@ -85,10 +77,6 @@ func Tooltip(props TooltipProps) templ.Component {
 	})
 }
 
-// The placement classes are spelled out as whole literals rather than
-// assembled from parts, because Tailwind finds classes by scanning source
-// text: a class built by concatenation exists only at runtime and would be
-// missing from the stylesheet.
 func tooltipPanelClass(placement TooltipPlacement) string {
 	switch placement {
 	case TooltipRight:
@@ -102,8 +90,6 @@ func tooltipPanelClass(placement TooltipPlacement) string {
 	}
 }
 
-// pointer-events-none keeps a panel that overlaps a neighbouring control from
-// swallowing clicks meant for it.
 const tooltipBaseClass = "pointer-events-none invisible absolute z-10 rounded bg-surface p-2 text-xs text-text opacity-0 shadow-md transition-opacity group-hover:visible group-hover:opacity-100"
 
 var _ = templruntime.GeneratedTemplate

@@ -8,15 +8,11 @@ package ui
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// PublicBoardPageProps is the read-only view of a ranking's live version. It
-// carries none of BoardPageProps' editing plumbing, so nothing on the page
-// implies a visitor can change it.
 type PublicBoardPageProps struct {
-	CSRFToken string
-	LoggedIn  bool
-	Flash     string
-	Theme     string
-	// Feeds <title>, the meta description, and the Open Graph tags.
+	CSRFToken    string
+	LoggedIn     bool
+	Flash        string
+	Theme        string
 	Title        string
 	Description  string
 	CanonicalURL string

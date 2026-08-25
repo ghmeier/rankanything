@@ -76,8 +76,6 @@ func rankingMetaProps(rankingUUID string, versionShortUUID string, ranking db.Ra
 	}
 }
 
-// boardVersionNumbers keys each published version by its 1-based publish
-// order. Sorted in memory because a ranking has few versions.
 func boardVersionNumbers(versions []db.RankingVersion) map[int64]int {
 	published := make([]db.RankingVersion, 0, len(versions))
 	for _, v := range versions {
@@ -85,8 +83,7 @@ func boardVersionNumbers(versions []db.RankingVersion) map[int64]int {
 			published = append(published, v)
 		}
 	}
-	// Postgres freezes now() to the start of a transaction, so two publishes
-	// in one transaction share a timestamp; id order matches publish order.
+	// now() is frozen per transaction, so ties break by id.
 	sort.Slice(published, func(i, j int) bool {
 		pi, pj := published[i], published[j]
 		if !pi.PublishedAt.Time.Equal(pj.PublishedAt.Time) {
@@ -167,8 +164,6 @@ func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoa
 		Editable:      editable,
 		TierForm:      ui.TierFormProps{RankingUUID: rankingUUID, VersionShortUUID: board.Version.ShortUuid},
 
-		// ShareControl needs queries this function doesn't make, so
-		// renderRankingPage fills it in.
 		ShareControl:  nil,
 		ExportControl: ui.BoardExport(ui.BoardExportProps{RankingUUID: rankingUUID, VersionShortUUID: board.Version.ShortUuid}),
 	}
@@ -203,7 +198,6 @@ func (a *App) renderRankingPage(w http.ResponseWriter, r *http.Request, board se
 		return
 	}
 
-	// A published version has nothing left to validate, so skip the queries.
 	var validation services.PublishValidation
 	if !board.Version.PublishedAt.Valid {
 		validation, err = a.RankingSvc.ValidatePublishable(ctx, board.Version.ID)
@@ -213,8 +207,6 @@ func (a *App) renderRankingPage(w http.ResponseWriter, r *http.Request, board se
 		}
 	}
 
-	// Shareability asks whether the ranking ever published anything, not
-	// whether this request landed on a draft.
 	shareValidation, err := a.ShareSvc.ValidateShareable(ctx, board.Ranking)
 	if err != nil {
 		a.serverError(w, r, err)
@@ -232,8 +224,6 @@ func (a *App) renderRankingPage(w http.ResponseWriter, r *http.Request, board se
 	a.render(w, r, http.StatusOK, ui.BoardPage(props))
 }
 
-// boardVersionActionsOOB always revalidates rather than branching on
-// version state, because requireDraftVersion means callers only see drafts.
 func (a *App) boardVersionActionsOOB(ctx context.Context, rankingUUID string, version db.RankingVersion) (templ.Component, error) {
 	validation, err := a.RankingSvc.ValidatePublishable(ctx, version.ID)
 	if err != nil {

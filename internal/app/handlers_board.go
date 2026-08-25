@@ -15,17 +15,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// boardScope reads back what RequireRankingAccess resolved, so it panics
-// rather than misbehaving on a board route that forgot the middleware.
 func boardScope(r *http.Request) (uuid.UUID, db.RankingVersion) {
 	ctx := r.Context()
 	return ctx.Value(constants.RankingUUIDKey).(uuid.UUID),
 		ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
 }
 
-// requireDraftVersion rejects writes to a published version, which is
-// immutable. It must sit inside RequireRankingAccess, which is what resolves
-// the version this reads from context.
 func (a *App) requireDraftVersion(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		version := r.Context().Value(constants.RankingVersionKey).(db.RankingVersion)
@@ -82,9 +77,6 @@ func (a *App) handleUpdateRanking(w http.ResponseWriter, r *http.Request) {
 	a.render(w, r, http.StatusOK, ui.RankingMeta(props))
 }
 
-// handleViewDescription and handleEditDescription are the two halves of
-// click-to-edit: the description reads as prose until it is clicked, and the
-// editor is a fragment the server hands back, not a state the page holds.
 func (a *App) handleViewDescription(w http.ResponseWriter, r *http.Request) {
 	a.renderDescription(w, r, ui.RankingDescription)
 }
@@ -93,8 +85,6 @@ func (a *App) handleEditDescription(w http.ResponseWriter, r *http.Request) {
 	a.renderDescription(w, r, ui.RankingDescriptionForm)
 }
 
-// handleUpdateDescription answers with the display half, so saving closes the
-// editor.
 func (a *App) handleUpdateDescription(w http.ResponseWriter, r *http.Request) {
 	rankingUUID, version := boardScope(r)
 
@@ -149,8 +139,6 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 	a.renderWithVersionActions(w, r, http.StatusOK, rankingUUID, version, card)
 }
 
-// handleViewItem re-renders one card. It exists for the edit form's cancel
-// button, which needs the card back without saving anything.
 func (a *App) handleViewItem(w http.ResponseWriter, r *http.Request) {
 	rankingUUID, version := boardScope(r)
 
@@ -168,8 +156,6 @@ func (a *App) handleViewItem(w http.ResponseWriter, r *http.Request) {
 	a.render(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item, true)))
 }
 
-// handleEditItem swaps a card for the form that edits it. It is a GET because
-// opening the form changes nothing.
 func (a *App) handleEditItem(w http.ResponseWriter, r *http.Request) {
 	rankingUUID, version := boardScope(r)
 
@@ -216,8 +202,6 @@ func (a *App) handleUpdateItem(w http.ResponseWriter, r *http.Request) {
 	a.render(w, r, http.StatusOK, ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item, true)))
 }
 
-// handleDeleteItem answers with nothing for the primary target, which is what
-// htmx swaps in to remove the card — the same trick handleDeleteTier uses.
 func (a *App) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 	rankingUUID, version := boardScope(r)
 
@@ -293,9 +277,6 @@ func (a *App) handleUpdateTier(w http.ResponseWriter, r *http.Request) {
 	a.render(w, r, http.StatusOK, ui.TierRowLabel(props))
 }
 
-// handleDeleteTier returns the tier's items to the tray rather than deleting
-// them, so the response refreshes the tray out of band alongside the empty
-// body that removes the row.
 func (a *App) handleDeleteTier(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	rankingUUID, version := boardScope(r)
@@ -350,8 +331,6 @@ func (a *App) handleAddItemToTier(w http.ResponseWriter, r *http.Request) {
 	a.renderWithVersionActions(w, r, http.StatusOK, rankingUUID, version, card)
 }
 
-// handleReorderTierItems takes a tier's full item order in one call, since a
-// drag can pull the item in from another tier or the tray.
 func (a *App) handleReorderTierItems(w http.ResponseWriter, r *http.Request) {
 	rankingUUID, version := boardScope(r)
 
@@ -381,8 +360,6 @@ func (a *App) handleReorderTierItems(w http.ResponseWriter, r *http.Request) {
 	a.renderWithVersionActions(w, r, http.StatusOK, rankingUUID, version, ui.TierItems(props))
 }
 
-// handleReorderTiers re-renders every tier row so the client can swap the
-// whole #tier-rows container.
 func (a *App) handleReorderTiers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	rankingUUID, version := boardScope(r)
@@ -434,9 +411,6 @@ func (a *App) handleUnrankItem(w http.ResponseWriter, r *http.Request) {
 	a.renderWithVersionActions(w, r, http.StatusOK, rankingUUID, version, card)
 }
 
-// handlePublishVersion redirects rather than patching the page, because
-// publishing changes the status text, the version dropdown, and the branch
-// action all at once.
 func (a *App) handlePublishVersion(w http.ResponseWriter, r *http.Request) {
 	rankingUUID, version := boardScope(r)
 
@@ -471,9 +445,6 @@ func (a *App) handleCreateVersion(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// renderWithVersionActions renders a mutation's own fragments plus the
-// publish action out of band, since any board mutation can flip whether the
-// version is publishable.
 func (a *App) renderWithVersionActions(w http.ResponseWriter, r *http.Request, status int, rankingUUID uuid.UUID, version db.RankingVersion, fragments ...templ.Component) {
 	actions, err := a.boardVersionActionsOOB(r.Context(), rankingUUID.String(), version)
 	if err != nil {
@@ -492,9 +463,6 @@ func (a *App) pathID(w http.ResponseWriter, r *http.Request, name string) (int64
 	return id, true
 }
 
-// formIDList reads repeated form fields (in drag order) as ids. A malformed
-// one means a client bug, not a user-correctable error, so it rejects the
-// whole request.
 func (a *App) formIDList(w http.ResponseWriter, r *http.Request, name string) ([]int64, bool) {
 	if err := r.ParseForm(); err != nil {
 		a.serverError(w, r, err)

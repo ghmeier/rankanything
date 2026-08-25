@@ -1,14 +1,10 @@
 package ui
 
-// PublicBoardPageProps is the read-only view of a ranking's live version. It
-// carries none of BoardPageProps' editing plumbing, so nothing on the page
-// implies a visitor can change it.
 type PublicBoardPageProps struct {
 	CSRFToken string
 	LoggedIn  bool
 	Flash     string
 	Theme     string
-	// Feeds <title>, the meta description, and the Open Graph tags.
 	Title        string
 	Description  string
 	CanonicalURL string

@@ -12,10 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// extractToken pulls the plaintext token out of a mailed message's link —
-// the same value a user would copy by clicking it — so a test can feed it
-// back into GET /verify or POST /reset-password without ever touching the
-// stored hash directly.
 func extractToken(t *testing.T, msg email.Message) string {
 	t.Helper()
 	for _, line := range strings.Split(msg.Text, "\n") {
@@ -55,12 +51,6 @@ func TestRegisterValidation(t *testing.T) {
 
 	t.Run("next carries the signed-up user onward when it's site-relative", func(t *testing.T) {
 		c := env.NewClient()
-		// The target must be something a GET can land on: a redirect's
-		// follow-up request is always a GET, which rules out /new now that
-		// it only answers POST (see TestNewRankingRequiresSignIn). /me is
-		// also register's default with no "next" at all, so this uses
-		// /components instead to prove "next" actually overrides that
-		// default rather than happening to match it.
 		res := c.Post("/register", url.Values{"email": {"next@example.com"}, "password": {"supersecret"}, "next": {"/components"}})
 		require.Equal(t, http.StatusSeeOther, res.Status)
 		assert.Equal(t, "/components", res.Location())
@@ -75,10 +65,7 @@ func TestRegisterValidation(t *testing.T) {
 		assert.Equal(t, "/me", res.Location())
 	})
 
-	// A real unique-constraint violation aborts the shared test transaction
-	// until rollback, so this runs last — any subtest after it that expects
-	// a clean database would see Postgres's "current transaction is aborted"
-	// instead of the behavior it's testing.
+	// Must run last: the constraint violation aborts the shared transaction.
 	t.Run("rejects a duplicate email with next-step links instead of a bare refusal", func(t *testing.T) {
 		first := env.NewClient()
 		require.Equal(t, http.StatusSeeOther,
@@ -254,9 +241,7 @@ func TestResetPassword(t *testing.T) {
 		assert.Contains(t, Body(res.Body), "at least 8 characters")
 	})
 
-	// The pair of this test and the one above pins the order of the two
-	// checks: a bad token wins over a bad password, which is only possible if
-	// the token is verified before the password is hashed.
+	// Verifies that the token check runs before the bcrypt hash.
 	t.Run("a bad token is reported as bad even when the password is also weak", func(t *testing.T) {
 		env := testsupport.NewEnv(t)
 

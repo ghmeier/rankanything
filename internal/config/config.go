@@ -1,4 +1,3 @@
-// Package config reads runtime settings from the environment.
 package config
 
 import (
@@ -21,9 +20,6 @@ type Config struct {
 	BaseURL        string
 }
 
-// Load reads the environment, including .env. A missing .env is not an error:
-// production injects real environment variables and deploys no such file, so
-// requiring one would crash-loop the container. A malformed one still fails.
 func Load(logger *slog.Logger) (Config, error) {
 	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
 		logger.Error("fatal", "err", err)

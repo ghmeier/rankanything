@@ -1,4 +1,3 @@
-// Package app contains all the wiring for routes, middleware, handlers, and services.
 package app
 
 import (
@@ -38,9 +37,6 @@ type App struct {
 func (a *App) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(a.Static))))
-	// Pings the database because the failure worth catching is a container
-	// that booted but cannot reach Postgres. The timeout keeps a hung
-	// database from stalling the check past the host's own deadline.
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		defer cancel()
@@ -71,7 +67,6 @@ func (a *App) Routes() http.Handler {
 	)
 }
 
-// RequireUser redirects an anonymous request to the login page.
 func (a *App) RequireUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if a.Sessions.UserID(r.Context()) == 0 {
@@ -88,8 +83,6 @@ func (a *App) RequireUser(next http.Handler) http.Handler {
 	})
 }
 
-// RequireRankingAccess parses the ranking uuid from the path, confirms the
-// session's user owns it, and resolves which version the request addresses.
 func (a *App) RequireRankingAccess(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()

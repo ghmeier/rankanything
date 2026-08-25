@@ -5,8 +5,6 @@ import (
 	"strconv"
 )
 
-// TierRowProps carries RankingUUID because a mutation handler renders this
-// standalone as an htmx swap target.
 type TierRowProps struct {
 	RankingUUID      string
 	VersionShortUUID string
@@ -14,11 +12,9 @@ type TierRowProps struct {
 	Title            string
 	ColorHex         string
 	Items            []ItemCardProps
-	// A published version is immutable: no drag, no edit, no delete.
 	Editable bool
 }
 
-// TierRows is both BoardPage's normal view and what a reorder drag swaps in.
 type TierRowsProps struct {
 	Tiers []TierRowProps
 }
@@ -43,8 +39,6 @@ templ TierRow(props TierRowProps) {
 	</section>
 }
 
-// TierItemsProps is the drop zone TierRow embeds, and the fragment a reorder
-// drag swaps back in.
 type TierItemsProps struct {
 	RankingUUID string
 	TierID      int64
@@ -63,9 +57,6 @@ templ TierItems(props TierItemsProps) {
 	</div>
 }
 
-// TierRowLabelProps renders the label's display form, or its inline edit form
-// when Editable. Both share one id, so a swap of either lands in the same
-// slot.
 type TierRowLabelProps struct {
 	RankingUUID      string
 	VersionShortUUID string
@@ -73,8 +64,6 @@ type TierRowLabelProps struct {
 	Title            string
 	ColorHex         string
 	Editable         bool
-	// BoardEditable drops the drag handle and edit button entirely, since the
-	// form they open is unreachable on an immutable version anyway.
 	BoardEditable bool
 }
 
@@ -148,8 +137,6 @@ templ TierRowLabel(props TierRowLabelProps) {
 	}
 }
 
-// DragHandleIcon is a visual affordance only; the whole row is the drag
-// source, not just the handle.
 templ DragHandleIcon() {
 	<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" class="fill-current">
 		<circle cx="9" cy="6" r="1.5"></circle>
@@ -161,7 +148,6 @@ templ DragHandleIcon() {
 	</svg>
 }
 
-// TierFormProps renders the "add a tier" form.
 type TierFormProps struct {
 	RankingUUID      string
 	VersionShortUUID string

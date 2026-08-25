@@ -16,9 +16,6 @@ func newShareService(rankingSvc *services.RankingsService) *services.ShareServic
 	return &services.ShareService{Queries: rankingSvc.Queries, BaseURL: "https://test.rankanything.app"}
 }
 
-// ---------------------------------------------------------------------------
-// ValidateShareable
-// ---------------------------------------------------------------------------
 
 func TestValidateShareableBlocksWhenNothingIsPublished(t *testing.T) {
 	t.Parallel()
@@ -67,9 +64,6 @@ func TestValidateShareableAllowsWhenBothConditionsHold(t *testing.T) {
 	assert.Empty(t, validation.Reasons)
 }
 
-// ---------------------------------------------------------------------------
-// Enabling and disabling the link share
-// ---------------------------------------------------------------------------
 
 func TestEnableLinkShareMintsAResolvableSlug(t *testing.T) {
 	t.Parallel()
@@ -130,9 +124,6 @@ func TestDisableLinkShareKillsTheOldSlugPermanentlyAndResharingMintsANewOne(t *t
 	assert.ErrorIs(t, err, services.ErrShareNotPublic, "the old slug stays dead even after a fresh share exists")
 }
 
-// ---------------------------------------------------------------------------
-// ResolvePublicRanking
-// ---------------------------------------------------------------------------
 
 func TestResolvePublicRankingFailsForAnUnknownSlug(t *testing.T) {
 	t.Parallel()

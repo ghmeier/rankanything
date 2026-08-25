@@ -15,11 +15,6 @@ import (
 	"github.com/ghmeier/rankanything/internal/testsupport"
 )
 
-// publishOwnerDraft adds one item, places it in the first tier, and
-// publishes the owner's draft — the minimum a version needs to pass
-// RankingsService's publish validation. Mirrors
-// TestPublishSucceedsAndRedirectsToThePublishedVersion in
-// handlers_board_test.go.
 func publishOwnerDraft(t *testing.T, env *testsupport.Env, owner *testsupport.OwnerClient) {
 	t.Helper()
 	ctx := context.Background()
@@ -60,9 +55,6 @@ func extractShareURL(t *testing.T, body string) string {
 	return shareURL
 }
 
-// ---------------------------------------------------------------------------
-// The share control's validation
-// ---------------------------------------------------------------------------
 
 func TestShareControlBlockedWhenNothingIsPublished(t *testing.T) {
 	env := testsupport.NewEnv(t)
@@ -106,9 +98,6 @@ func TestShareControlOfferedWhenBothConditionsHold(t *testing.T) {
 	assert.NotContains(t, body, "To share this ranking:", "the blocked-reason tooltip only renders on an inert control")
 }
 
-// ---------------------------------------------------------------------------
-// Toggling the link share
-// ---------------------------------------------------------------------------
 
 func TestEnablingShareMintsASlugAndThePublicURLResolves(t *testing.T) {
 	env := testsupport.NewEnv(t)
@@ -190,9 +179,6 @@ func TestEnablingShareIsRejectedWhenTheRankingIsNotShareable(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, res.Status, "a direct request can't bypass the publish and verification checks")
 }
 
-// ---------------------------------------------------------------------------
-// The public route
-// ---------------------------------------------------------------------------
 
 func sharePublicPath(t *testing.T, env *testsupport.Env, owner *testsupport.OwnerClient) string {
 	t.Helper()

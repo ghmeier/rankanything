@@ -10,8 +10,6 @@ import (
 
 var boardCSVHeader = []string{"tier_title", "tier_position", "item_position", "item_title", "source_url", "image_url"}
 
-// WriteBoardCSV writes a board in on-screen order, unranked tray last. A row
-// describes a placement, so an item in two tiers produces two rows.
 func WriteBoardCSV(w io.Writer, board RankingBoard) error {
 	itemsByID := make(map[int64]db.RankingItem, len(board.Items))
 	for _, it := range board.Items {
@@ -27,8 +25,6 @@ func WriteBoardCSV(w io.Writer, board RankingBoard) error {
 		return err
 	}
 
-	// ListRankingItemTiersForVersion already orders by tier then item
-	// position, which is the order the board renders.
 	placed := make(map[int64]bool, len(board.Placements))
 	for _, p := range board.Placements {
 		item, ok := itemsByID[p.RankingItemID]
@@ -79,8 +75,7 @@ func stringOrEmpty(s *string) string {
 	return *s
 }
 
-// sanitizeCSVCell blocks CSV injection: a leading =, +, -, or @ opens a
-// formula in Sheets and Excel, and a single quote forces text instead.
+// Prefixes formula-trigger characters to prevent CSV injection.
 func sanitizeCSVCell(s string) string {
 	if s == "" {
 		return s

@@ -5,18 +5,13 @@ import (
 	"strconv"
 )
 
-// ItemCardProps carries RankingUUID because a mutation handler renders this
-// standalone as an htmx swap target, with no surrounding page.
 type ItemCardProps struct {
 	RankingUUID      string
 	VersionShortUUID string
 	ItemID           int64
 	Title            string
 	ImageURL         string
-	// LinkURL is where the item lives on the web. Empty leaves the title as
-	// plain text.
-	LinkURL string
-	// A published version is immutable: no drag handle, no delete control.
+	LinkURL  string
 	Editable bool
 }
 
@@ -37,9 +32,7 @@ templ ItemCard(props ItemCardProps) {
 		}
 		<div class="min-w-0 flex-1">
 			if props.LinkURL != "" {
-				// draggable="false" matters: an anchor is draggable by
-				// default, and a link drag would start instead of the card
-				// drag board.js listens for.
+				// Prevents anchor's default drag from preempting card drag.
 				<a
 					href={ templ.URL(props.LinkURL) }
 					target="_blank"
@@ -90,9 +83,6 @@ func itemCardClass(editable bool) string {
 	return className
 }
 
-// ItemCardForm edits an item in place: it keeps the card's id, so the save
-// and cancel responses swap the card straight back over it. It is wider than
-// the card because three inputs at card width are unusable.
 templ ItemCardForm(props ItemCardProps) {
 	<form
 		id={ fmt.Sprintf("ranking-item-%d", props.ItemID) }
@@ -141,12 +131,10 @@ templ ItemCardForm(props ItemCardProps) {
 
 const itemFormInputClass = "w-full rounded-md border border-border bg-surface px-2 py-1 text-sm outline-none focus:bg-surface-hover"
 
-// ItemTrayProps renders the add-item form and every unplaced item.
 type ItemTrayProps struct {
 	RankingUUID      string
 	VersionShortUUID string
 	Unassigned       []ItemCardProps
-	// The add-item form is left unrendered rather than merely disabled.
 	Editable bool
 }
 
@@ -190,8 +178,6 @@ templ ItemTray(props ItemTrayProps) {
 	</section>
 }
 
-// TrayItemsProps renders the tray's drop zone. Deleting a tier returns its
-// items here, so that response sets OOB and refreshes the tray alongside.
 type TrayItemsProps struct {
 	RankingUUID string
 	Items       []ItemCardProps

@@ -15,8 +15,6 @@ type visitor struct {
 	lastSeen time.Time
 }
 
-// RateLimiter tracks per-IP request rates with automatic eviction of stale
-// entries. Call Stop when shutting down to release the cleanup goroutine.
 type RateLimiter struct {
 	mu       sync.Mutex
 	visitors map[string]*visitor
@@ -66,7 +64,6 @@ func (rl *RateLimiter) visitor(ip string, r rate.Limit, burst int) *rate.Limiter
 	return v.limiter
 }
 
-// Limit returns middleware that enforces the given rate per client IP.
 func (rl *RateLimiter) Limit(r rate.Limit, burst int) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

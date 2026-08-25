@@ -27,7 +27,6 @@ type RegisterRequest struct {
 	Next     string
 }
 
-// Register creates a user and logs them in; the handler redirects.
 func (s *UserService) Register(ctx context.Context, req RegisterRequest) (*db.User, error) {
 	user, err := s.Queries.CreateUser(ctx, db.CreateUserParams{
 		Email:        req.Email,
@@ -55,7 +54,6 @@ type LoginRequest struct {
 	Next     string
 }
 
-// Login authenticates a user and logs them in; the handler redirects.
 func (s *UserService) Login(ctx context.Context, req LoginRequest) (*db.User, error) {
 	user, err := s.Queries.GetUserByEmail(ctx, req.Email)
 	if err != nil {
@@ -93,8 +91,6 @@ type UpdateThemePreferenceRequest struct {
 	Preference db.UserThemePreference
 }
 
-// UpdateThemePreference persists an explicit choice; "system" defers to the
-// visitor's OS setting.
 func (s *UserService) UpdateThemePreference(ctx context.Context, req UpdateThemePreferenceRequest) (*db.User, error) {
 	switch req.Preference {
 	case db.UserThemePreferenceSystem, db.UserThemePreferenceLight, db.UserThemePreferenceDark:

@@ -1,7 +1,5 @@
 package ui
 
-// ResendVerificationNotice swaps itself for the sent notice, so a slow mail
-// provider never leaves the button silently doing nothing.
 templ ResendVerificationNotice(email string) {
 	<div id="verification-notice">
 		@Notice(NoticeProps{Variant: NoticeError}) {
@@ -22,7 +20,6 @@ templ ResendVerificationNotice(email string) {
 	</div>
 }
 
-// ResendVerificationSentNotice confirms the mail went out.
 templ ResendVerificationSentNotice(email string) {
 	<div id="verification-notice">
 		@Notice(NoticeProps{Variant: NoticeSuccess, Dismissable: true, ID: "verification-sent"}) {

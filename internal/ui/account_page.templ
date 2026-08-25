@@ -1,6 +1,5 @@
 package ui
 
-// AccountProps configures AccountPage. Email is display-only.
 type AccountProps struct {
 	CSRFToken string
 	LoggedIn  bool
@@ -21,8 +20,6 @@ templ AccountPage(props AccountProps) {
 	}
 }
 
-// ThemeSettings is split out so POST /account/theme can re-render just this
-// fragment as the htmx swap target.
 templ ThemeSettings(theme string) {
 	<div
 		id="theme-settings"

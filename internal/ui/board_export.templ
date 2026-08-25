@@ -2,16 +2,11 @@ package ui
 
 import "fmt"
 
-// BoardExportProps always links to the pinned /v/{short} URL, so the download
-// matches the version on screen rather than whatever is live by the time the
-// browser follows the link.
 type BoardExportProps struct {
 	RankingUUID      string
 	VersionShortUUID string
 }
 
-// BoardExport is a plain link, not an htmx control: a download is driven by
-// Content-Disposition, not a fragment swap.
 templ BoardExport(props BoardExportProps) {
 	<a
 		href={ templ.URL(fmt.Sprintf("/r/%s/v/%s/export", props.RankingUUID, props.VersionShortUUID)) }

@@ -8,8 +8,6 @@ import (
 	"slices"
 )
 
-// CSRF rejects mutating requests whose token does not match the session's.
-// htmx sends it as X-CSRF-Token; see the layout's hx-headers.
 func CSRF(s *Sessions) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +28,6 @@ func CSRF(s *Sessions) func(http.Handler) http.Handler {
 	}
 }
 
-// Recover turns a panic into a 500 plus a logged stack trace.
 func Recover(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -45,7 +42,6 @@ func Recover(logger *slog.Logger) func(http.Handler) http.Handler {
 	}
 }
 
-// RequestLog emits one structured line per request.
 func RequestLog(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -67,7 +63,6 @@ func (w *statusWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
-// Chain applies middlewares outermost-first.
 func Chain(h http.Handler, mw ...func(http.Handler) http.Handler) http.Handler {
 	for _, middleware := range slices.Backward(mw) {
 		h = middleware(h)

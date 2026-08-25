@@ -1,7 +1,3 @@
-// Package migrations embeds the goose migration files and applies them.
-//
-// Embedding keeps the deployed artifact a single binary, and makes the schema
-// the binary migrates to the same one its source was tested against.
 package migrations
 
 import (
@@ -17,8 +13,7 @@ import (
 //go:embed *.sql
 var files embed.FS
 
-// Up holds a session advisory lock throughout, so two instances booting at
-// once during a rolling deploy serialize rather than racing.
+// Serializes concurrent deploys with a session advisory lock.
 func Up(ctx context.Context, db *sql.DB) error {
 	locker, err := lock.NewPostgresSessionLocker()
 	if err != nil {

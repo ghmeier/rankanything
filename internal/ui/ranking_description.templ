@@ -2,19 +2,12 @@ package ui
 
 import "fmt"
 
-// RankingDescriptionProps configures both halves of the click-to-edit
-// description. RankingUUID rides along because each half is rendered
-// standalone as an htmx swap target, with no surrounding page.
 type RankingDescriptionProps struct {
 	RankingUUID string
-	// Description is markdown as the owner typed it, not HTML.
 	Description string
 	Editable    bool
 }
 
-// RankingDescription is the reading state: rendered markdown that opens the
-// editor when clicked. It is a div rather than a button because markdown
-// produces paragraphs and lists, which a button may not contain.
 templ RankingDescription(props RankingDescriptionProps) {
 	if props.Editable {
 		<div
@@ -44,10 +37,7 @@ templ RankingDescription(props RankingDescriptionProps) {
 	}
 }
 
-// RankingDescriptionForm is the editing state. It is a plain div, not a
-// <form>: on the board it is swapped in inside the form that owns the title,
-// and a nested form is invalid HTML. Escape cancels through htmx's own
-// trigger syntax, so the editor needs no script.
+// Not a <form>: it nests inside the title form, and nested forms are invalid.
 templ RankingDescriptionForm(props RankingDescriptionProps) {
 	<div id="ranking-description" class="w-full space-y-1">
 		<textarea

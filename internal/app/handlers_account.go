@@ -9,7 +9,6 @@ import (
 	"github.com/ghmeier/rankanything/internal/ui"
 )
 
-// handleAccountPage relies on RequireUser, so base().User is always set.
 func (a *App) handleAccountPage(w http.ResponseWriter, r *http.Request) {
 	base := a.base(r)
 	props := ui.AccountProps{

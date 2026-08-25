@@ -10,24 +10,15 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import "fmt"
 
-// ShareControlProps gates sharing on a published version and a verified
-// email, and names whichever is missing: an inert button with no explanation
-// is worse than no control.
 type ShareControlProps struct {
 	RankingUUID string
-	// From services.ShareValidation; Reasons lists every unmet condition.
-	Shareable bool
-	Reasons   []string
-	// PublicURL is unused when IsPublic is false.
-	IsPublic  bool
-	PublicURL string
-	// Open keeps the panel visible in the fragment a toggle swaps back in,
-	// rather than letting it collapse shut.
-	Open bool
+	Shareable   bool
+	Reasons     []string
+	IsPublic    bool
+	PublicURL   string
+	Open        bool
 }
 
-// ShareControl expands in place inside the actions menu rather than flying
-// out a second popover beside the first.
 func ShareControl(props ShareControlProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -186,7 +177,7 @@ func ShareControl(props ShareControlProps) templ.Component {
 					var templ_7745c5c3_Var6 string
 					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(reason)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_share.templ`, Line: 61, Col: 44}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/ui/board_share.templ`, Line: 52, Col: 44}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 					if templ_7745c5c3_Err != nil {

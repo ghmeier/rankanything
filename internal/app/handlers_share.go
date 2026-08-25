@@ -10,8 +10,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// handleEnableShare re-validates rather than trusting the client, since a
-// stale page can reach here after the ranking stops being shareable.
 func (a *App) handleEnableShare(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
@@ -43,7 +41,6 @@ func (a *App) handleEnableShare(w http.ResponseWriter, r *http.Request) {
 	a.render(w, r, http.StatusOK, ui.ShareControl(props))
 }
 
-// handleDisableShare kills the old link for good; re-sharing mints a new one.
 func (a *App) handleDisableShare(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
