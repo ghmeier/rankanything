@@ -327,7 +327,7 @@ func layoutContainerClass(wide bool) string {
 	if wide {
 		return "mx-auto w-full max-w-[96rem] px-6"
 	}
-	return "mx-auto w-full max-w-6xl px-6"
+	return "mx-auto w-full max-w-4xl px-6"
 }
 
 var _ = templruntime.GeneratedTemplate

@@ -19,7 +19,7 @@ type RankingsIndexCard struct {
 
 templ RankingsIndexPage(props RankingsIndexProps) {
 	@Layout(LayoutProps{Title: "Rankings", CSRFToken: props.CSRFToken, LoggedIn: props.LoggedIn, Flash: props.Flash, Theme: props.Theme}) {
-		<div class="mx-auto max-w-4xl space-y-6">
+		<div class="space-y-6">
 			if props.VerificationNotice != nil {
 				@props.VerificationNotice
 			}

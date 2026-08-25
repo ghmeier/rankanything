@@ -50,7 +50,7 @@ func AccountPage(props AccountProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"mx-auto max-w-sm space-y-6\"><div><h1 class=\"text-2xl font-bold tracking-tight\">Account</h1><p class=\"mt-1 text-sm text-text-muted\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"space-y-6\"><div><h1 class=\"text-2xl font-bold tracking-tight\">Account</h1><p class=\"mt-1 text-sm text-text-muted\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
