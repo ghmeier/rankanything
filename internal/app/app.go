@@ -26,6 +26,7 @@ type App struct {
 	Logger       *slog.Logger
 	Static       fs.FS
 	IsProduction bool
+	RateLimiter  *auth.RateLimiter
 
 	UserSvc         *services.UserService
 	RankingSvc      *services.RankingsService

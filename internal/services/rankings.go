@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -23,9 +24,14 @@ var (
 	ErrInvalidTierPlacement = errors.New("Item cannot be placed on this tier.")
 	ErrNotPublishable       = errors.New("This version is not ready to publish.")
 	ErrInvalidLink          = errors.New("A link must be an http or https URL.")
+	ErrInvalidColor         = errors.New("Color must be a hex color like #ff5500.")
+	ErrTooManyItems         = errors.New("A ranking can have at most 500 items.")
+	ErrTooManyTiers         = errors.New("A ranking can have at most 50 tiers.")
 	// Guards ranking_versions_one_draft_idx: one draft per ranking.
 	ErrDraftAlreadyExists = errors.New("This ranking already has a draft in progress.")
 )
+
+var validHexColor = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
 type txBeginner interface {
 	Begin(context.Context) (pgx.Tx, error)
@@ -142,6 +148,14 @@ type AddItemRequest struct {
 }
 
 func (s *RankingsService) AddItem(ctx context.Context, req AddItemRequest) (db.RankingItem, error) {
+	items, err := s.Queries.ListRankingItemsForVersion(ctx, req.VersionID)
+	if err != nil {
+		return db.RankingItem{}, err
+	}
+	if len(items) >= 500 {
+		return db.RankingItem{}, ErrTooManyItems
+	}
+
 	imageURL, err := normalizeExternalURL(req.ImageSourceURL)
 	if err != nil {
 		return db.RankingItem{}, err
@@ -257,6 +271,17 @@ func (s *RankingsService) AddTier(ctx context.Context, req AddTierRequest) (db.R
 	if color == "" {
 		color = "#94a3b8"
 	}
+	if !validHexColor.MatchString(color) {
+		return db.RankingTier{}, ErrInvalidColor
+	}
+
+	tiers, err := s.Queries.ListRankingTiersForVersion(ctx, req.VersionID)
+	if err != nil {
+		return db.RankingTier{}, err
+	}
+	if len(tiers) >= 50 {
+		return db.RankingTier{}, ErrTooManyTiers
+	}
 
 	pos, err := s.Queries.NextRankingTierPosition(ctx, req.VersionID)
 	if err != nil {
@@ -292,6 +317,9 @@ func (s *RankingsService) UpdateTier(ctx context.Context, req UpdateTierRequest)
 	color := req.Color
 	if color == "" {
 		color = tier.ColorHex
+	}
+	if !validHexColor.MatchString(color) {
+		return db.RankingTier{}, ErrInvalidColor
 	}
 
 	return s.Queries.UpdateRankingTier(ctx, db.UpdateRankingTierParams{

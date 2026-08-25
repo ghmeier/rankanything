@@ -66,6 +66,9 @@ func run(logger *slog.Logger) error {
 	s := auth.NewSessions(sm)
 	emailSvc := email.NewSender(cfg.ResendAPIKey, cfg.EmailFrom, logger)
 
+	rl := auth.NewRateLimiter()
+	defer rl.Stop()
+
 	application := &app.App{
 		Pool:         p,
 		Queries:      q,
@@ -73,6 +76,7 @@ func run(logger *slog.Logger) error {
 		Logger:       logger,
 		Static:       assets.Static(),
 		IsProduction: cfg.IsProduction(),
+		RateLimiter:  rl,
 		UserSvc:      &services.UserService{Queries: q, Sessions: s},
 		RankingSvc:   &services.RankingsService{Queries: q, Pool: p},
 		EmailSvc:     emailSvc,
@@ -87,7 +91,7 @@ func run(logger *slog.Logger) error {
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           http.NewCrossOriginProtection().Handler(application.Routes()),
+		Handler:           application.Routes(),
 		ReadHeaderTimeout: 10 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       2 * time.Minute,

@@ -522,8 +522,12 @@ func (a *App) rankError(w http.ResponseWriter, r *http.Request, err error) {
 		errors.Is(err, services.ErrNotPublishable),
 		errors.Is(err, services.ErrDraftAlreadyExists):
 		w.WriteHeader(http.StatusConflict)
-	case errors.Is(err, services.ErrInvalidLink):
+	case errors.Is(err, services.ErrInvalidLink),
+		errors.Is(err, services.ErrInvalidColor):
 		w.WriteHeader(http.StatusUnprocessableEntity)
+	case errors.Is(err, services.ErrTooManyItems),
+		errors.Is(err, services.ErrTooManyTiers):
+		http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 	default:
 		a.serverError(w, r, err)
 	}

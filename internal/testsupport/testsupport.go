@@ -171,6 +171,16 @@ func NewEnv(t *testing.T) *Env {
 	return &Env{T: t, App: application, Pool: pool, Tx: tx, Queries: application.Queries, Server: srv, EmailSink: emailSink}
 }
 
+// RebuildServer tears down the existing httptest server and starts a fresh one
+// with the current App configuration. Use this after mutating App fields (such
+// as setting a RateLimiter) that affect route wiring.
+func (e *Env) RebuildServer() {
+	e.T.Helper()
+	e.Server.Close()
+	e.Server = httptest.NewServer(e.App.Routes())
+	e.T.Cleanup(e.Server.Close)
+}
+
 // Client keeps cookies and tracks the CSRF token the server handed out.
 type Client struct {
 	t    *testing.T
