@@ -19,7 +19,7 @@ type RankingsIndexCard struct {
 
 templ RankingsIndexPage(props RankingsIndexProps) {
 	@Layout(LayoutProps{Title: "Rankings", CSRFToken: props.CSRFToken, LoggedIn: props.LoggedIn, Flash: props.Flash, Theme: props.Theme}) {
-		<div class="space-y-6">
+		<div class="mx-auto max-w-4xl space-y-6">
 			if props.VerificationNotice != nil {
 				@props.VerificationNotice
 			}
@@ -40,7 +40,10 @@ templ RankingsIndexPage(props RankingsIndexProps) {
 
 templ rankingsIndexEmptyState() {
 	<div class="flex flex-col items-center justify-center gap-4 rounded-lg border border-border bg-surface px-6 py-20 text-center">
-		<p class="text-sm text-text-muted">You haven't created a ranking yet.</p>
+		<div class="space-y-1">
+			<p class="text-sm text-text-muted">You haven't created a ranking yet.</p>
+			<p class="text-sm text-text-subtle">Start by ranking your favorite movies, albums, or whatever you can't stop debating.</p>
+		</div>
 		@Button(ButtonProps{Variant: ButtonPrimary, Attrs: templ.Attributes{"hx-post": "/new"}}) {
 			Create your first ranking
 		}

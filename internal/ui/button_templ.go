@@ -118,9 +118,30 @@ func Button(props ButtonProps) templ.Component {
 	})
 }
 
+// ButtonSize selects a Button's padding and font size.
+type ButtonSize string
+
+const (
+	ButtonSizeDefault ButtonSize = ""
+	ButtonSizeSmall   ButtonSize = "small"
+	ButtonSizeXS      ButtonSize = "xs"
+)
+
 // ButtonClass lets a non-<button> element match Button's look.
 func ButtonClass(variant ButtonVariant) string {
-	base := "inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 disabled:pointer-events-none"
+	return ButtonClassSize(variant, ButtonSizeDefault)
+}
+
+// ButtonClassSize lets callers pick both variant and size.
+func ButtonClassSize(variant ButtonVariant, size ButtonSize) string {
+	sizeClass := "px-4 py-2 text-sm"
+	switch size {
+	case ButtonSizeSmall:
+		sizeClass = "px-3 py-1.5 text-sm"
+	case ButtonSizeXS:
+		sizeClass = "px-2 py-1 text-xs"
+	}
+	base := "inline-flex items-center justify-center gap-2 rounded-md " + sizeClass + " font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 disabled:pointer-events-none"
 
 	switch variant {
 	case ButtonSecondary:
