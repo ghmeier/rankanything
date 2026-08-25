@@ -15,7 +15,7 @@ type BoardExportProps struct {
 templ BoardExport(props BoardExportProps) {
 	<a
 		href={ templ.URL(fmt.Sprintf("/r/%s/v/%s/export", props.RankingUUID, props.VersionShortUUID)) }
-		class={ boardMenuItemClass }
+		class={ DropdownItemClass }
 	>
 		@DownloadIcon()
 		Export CSV

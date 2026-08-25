@@ -23,7 +23,7 @@ type ShareControlProps struct {
 templ ShareControl(props ShareControlProps) {
 	<div id="share-control" class="group relative" open?={ props.Open }>
 		if props.IsPublic {
-			@BoardMenuItem(BoardMenuItemProps{
+			@DropdownItem(DropdownItemProps{
 				Attrs: templ.Attributes{
 					"onclick": "navigator.clipboard.writeText(\"" + props.PublicURL + "\")",
 				},
@@ -31,7 +31,7 @@ templ ShareControl(props ShareControlProps) {
 				@ShareIcon()
 				Copy link
 			}
-			@BoardMenuItem(BoardMenuItemProps{
+			@DropdownItem(DropdownItemProps{
 				Attrs: templ.Attributes{
 					"hx-delete": fmt.Sprintf("/r/%s/share", props.RankingUUID),
 					"hx-target": "#share-control",
@@ -41,7 +41,7 @@ templ ShareControl(props ShareControlProps) {
 				Stop sharing
 			}
 		} else {
-			@BoardMenuItem(BoardMenuItemProps{
+			@DropdownItem(DropdownItemProps{
 				Attrs: templ.Attributes{
 					"hx-post":   fmt.Sprintf("/r/%s/share", props.RankingUUID),
 					"hx-target": "#share-control",

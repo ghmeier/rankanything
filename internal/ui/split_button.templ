@@ -1,0 +1,47 @@
+package ui
+
+// SplitButtonProps configures the action half. The menu half is the
+// component's children — normally a Dropdown with Split set, so the two
+// halves meet on one border.
+type SplitButtonProps struct {
+	Label   string
+	Variant ButtonVariant
+	// Href renders the action half as a link rather than a button.
+	Href     string
+	Disabled bool
+	Attrs    templ.Attributes
+	// Action replaces the built-in action half. The board's publish button is
+	// swapped out-of-band on its own, so that caller passes a component
+	// carrying its own id instead of letting SplitButton render the half.
+	Action templ.Component
+}
+
+// SplitButton joins one action to a menu of related ones.
+templ SplitButton(props SplitButtonProps) {
+	<div class="flex items-stretch">
+		if props.Action != nil {
+			@props.Action
+		} else if props.Href != "" {
+			<a href={ templ.URL(props.Href) } class={ ButtonClass(props.Variant), SplitButtonActionClass } { props.Attrs... }>
+				{ props.Label }
+			</a>
+		} else {
+			@Button(ButtonProps{
+				Variant:  props.Variant,
+				Disabled: props.Disabled,
+				Class:    SplitButtonActionClass,
+				Attrs:    props.Attrs,
+			}) {
+				{ props.Label }
+			}
+		}
+		{ children... }
+	</div>
+}
+
+// The halves drop their adjoining corners and share one border, so they read
+// as a single control rather than two buttons that happen to touch.
+const (
+	SplitButtonActionClass = "rounded-r-none"
+	SplitButtonMenuClass   = "h-full rounded-l-none border-l border-border"
+)

@@ -1,0 +1,26 @@
+package ui
+
+// TopNav is the signed-out header. A visitor without an account is being
+// asked to do exactly one thing, so the two account actions are full-width
+// text buttons across the top rather than icons in the rail SideNav gives a
+// signed-in user, where they'd read as settings rather than as the offer.
+templ TopNav() {
+	<header class="sticky top-0 z-30 border-b border-border bg-background">
+		<nav
+			aria-label="Main"
+			class="mx-auto flex w-full max-w-[96rem] items-center justify-between gap-4 px-6 py-3"
+		>
+			<a
+				href="/"
+				aria-label="Rank Anything home"
+				class="flex items-center rounded-md px-2 py-1 text-lg font-semibold tracking-tight text-text hover:bg-surface-hover"
+			>
+				<span class="text-text-muted">r</span>a
+			</a>
+			<div class="flex items-center gap-2">
+				<a href="/login" class={ ButtonClass(ButtonSecondary) }>Sign in</a>
+				<a href="/register" class={ ButtonClass(ButtonPrimary) }>Create account</a>
+			</div>
+		</nav>
+	</header>
+}

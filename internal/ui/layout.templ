@@ -59,15 +59,18 @@ templ Layout(props LayoutProps) {
 			}
 			<link rel="stylesheet" href="/static/css/app.css"/>
 			<script src="/static/js/htmx.min.js"></script>
+			<script src="/static/js/dropdown.js" defer></script>
 		</head>
 		<body
 			class="min-h-full bg-background text-text antialiased"
 			hx-headers={ fmt.Sprintf(`{"X-CSRF-Token": "%s"}`, props.CSRFToken) }
 		>
-			@SideNav(SideNavProps{LoggedIn: props.LoggedIn})
-			// The padding clears the nav rail, which is fixed: on md and up it
-			// runs down the left edge, below that it sits across the bottom.
-			<div class="pb-16 md:pb-0 md:pl-14">
+			if props.LoggedIn {
+				@SideNav()
+			} else {
+				@TopNav()
+			}
+			<div class={ layoutNavClearanceClass(props.LoggedIn) }>
 				if props.Flash != "" {
 					<div class={ layoutContainerClass(props.Wide), "mt-4" }>
 						@Notice(NoticeProps{Variant: NoticeSuccess, Dismissable: true, ID: "flash"}) {
@@ -81,6 +84,16 @@ templ Layout(props LayoutProps) {
 			</div>
 		</body>
 	</html>
+}
+
+// layoutNavClearanceClass keeps the content out from under the signed-in
+// rail, which is fixed: on md and up it runs down the left edge, below that it
+// sits across the bottom. TopNav is in the flow, so signed out needs nothing.
+func layoutNavClearanceClass(loggedIn bool) string {
+	if loggedIn {
+		return "pb-16 md:pb-0 md:pl-14"
+	}
+	return ""
 }
 
 func layoutContainerClass(wide bool) string {

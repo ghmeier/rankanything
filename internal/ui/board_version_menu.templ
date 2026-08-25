@@ -18,26 +18,17 @@ func currentVersionLabel(versions []BoardVersionOption) string {
 	return ""
 }
 
-// boardVersionMenu is a native <details>, so a dropdown this simple needs no
-// JS. The summary doubles as the button, labeled with the current version.
 templ boardVersionMenu(versions []BoardVersionOption) {
-	<details class="group relative" data-menu>
-		<summary class={ ButtonClass(ButtonSecondary), "list-none [&::-webkit-details-marker]:hidden" }>
-			<span>{ currentVersionLabel(versions) }</span>
-			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4 shrink-0 transition-transform duration-150 group-open:rotate-180" aria-hidden="true">
-				<path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"></path>
-			</svg>
-		</summary>
-		<ul class="absolute right-0 z-10 mt-1 w-56 rounded-md border border-border bg-surface py-1 text-left shadow-md">
-			for _, v := range versions {
-				<li>
-					if v.Current {
-						<span class="block px-3 py-1.5 text-sm font-medium text-text" aria-current="true">{ v.Label }</span>
-					} else {
-						<a href={ templ.URL(v.URL) } class="block px-3 py-1.5 text-sm text-text-muted hover:bg-surface-hover">{ v.Label }</a>
-					}
-				</li>
+	@Dropdown(DropdownProps{
+		Label:   currentVersionLabel(versions),
+		Variant: ButtonSecondary,
+		Align:   DropdownRight,
+		Width:   "w-56",
+	}) {
+		for _, v := range versions {
+			@DropdownItem(DropdownItemProps{Href: v.URL, Current: v.Current}) {
+				{ v.Label }
 			}
-		</ul>
-	</details>
+		}
+	}
 }

@@ -70,6 +70,70 @@ templ ComponentsGallery() {
 				</div>
 			</section>
 			<section class="space-y-4">
+				<h2 class="text-lg font-semibold">Dropdown</h2>
+				<p class="text-sm text-text-muted">
+					A labelled trigger flips its chevron while the panel is open. An icon
+					trigger carries its name in aria-label instead. Both close on a click
+					outside or on Escape.
+				</p>
+				<div class="flex flex-wrap items-start gap-3 pb-40">
+					@Dropdown(DropdownProps{Label: "Version 3", Variant: ButtonSecondary, Width: "w-56"}) {
+						@DropdownItem(DropdownItemProps{Current: true}) {
+							Version 3 — draft
+						}
+						@DropdownItem(DropdownItemProps{Href: "#"}) {
+							Version 2 — published
+						}
+						@DropdownItem(DropdownItemProps{Href: "#"}) {
+							Version 1 — published
+						}
+					}
+					@Dropdown(DropdownProps{Icon: MoreIcon(), AriaLabel: "More actions", Variant: ButtonSecondary, Align: DropdownRight}) {
+						@DropdownItem(DropdownItemProps{}) {
+							@EditIcon()
+							Rename
+						}
+						@DropdownItem(DropdownItemProps{}) {
+							@ShareIcon()
+							Copy link
+						}
+						@DropdownItem(DropdownItemProps{Disabled: true}) {
+							@DownloadIcon()
+							Export CSV
+						}
+					}
+				</div>
+			</section>
+			<section class="space-y-4">
+				<h2 class="text-lg font-semibold">SplitButton</h2>
+				<p class="text-sm text-text-muted">
+					One action, plus a menu of the ones related to it. Both halves take the
+					same variant, so the seam between them reads as a single control.
+				</p>
+				<div class="flex flex-wrap items-start gap-3 pb-40">
+					@SplitButton(SplitButtonProps{Label: "Publish", Variant: ButtonPrimary}) {
+						@Dropdown(DropdownProps{Icon: MoreIcon(), AriaLabel: "More publish actions", Variant: ButtonPrimary, Align: DropdownRight, Split: true}) {
+							@DropdownItem(DropdownItemProps{}) {
+								@EditIcon()
+								Edit tiers
+							}
+							@DropdownItem(DropdownItemProps{}) {
+								@ShareIcon()
+								Share
+							}
+						}
+					}
+					@SplitButton(SplitButtonProps{Label: "New version", Variant: ButtonSecondary}) {
+						@Dropdown(DropdownProps{Icon: MoreIcon(), AriaLabel: "More version actions", Variant: ButtonSecondary, Align: DropdownRight, Split: true}) {
+							@DropdownItem(DropdownItemProps{}) {
+								@DownloadIcon()
+								Export CSV
+							}
+						}
+					}
+				</div>
+			</section>
+			<section class="space-y-4">
 				<h2 class="text-lg font-semibold">Input</h2>
 				<div class="grid max-w-sm gap-4">
 					@Input(InputProps{Label: "Email", Name: "email", Type: "email", Placeholder: "you@example.com"})
@@ -123,19 +187,20 @@ templ ComponentsGallery() {
 				</div>
 			</section>
 			<section class="space-y-4">
-				<h2 class="text-lg font-semibold">SideNav</h2>
+				<h2 class="text-lg font-semibold">Navigation</h2>
 				<p class="text-sm text-text-muted">
-					The rail is position: fixed in the real layout. Each preview box sets a
-					transform, which makes the box itself the containing block, so the rail
-					lands inside it instead of over the page.
+					A signed-in page gets SideNav, a signed-out one gets TopNav. The rail is
+					position: fixed in the real layout, so its preview box sets a transform,
+					which makes the box itself the containing block and lands the rail inside
+					it instead of over the page.
 				</p>
-				<p class="text-sm text-text-muted">Signed out</p>
+				<p class="text-sm text-text-muted">SideNav — signed in</p>
 				<div class="relative h-64 translate-x-0 overflow-hidden rounded-md border border-border">
-					@SideNav(SideNavProps{LoggedIn: false})
+					@SideNav()
 				</div>
-				<p class="text-sm text-text-muted">Signed in</p>
-				<div class="relative h-64 translate-x-0 overflow-hidden rounded-md border border-border">
-					@SideNav(SideNavProps{LoggedIn: true})
+				<p class="text-sm text-text-muted">TopNav — signed out</p>
+				<div class="relative overflow-hidden rounded-md border border-border">
+					@TopNav()
 				</div>
 			</section>
 		</div>

@@ -51,10 +51,9 @@ templ BoardPage(props BoardPageProps) {
 				</form>
 				<div class="flex shrink-0 flex-row items-center gap-2">
 					@boardVersionMenu(props.Versions)
-					<div class="flex items-stretch">
-						@BoardVersionActions(props.VersionAction)
+					@SplitButton(SplitButtonProps{Action: BoardVersionActions(props.VersionAction)}) {
 						@boardActionsMenu(props)
-					</div>
+					}
 				</div>
 			</section>
 			<div id="board" data-ranking-uuid={ props.RankingMeta.RankingUUID } data-version-uuid={ props.RankingMeta.VersionShortUUID } class="space-y-4">
@@ -95,7 +94,7 @@ templ BoardVersionActions(props BoardVersionActionsProps) {
 		}
 	>
 		if props.IsDraft {
-			@Button(ButtonProps{Variant: ButtonPrimary, Class: splitButtonPrimaryClass, Attrs: templ.Attributes{"hx-post": fmt.Sprintf("/r/%s/v/%s/publish", props.RankingUUID, props.VersionShortUUID)}, Disabled: !props.Publishable}) {
+			@Button(ButtonProps{Variant: ButtonPrimary, Class: SplitButtonActionClass, Attrs: templ.Attributes{"hx-post": fmt.Sprintf("/r/%s/v/%s/publish", props.RankingUUID, props.VersionShortUUID)}, Disabled: !props.Publishable}) {
 				Publish
 			}
 			if !props.Publishable {
@@ -109,45 +108,39 @@ templ BoardVersionActions(props BoardVersionActionsProps) {
 				}
 			}
 		} else if props.HasOtherDraft {
-			<a href={ templ.URL(props.DraftURL) } class={ ButtonClass(ButtonSecondary), splitButtonPrimaryClass }>
+			<a href={ templ.URL(props.DraftURL) } class={ ButtonClass(ButtonSecondary), SplitButtonActionClass }>
 				Edit draft
 			</a>
 		} else {
-			@Button(ButtonProps{Variant: ButtonSecondary, Class: splitButtonPrimaryClass, Attrs: templ.Attributes{"hx-post": fmt.Sprintf("/r/%s/versions", props.RankingUUID)}}) {
+			@Button(ButtonProps{Variant: ButtonSecondary, Class: SplitButtonActionClass, Attrs: templ.Attributes{"hx-post": fmt.Sprintf("/r/%s/versions", props.RankingUUID)}}) {
 				New version
 			}
 		}
 	</div>
 }
 
-// The split button's halves drop their adjoining corners and overlap by a
-// pixel, so the two borders read as one line.
-const (
-	splitButtonPrimaryClass = "rounded-r-none"
-	splitButtonMenuClass    = "rounded-l-none"
-)
-
-// boardActionsMenu is a native <details>, so it opens without JS. It stays
-// styled as secondary even beside a disabled Publish button, because the
+// boardActionsMenu stays styled as primary or secondary to match the action
+// half it hangs off, even beside a disabled Publish button, because the
 // actions behind it are still available. The share control keeps its own
 // nested disclosure because its panel is a form, not a link.
 templ boardActionsMenu(props BoardPageProps) {
-	<details class="relative" data-menu>
-		<summary class={ boardActionMenuButtonClass(props.Editable) } aria-label="More actions">
-			@MoreIcon()
-		</summary>
-		<div class="absolute right-0 z-20 mt-1 w-fit rounded-md border border-border bg-surface p-1 text-left shadow-md">
-			if props.Editable {
-				@editTiersToggle()
-			}
-			if props.ShareControl != nil {
-				@props.ShareControl
-			}
-			if props.ExportControl != nil {
-				@props.ExportControl
-			}
-		</div>
-	</details>
+	@Dropdown(DropdownProps{
+		Icon:      MoreIcon(),
+		AriaLabel: "More actions",
+		Variant:   boardActionsMenuVariant(props.Editable),
+		Align:     DropdownRight,
+		Split:     true,
+	}) {
+		if props.Editable {
+			@editTiersToggle()
+		}
+		if props.ShareControl != nil {
+			@props.ShareControl
+		}
+		if props.ExportControl != nil {
+			@props.ExportControl
+		}
+	}
 }
 
 // editTiersToggle is a checkbox rather than a button because edit-tiers mode
@@ -157,35 +150,18 @@ templ boardActionsMenu(props BoardPageProps) {
 // board.js only listens for the change to close the menu.
 templ editTiersToggle() {
 	<input type="checkbox" id="edit-tiers" class="peer sr-only"/>
-	<label for="edit-tiers" class={ boardMenuItemClass + " peer-focus-visible:bg-surface-hover" }>
+	<label for="edit-tiers" class={ DropdownItemClass + " peer-focus-visible:bg-surface-hover" }>
 		@EditIcon()
 		<span data-edit-tiers-label="start">Edit tiers</span>
 		<span data-edit-tiers-label="stop">Stop editing</span>
 	</label>
 }
 
-func boardActionMenuButtonClass(editable bool) string {
-	className := splitButtonMenuClass + " h-full border-l border-border list-none [&::-webkit-details-marker]:hidden "
+func boardActionsMenuVariant(editable bool) ButtonVariant {
 	if editable {
-		className += ButtonClass(ButtonPrimary)
-	} else {
-		className += ButtonClass(ButtonSecondary)
+		return ButtonPrimary
 	}
-
-	return className
-}
-
-const boardMenuItemClass = "flex w-full cursor-pointer items-center gap-2 rounded px-3 py-2 text-left text-sm text-text-muted whitespace-nowrap hover:bg-surface-hover hover:text-text-muted-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:pointer-events-none"
-
-type BoardMenuItemProps struct {
-	Disabled bool
-	Attrs    templ.Attributes
-}
-
-templ BoardMenuItem(props BoardMenuItemProps) {
-	<button type="button" disabled?={ props.Disabled } class={ boardMenuItemClass } { props.Attrs... }>
-		{ children... }
-	</button>
+	return ButtonSecondary
 }
 
 templ RankingMeta(props RankingMetaProps) {

@@ -86,7 +86,7 @@ func ShareControl(props ShareControlProps) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = BoardMenuItem(BoardMenuItemProps{
+			templ_7745c5c3_Err = DropdownItem(DropdownItemProps{
 				Attrs: templ.Attributes{
 					"onclick": "navigator.clipboard.writeText(\"" + props.PublicURL + "\")",
 				},
@@ -116,7 +116,7 @@ func ShareControl(props ShareControlProps) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = BoardMenuItem(BoardMenuItemProps{
+			templ_7745c5c3_Err = DropdownItem(DropdownItemProps{
 				Attrs: templ.Attributes{
 					"hx-delete": fmt.Sprintf("/r/%s/share", props.RankingUUID),
 					"hx-target": "#share-control",
@@ -149,7 +149,7 @@ func ShareControl(props ShareControlProps) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = BoardMenuItem(BoardMenuItemProps{
+			templ_7745c5c3_Err = DropdownItem(DropdownItemProps{
 				Attrs: templ.Attributes{
 					"hx-post":   fmt.Sprintf("/r/%s/share", props.RankingUUID),
 					"hx-target": "#share-control",

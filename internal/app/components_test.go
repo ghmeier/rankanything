@@ -39,14 +39,28 @@ func TestComponentsGalleryRendersEveryVariant(t *testing.T) {
 	// Tooltip, both placements.
 	assert.Contains(t, body, "Sits above its trigger.")
 	assert.Contains(t, body, "Sits beside its trigger.")
-	assert.Contains(t, body, "border-t-surface", "the tooltip arrow points down at a top-placed panel")
-	assert.Contains(t, body, "border-r-surface", "the tooltip arrow points left at a right-placed panel")
+	assert.Contains(t, body, "Sits below its trigger.")
 
-	// SideNav, both signed-out and signed-in states. Its labels live in
+	// Dropdown, both trigger shapes, plus the current and disabled items.
+	assert.Contains(t, body, "Version 2 — published")
+	assert.Contains(t, body, `aria-current="true"`, "the current version renders as inert text")
+	assert.Contains(t, body, `aria-label="More actions"`, "the icon trigger names itself")
+	assert.Contains(t, body, "group-open/dropdown:rotate-180", "the labelled trigger's chevron flips while open")
+
+	// SplitButton: the two halves square off the corners they share.
+	assert.Contains(t, body, "rounded-r-none", "the action half")
+	assert.Contains(t, body, "rounded-l-none", "the menu half")
+	assert.Contains(t, body, `aria-label="More publish actions"`)
+
+	// SideNav, which is now the signed-in rail only. Its labels live in
 	// aria-label and the hover tooltip, since the buttons are icons.
-	assert.Contains(t, body, `aria-label="Create account"`)
 	assert.Contains(t, body, `aria-label="Rankings"`)
 	assert.Contains(t, body, `aria-label="Sign out"`)
+
+	// TopNav, the signed-out header, with both account actions spelled out.
+	assert.Contains(t, body, `href="/login"`)
+	assert.Contains(t, body, `href="/register"`)
+	assert.Contains(t, body, "Create account")
 
 	// The theme toggle.
 	assert.Contains(t, body, "rankanythingToggleTheme")

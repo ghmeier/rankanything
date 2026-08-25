@@ -18,16 +18,6 @@
   const versionUUID = board.dataset.versionUuid;
   const editToggle = document.getElementById("edit-tiers");
 
-  // A native <details> stays open until its own summary is clicked again,
-  // which reads as broken for something shaped like a menu. Only the
-  // top-level menus are marked, so the share disclosure nested inside one
-  // of them counts as "inside" and survives a click on its own panel.
-  document.addEventListener("click", (e) => {
-    document.querySelectorAll("details[data-menu][open]").forEach((menu) => {
-      if (!menu.contains(e.target)) menu.open = false;
-    });
-  });
-
   // CSS owns edit-tiers mode, so the only thing left to do when it flips is
   // close the menu the toggle lives in — what it reveals is the board behind
   // that menu. This waits for "change" rather than the label's click so it
