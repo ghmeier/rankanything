@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"cmp"
 	"fmt"
 	"strconv"
 )
@@ -25,37 +26,39 @@ templ ItemCard(props ItemCardProps) {
 		if props.ImageURL != "" {
 			<img
 				src={ props.ImageURL }
-				alt={ props.Title }
+				alt={ cmp.Or(props.Title, "Item image") }
 				loading="lazy"
 				class="h-10 w-10 rounded object-cover"
 			/>
 		}
-		<div class="min-w-0 flex-1">
-			if props.LinkURL != "" {
-				// Prevents anchor's default drag from preempting card drag.
-				<a
-					href={ templ.URL(props.LinkURL) }
-					target="_blank"
-					rel="noopener noreferrer"
-					draggable="false"
-					title={ props.LinkURL }
-					class="flex min-w-0 items-center gap-1 text-text hover:underline"
-				>
-					<span class="truncate font-medium">{ props.Title }</span>
-					<span class="shrink-0 text-xs text-text-muted">
-						@ExternalLinkIcon()
-					</span>
-				</a>
-			} else {
-				<p class="truncate font-medium text-text">{ props.Title }</p>
-			}
-		</div>
+		if props.Title != "" {
+			<div class="min-w-0 flex-1">
+				if props.LinkURL != "" {
+					// Prevents anchor's default drag from preempting card drag.
+					<a
+						href={ templ.URL(props.LinkURL) }
+						target="_blank"
+						rel="noopener noreferrer"
+						draggable="false"
+						title={ props.LinkURL }
+						class="flex min-w-0 items-center gap-1 text-text hover:underline"
+					>
+						<span class="truncate font-medium">{ props.Title }</span>
+						<span class="shrink-0 text-xs text-text-muted">
+							@ExternalLinkIcon()
+						</span>
+					</a>
+				} else {
+					<p class="truncate font-medium text-text">{ props.Title }</p>
+				}
+			</div>
+		}
 		if props.Editable {
 			<button
 				hx-get={ fmt.Sprintf("/r/%s/v/%s/items/%d/edit", props.RankingUUID, props.VersionShortUUID, props.ItemID) }
 				hx-target={ fmt.Sprintf("#ranking-item-%d", props.ItemID) }
 				hx-swap="outerHTML"
-				aria-label={ "Edit " + props.Title }
+				aria-label={ "Edit " + cmp.Or(props.Title, "item") }
 				class="text-text-muted opacity-0 transition group-hover:opacity-100 hover:text-text"
 			>
 				@EditIcon()
@@ -64,7 +67,7 @@ templ ItemCard(props ItemCardProps) {
 				hx-delete={ fmt.Sprintf("/r/%s/v/%s/items/%d", props.RankingUUID, props.VersionShortUUID, props.ItemID) }
 				hx-target={ fmt.Sprintf("#ranking-item-%d", props.ItemID) }
 				hx-swap="outerHTML"
-				aria-label={ "Remove " + props.Title }
+				aria-label={ "Remove " + cmp.Or(props.Title, "item") }
 				class="text-text-muted opacity-0 transition group-hover:opacity-100 hover:text-danger"
 			>
 				&times;
@@ -94,7 +97,7 @@ templ ItemCardForm(props ItemCardProps) {
 		<input
 			name="label"
 			value={ props.Title }
-			required
+			placeholder="Title"
 			aria-label="Item label"
 			class={ itemFormInputClass }
 		/>

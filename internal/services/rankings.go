@@ -151,9 +151,14 @@ func (s *RankingsService) AddItem(ctx context.Context, req AddItemRequest) (db.R
 		return db.RankingItem{}, err
 	}
 
+	var title *string
+	if req.Title != "" {
+		title = &req.Title
+	}
+
 	return s.Queries.CreateRankingItem(ctx, db.CreateRankingItemParams{
 		RankingVersionID: req.VersionID,
-		Title:            req.Title,
+		Title:            title,
 		ImageSourceUrl:   imageURL,
 		SourceUrl:        sourceURL,
 	})
@@ -191,11 +196,15 @@ func (s *RankingsService) UpdateItem(ctx context.Context, req UpdateItemRequest)
 		return db.RankingItem{}, err
 	}
 
+	var title *string
+	if req.Title != "" {
+		title = &req.Title
+	}
+
 	return s.Queries.UpdateRankingItem(ctx, db.UpdateRankingItemParams{
 		ID:             item.ID,
-		Title:          req.Title,
+		Title:          title,
 		ImageSourceUrl: imageURL,
-		// No upload path yet; preserve the stored value.
 		ImageUploadUrl: item.ImageUploadUrl,
 		SourceUrl:      sourceURL,
 	})
@@ -673,7 +682,7 @@ func (s *RankingsService) CreateVersionFromPublished(ctx context.Context, req Cr
 			SourceUrl:        it.SourceUrl,
 		})
 		if err != nil {
-			return db.RankingVersion{}, fmt.Errorf("copy item %s: %w", it.Title, err)
+			return db.RankingVersion{}, fmt.Errorf("copy item %d: %w", it.ID, err)
 		}
 		itemIDs[it.ID] = newItem.ID
 	}

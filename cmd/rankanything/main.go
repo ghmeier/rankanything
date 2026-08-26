@@ -21,6 +21,7 @@ import (
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/email"
 	"github.com/ghmeier/rankanything/internal/services"
+	"github.com/ghmeier/rankanything/internal/storage"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
@@ -66,6 +67,27 @@ func run(logger *slog.Logger) error {
 	s := auth.NewSessions(sm)
 	emailSvc := email.NewSender(cfg.ResendAPIKey, cfg.EmailFrom, logger)
 
+	var store storage.Storage
+	if cfg.HasR2() {
+		r2, err := storage.NewR2Storage(ctx, storage.R2Config{
+			AccountID:      cfg.R2AccountID,
+			AccessKeyID:    cfg.R2AccessKeyID,
+			SecretAccessKey: cfg.R2SecretAccessKey,
+			BucketName:     cfg.R2BucketName,
+			PublicURL:      cfg.R2PublicURL,
+		})
+		if err != nil {
+			return err
+		}
+		store = r2
+	} else {
+		local, err := storage.NewLocalStorage("tmp/uploads", "uploads")
+		if err != nil {
+			return err
+		}
+		store = local
+	}
+
 	rl := auth.NewRateLimiter()
 	defer rl.Stop()
 
@@ -87,11 +109,20 @@ func run(logger *slog.Logger) error {
 			Sessions: s,
 			BaseURL:  cfg.BaseURL,
 		},
+		Storage: store,
+	}
+
+	handler := application.Routes()
+	if local, ok := store.(*storage.LocalStorage); ok {
+		mux := http.NewServeMux()
+		mux.Handle("GET /uploads/", local.ServeHandler())
+		mux.Handle("/", handler)
+		handler = mux
 	}
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           application.Routes(),
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       2 * time.Minute,

@@ -536,7 +536,8 @@ func TestCreateVersionFromAPublishedVersionCopiesItsBoard(t *testing.T) {
 	draftItems, err := env.Queries.ListRankingItemsForVersion(ctx, newDraft.ID)
 	require.NoError(t, err)
 	require.Len(t, draftItems, 1)
-	assert.Equal(t, "Carried over", draftItems[0].Title)
+	require.NotNil(t, draftItems[0].Title)
+	assert.Equal(t, "Carried over", *draftItems[0].Title)
 }
 
 func TestCreateVersionFailsWhenADraftAlreadyExists(t *testing.T) {

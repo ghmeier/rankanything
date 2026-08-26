@@ -40,7 +40,7 @@ func WriteBoardCSV(w io.Writer, board RankingBoard) error {
 			sanitizeCSVCell(tier.Title),
 			strconv.Itoa(int(tier.Position)),
 			strconv.Itoa(int(p.Position)),
-			sanitizeCSVCell(item.Title),
+			sanitizeCSVCell(stringOrEmpty(item.Title)),
 			sanitizeCSVCell(stringOrEmpty(item.SourceUrl)),
 			sanitizeCSVCell(stringOrEmpty(item.ImageSourceUrl)),
 		}
@@ -55,7 +55,7 @@ func WriteBoardCSV(w io.Writer, board RankingBoard) error {
 		}
 		row := []string{
 			"", "", "",
-			sanitizeCSVCell(it.Title),
+			sanitizeCSVCell(stringOrEmpty(it.Title)),
 			sanitizeCSVCell(stringOrEmpty(it.SourceUrl)),
 			sanitizeCSVCell(stringOrEmpty(it.ImageSourceUrl)),
 		}

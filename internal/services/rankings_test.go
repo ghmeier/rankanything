@@ -212,7 +212,8 @@ func TestAddItemAddsToTheGivenVersion(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, "Pretzels", item.Title)
+	require.NotNil(t, item.Title)
+	assert.Equal(t, "Pretzels", *item.Title)
 	require.NotNil(t, item.ImageSourceUrl)
 	assert.Equal(t, "https://example.com/pretzel.jpg", *item.ImageSourceUrl)
 
@@ -288,7 +289,8 @@ func TestUpdateItemChangesTitleAndLink(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, "Tartine Manufactory", updated.Title)
+	require.NotNil(t, updated.Title)
+	assert.Equal(t, "Tartine Manufactory", *updated.Title)
 	require.NotNil(t, updated.SourceUrl)
 	assert.Equal(t, "https://tartinebakery.com/manufactory", *updated.SourceUrl)
 }
@@ -308,7 +310,7 @@ func TestUpdateItemClearsALinkWhenTheFieldIsBlank(t *testing.T) {
 	updated, err := svc.UpdateItem(ctx, services.UpdateItemRequest{
 		VersionID: version.ID,
 		ItemID:    item.ID,
-		Title:     item.Title,
+		Title:     *item.Title,
 	})
 	require.NoError(t, err)
 
@@ -596,7 +598,8 @@ func TestGetBoardListsTiersItemsAndPlacements(t *testing.T) {
 	assert.True(t, board.IsDraft)
 	assert.Len(t, board.Tiers, len(services.DefaultTiers))
 	require.Len(t, board.Items, 1)
-	assert.Equal(t, "Rank me", board.Items[0].Title)
+	require.NotNil(t, board.Items[0].Title)
+	assert.Equal(t, "Rank me", *board.Items[0].Title)
 	require.Len(t, board.Placements, 1)
 	assert.Equal(t, item.ID, board.Placements[0].RankingItemID)
 }
@@ -909,7 +912,8 @@ func TestCreateVersionFromPublishedCopiesTiersItemsAndPlacements(t *testing.T) {
 	draftItems, err := svc.Queries.ListRankingItemsForVersion(ctx, draft.ID)
 	require.NoError(t, err)
 	require.Len(t, draftItems, 1)
-	assert.Equal(t, "Carried over", draftItems[0].Title)
+	require.NotNil(t, draftItems[0].Title)
+	assert.Equal(t, "Carried over", *draftItems[0].Title)
 
 	draftPlacements, err := svc.Queries.ListRankingItemTiersForVersion(ctx, draft.ID)
 	require.NoError(t, err)

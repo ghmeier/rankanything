@@ -15,6 +15,7 @@ import (
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/email"
 	"github.com/ghmeier/rankanything/internal/services"
+	"github.com/ghmeier/rankanything/internal/storage"
 	"github.com/ghmeier/rankanything/internal/ui"
 )
 
@@ -32,6 +33,7 @@ type App struct {
 	EmailSvc        email.Sender
 	ShareSvc        *services.ShareService
 	VerificationSvc *services.VerificationService
+	Storage         storage.Storage
 }
 
 func (a *App) Routes() http.Handler {

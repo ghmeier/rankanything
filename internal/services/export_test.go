@@ -36,9 +36,9 @@ func TestWriteBoardCSVOrdersRowsTierThenItemPosition(t *testing.T) {
 			{ID: 2, Position: 1, Title: "A"},
 		},
 		Items: []db.RankingItem{
-			{ID: 10, Title: "Second in S"},
-			{ID: 11, Title: "First in S"},
-			{ID: 12, Title: "Only in A"},
+			{ID: 10, Title: strPtr("Second in S")},
+			{ID: 11, Title: strPtr("First in S")},
+			{ID: 12, Title: strPtr("Only in A")},
 		},
 		Placements: []db.RankingItemTier{
 			{RankingTierID: 1, RankingItemID: 11, Position: 0},
@@ -65,8 +65,8 @@ func TestWriteBoardCSVPutsUnrankedItemsLastWithNoTierOrPositions(t *testing.T) {
 	board := services.RankingBoard{
 		Tiers: []db.RankingTier{{ID: 1, Position: 0, Title: "S"}},
 		Items: []db.RankingItem{
-			{ID: 10, Title: "Ranked"},
-			{ID: 11, Title: "Unranked"},
+			{ID: 10, Title: strPtr("Ranked")},
+			{ID: 11, Title: strPtr("Unranked")},
 		},
 		Placements: []db.RankingItemTier{
 			{RankingTierID: 1, RankingItemID: 10, Position: 0},
@@ -91,7 +91,7 @@ func TestWriteBoardCSVGivesAMultiTierItemOnePerPlacement(t *testing.T) {
 			{ID: 1, Position: 0, Title: "S"},
 			{ID: 2, Position: 1, Title: "A"},
 		},
-		Items: []db.RankingItem{{ID: 10, Title: "Everywhere"}},
+		Items: []db.RankingItem{{ID: 10, Title: strPtr("Everywhere")}},
 		Placements: []db.RankingItemTier{
 			{RankingTierID: 1, RankingItemID: 10, Position: 0},
 			{RankingTierID: 2, RankingItemID: 10, Position: 0},
@@ -112,7 +112,7 @@ func TestWriteBoardCSVNeutralizesLeadingFormulaCharacters(t *testing.T) {
 
 	for _, dangerous := range []string{"=SUM(A1:A9)", "+1+1", "-1+1", "@SUM(A1:A9)"} {
 		board := services.RankingBoard{
-			Items: []db.RankingItem{{ID: 1, Title: dangerous}},
+			Items: []db.RankingItem{{ID: 1, Title: &dangerous}},
 		}
 
 		rows := writeBoardCSV(t, board)
@@ -126,7 +126,7 @@ func TestWriteBoardCSVLeavesOrdinaryTitlesUntouched(t *testing.T) {
 	t.Parallel()
 
 	board := services.RankingBoard{
-		Items: []db.RankingItem{{ID: 1, Title: "Ordinary title"}},
+		Items: []db.RankingItem{{ID: 1, Title: strPtr("Ordinary title")}},
 	}
 
 	rows := writeBoardCSV(t, board)
@@ -140,7 +140,7 @@ func TestWriteBoardCSVIncludesSourceAndImageURLs(t *testing.T) {
 	board := services.RankingBoard{
 		Tiers: []db.RankingTier{{ID: 1, Position: 0, Title: "S"}},
 		Items: []db.RankingItem{
-			{ID: 10, Title: "Ranked", SourceUrl: strPtr("https://example.com/a"), ImageSourceUrl: strPtr("https://example.com/a.png")},
+			{ID: 10, Title: strPtr("Ranked"), SourceUrl: strPtr("https://example.com/a"), ImageSourceUrl: strPtr("https://example.com/a.png")},
 		},
 		Placements: []db.RankingItemTier{{RankingTierID: 1, RankingItemID: 10, Position: 0}},
 	}

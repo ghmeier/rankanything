@@ -12,8 +12,14 @@ import (
 )
 
 func itemCardProps(rankingUUID string, versionShortUUID string, item db.RankingItem, editable bool) ui.ItemCardProps {
+	title := ""
+	if item.Title != nil {
+		title = *item.Title
+	}
 	imageURL := ""
-	if item.ImageSourceUrl != nil {
+	if item.ImageUploadUrl != nil {
+		imageURL = *item.ImageUploadUrl
+	} else if item.ImageSourceUrl != nil {
 		imageURL = *item.ImageSourceUrl
 	}
 	linkURL := ""
@@ -24,7 +30,7 @@ func itemCardProps(rankingUUID string, versionShortUUID string, item db.RankingI
 		RankingUUID:      rankingUUID,
 		VersionShortUUID: versionShortUUID,
 		ItemID:           item.ID,
-		Title:            item.Title,
+		Title:            title,
 		ImageURL:         imageURL,
 		LinkURL:          linkURL,
 		Editable:         editable,

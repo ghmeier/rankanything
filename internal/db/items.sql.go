@@ -17,7 +17,7 @@ RETURNING id, created_at, updated_at, ranking_version_id, title, image_source_ur
 
 type CreateRankingItemParams struct {
 	RankingVersionID int64
-	Title            string
+	Title            *string
 	ImageSourceUrl   *string
 	SourceUrl        *string
 }
@@ -114,7 +114,7 @@ RETURNING id, created_at, updated_at, ranking_version_id, title, image_source_ur
 
 type UpdateRankingItemParams struct {
 	ID             int64
-	Title          string
+	Title          *string
 	ImageSourceUrl *string
 	ImageUploadUrl *string
 	SourceUrl      *string

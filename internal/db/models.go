@@ -145,7 +145,7 @@ type RankingItem struct {
 	CreatedAt        pgtype.Timestamptz
 	UpdatedAt        pgtype.Timestamptz
 	RankingVersionID int64
-	Title            string
+	Title            *string
 	ImageSourceUrl   *string
 	ImageUploadUrl   *string
 	SourceUrl        *string
