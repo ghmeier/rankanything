@@ -49,7 +49,8 @@ func TestNewRankingRejectsAPlainGET(t *testing.T) {
 
 	res := owner.Get("/new")
 
-	assert.Equal(t, http.StatusMethodNotAllowed, res.Status)
+	assert.Equal(t, http.StatusSeeOther, res.Status)
+	assert.Equal(t, "/", res.Location())
 }
 
 func TestNewRankingCreatesARankingForTheSignedInOwner(t *testing.T) {

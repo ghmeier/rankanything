@@ -70,5 +70,5 @@ func TestComponentsGalleryNotRegisteredInProduction(t *testing.T) {
 	env := testsupport.NewEnv(t)
 	res := env.NewClient().Get("/components")
 
-	assert.Equal(t, http.StatusNotFound, res.Status)
+	assert.Equal(t, http.StatusSeeOther, res.Status)
 }

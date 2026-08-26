@@ -3,3 +3,4 @@
 node_modules
 tmp
 assets/static/css/app.css
+.claude/worktrees
