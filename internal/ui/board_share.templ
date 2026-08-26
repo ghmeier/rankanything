@@ -4,45 +4,23 @@ import "fmt"
 
 type ShareControlProps struct {
 	RankingUUID string
-	Shareable bool
-	Reasons   []string
-	IsPublic  bool
-	PublicURL string
-	Open bool
+	Shareable   bool
+	Reasons     []string
 }
 
 templ ShareControl(props ShareControlProps) {
-	<div id="share-control" class="group relative" open?={ props.Open }>
-		if props.IsPublic {
-			@DropdownItem(DropdownItemProps{
-				Attrs: templ.Attributes{
-					"onclick": "navigator.clipboard.writeText(\"" + props.PublicURL + "\")",
-				},
-			}) {
-				@ShareIcon()
-				Copy link
-			}
-			@DropdownItem(DropdownItemProps{
-				Attrs: templ.Attributes{
-					"hx-delete": fmt.Sprintf("/r/%s/share", props.RankingUUID),
-					"hx-target": "#share-control",
-					"hx-swap":   "outerHTML",
-				},
-			}) {
-				Stop sharing
-			}
-		} else {
-			@DropdownItem(DropdownItemProps{
-				Attrs: templ.Attributes{
-					"hx-post":   fmt.Sprintf("/r/%s/share", props.RankingUUID),
-					"hx-target": "#share-control",
-					"hx-swap":   "outerHTML",
-				},
-				Disabled: !props.Shareable,
-			}) {
-				@ShareIcon()
-				Share
-			}
+	<div id="share-control" class="group relative">
+		@DropdownItem(DropdownItemProps{
+			Disabled: !props.Shareable,
+			Attrs: templ.Attributes{
+				"hx-get":              fmt.Sprintf("/r/%s/share", props.RankingUUID),
+				"hx-target":           "#share-modal-container",
+				"hx-swap":             "innerHTML",
+				"hx-on::after-settle": "this.closest('[data-menu]').removeAttribute('open'); document.getElementById('share-modal').showModal()",
+			},
+		}) {
+			@ShareIcon()
+			Share
 		}
 		if !props.Shareable {
 			@Tooltip(TooltipProps{Width: "w-48", Placement: TooltipLeft}) {
@@ -55,4 +33,132 @@ templ ShareControl(props ShareControlProps) {
 			}
 		}
 	</div>
+}
+
+type ShareModalProps struct {
+	RankingUUID string
+	Shareable   bool
+	Reasons     []string
+	IsPublic    bool
+	PublicURL   string
+}
+
+templ ShareModalContent(props ShareModalProps) {
+	@Modal(ModalProps{ID: "share-modal", Title: "Share"}) {
+		<div id="share-modal-body" class="space-y-6">
+			@sharePublicLink(props)
+			@shareInviteSection(props)
+			@shareAccessList()
+		</div>
+	}
+}
+
+templ ShareModalBody(props ShareModalProps) {
+	<div id="share-modal-body" class="space-y-6" hx-swap-oob="true">
+		@sharePublicLink(props)
+		@shareInviteSection(props)
+		@shareAccessList()
+	</div>
+}
+
+templ sharePublicLink(props ShareModalProps) {
+	<div class="space-y-2">
+		<div class="flex items-center justify-between">
+			<div>
+				<p class="text-sm font-medium text-text">Public link</p>
+				<p class="text-xs text-text-muted">Anyone with the link can view this ranking.</p>
+			</div>
+			if props.IsPublic {
+				<button
+					type="button"
+					hx-delete={ fmt.Sprintf("/r/%s/share/link", props.RankingUUID) }
+					hx-target="#share-modal-body"
+					hx-swap="outerHTML"
+					class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-primary transition-colors"
+					role="switch"
+					aria-checked="true"
+				>
+					<span class="pointer-events-none inline-block h-5 w-5 translate-x-5 rounded-full bg-background shadow-sm transition-transform"></span>
+				</button>
+			} else {
+				<button
+					type="button"
+					if props.Shareable {
+						hx-post={ fmt.Sprintf("/r/%s/share/link", props.RankingUUID) }
+						hx-target="#share-modal-body"
+						hx-swap="outerHTML"
+					}
+					disabled?={ !props.Shareable }
+					class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-surface-muted transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+					role="switch"
+					aria-checked="false"
+				>
+					<span class="pointer-events-none inline-block h-5 w-5 translate-x-0 rounded-full bg-background shadow-sm transition-transform"></span>
+				</button>
+			}
+		</div>
+		if !props.Shareable {
+			<div class="rounded-md bg-surface-muted p-2 text-xs text-text-muted">
+				<p>To share this ranking:</p>
+				<ul class="list-inside list-disc">
+					for _, reason := range props.Reasons {
+						<li>{ reason }</li>
+					}
+				</ul>
+			</div>
+		}
+		if props.IsPublic {
+			<div class="flex items-center gap-2">
+				<input
+					type="text"
+					value={ props.PublicURL }
+					readonly
+					class="flex-1 rounded-md border border-border bg-surface-muted px-3 py-1.5 text-sm text-text-muted"
+				/>
+				<button
+					type="button"
+					onclick={ copyToClipboard(props.PublicURL) }
+					class={ ButtonClassSize(ButtonSecondary, ButtonSizeSmall) }
+				>
+					Copy link
+				</button>
+			</div>
+		}
+	</div>
+}
+
+templ shareInviteSection(props ShareModalProps) {
+	<div class="space-y-2 border-t border-border pt-4">
+		<p class="text-sm font-medium text-text">Invite people</p>
+		<form class="flex items-end gap-2">
+			<div class="flex-1">
+				<input
+					name="email"
+					type="email"
+					placeholder="Email address"
+					disabled
+					class="w-full rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none disabled:opacity-50"
+				/>
+			</div>
+			<select disabled class="rounded-md border border-border bg-surface px-2 py-1.5 text-sm disabled:opacity-50">
+				<option value="READER">Viewer</option>
+				<option value="EDITOR">Editor</option>
+			</select>
+			@Button(ButtonProps{Variant: ButtonSecondary, Type: "submit", Disabled: true}) {
+				Invite
+			}
+		</form>
+		<p class="text-xs text-text-subtle">Coming soon</p>
+	</div>
+}
+
+templ shareAccessList() {
+	<div class="border-t border-border pt-4">
+		<p class="text-sm font-medium text-text">People with access</p>
+		<p class="mt-2 text-sm text-text-muted">No one else has access.</p>
+	</div>
+}
+
+script copyToClipboard(text string) {
+	navigator.clipboard.writeText(text)
 }

@@ -180,8 +180,16 @@ func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoa
 	return props
 }
 
-func shareControlProps(rankingUUID string, validation services.ShareValidation, link services.LinkShare) ui.ShareControlProps {
+func shareControlProps(rankingUUID string, validation services.ShareValidation) ui.ShareControlProps {
 	return ui.ShareControlProps{
+		RankingUUID: rankingUUID,
+		Shareable:   validation.Shareable,
+		Reasons:     validation.Reasons,
+	}
+}
+
+func shareModalProps(rankingUUID string, validation services.ShareValidation, link services.LinkShare) ui.ShareModalProps {
+	return ui.ShareModalProps{
 		RankingUUID: rankingUUID,
 		Shareable:   validation.Shareable,
 		Reasons:     validation.Reasons,
@@ -212,15 +220,10 @@ func (a *App) renderRankingPage(w http.ResponseWriter, r *http.Request, board se
 		a.serverError(w, r, err)
 		return
 	}
-	link, err := a.ShareSvc.GetLinkShare(ctx, board.Ranking.ID)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
 
 	rankingUUID := board.Ranking.Uuid.String()
 	props := boardPageProps(a.base(r), rankingUUID, board, versions, validation)
-	props.ShareControl = ui.ShareControl(shareControlProps(rankingUUID, shareValidation, link))
+	props.ShareControl = ui.ShareControl(shareControlProps(rankingUUID, shareValidation))
 	a.render(w, r, http.StatusOK, ui.BoardPage(props))
 }
 

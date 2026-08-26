@@ -10,6 +10,32 @@ import (
 	"github.com/google/uuid"
 )
 
+func (a *App) handleGetShareModal(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
+
+	ranking, err := a.RankingSvc.GetRanking(ctx, rankingUUID)
+	if err != nil {
+		a.rankError(w, r, err)
+		return
+	}
+
+	validation, err := a.ShareSvc.ValidateShareable(ctx, ranking)
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+
+	link, err := a.ShareSvc.GetLinkShare(ctx, ranking.ID)
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+
+	props := shareModalProps(rankingUUID.String(), validation, link)
+	a.render(w, r, http.StatusOK, ui.ShareModalContent(props))
+}
+
 func (a *App) handleEnableShare(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	rankingUUID := ctx.Value(constants.RankingUUIDKey).(uuid.UUID)
@@ -36,9 +62,8 @@ func (a *App) handleEnableShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := shareControlProps(rankingUUID.String(), validation, link)
-	props.Open = true
-	a.render(w, r, http.StatusOK, ui.ShareControl(props))
+	props := shareModalProps(rankingUUID.String(), validation, link)
+	a.render(w, r, http.StatusOK, ui.ShareModalBody(props))
 }
 
 func (a *App) handleDisableShare(w http.ResponseWriter, r *http.Request) {
@@ -62,7 +87,6 @@ func (a *App) handleDisableShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := shareControlProps(rankingUUID.String(), validation, services.LinkShare{})
-	props.Open = true
-	a.render(w, r, http.StatusOK, ui.ShareControl(props))
+	props := shareModalProps(rankingUUID.String(), validation, services.LinkShare{})
+	a.render(w, r, http.StatusOK, ui.ShareModalBody(props))
 }

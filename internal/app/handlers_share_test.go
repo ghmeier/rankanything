@@ -2,7 +2,6 @@ package app_test
 
 import (
 	"context"
-	"html"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -40,21 +39,23 @@ func verifyOwnerEmail(t *testing.T, env *testsupport.Env, owner *testsupport.Own
 	require.NoError(t, err)
 }
 
-// extractShareURL pulls the public share link out of the "Copy link" menu
-// item's clipboard call, which is where the URL lives now that the control is
-// a menu rather than a panel with a readonly input. The body is unescaped
-// first for the reason extractCSRF unescapes: templ escapes the quotes inside
-// an attribute value, and a browser undoes that before running the handler.
+// extractShareURL pulls the public share link out of the share modal's readonly
+// input field. The enable-share handler returns ShareModalBody which contains
+// an <input ... value="http://..."> with the public URL.
 func extractShareURL(t *testing.T, body string) string {
 	t.Helper()
-	const marker = `navigator.clipboard.writeText("`
-	_, after, found := strings.Cut(html.UnescapeString(body), marker)
-	require.True(t, found, "no copy-link control in body")
-	shareURL, _, found := strings.Cut(after, `"`)
-	require.True(t, found, "unterminated clipboard argument")
-	return shareURL
-}
+	const marker = `readonly`
+	idx := strings.Index(body, marker)
+	require.NotEqual(t, -1, idx, "no readonly URL input in body")
 
+	before := body[:idx]
+	valueIdx := strings.LastIndex(before, `value="`)
+	require.NotEqual(t, -1, valueIdx, "no value attribute before readonly input")
+	start := valueIdx + len(`value="`)
+	end := strings.Index(body[start:], `"`)
+	require.NotEqual(t, -1, end, "unterminated value attribute")
+	return body[start : start+end]
+}
 
 func TestShareControlBlockedWhenNothingIsPublished(t *testing.T) {
 	env := testsupport.NewEnv(t)
@@ -67,7 +68,6 @@ func TestShareControlBlockedWhenNothingIsPublished(t *testing.T) {
 	body := Body(res.Body)
 	assert.Contains(t, body, "Publish at least one version.")
 	assert.NotContains(t, body, "Verify your email.")
-	assert.NotContains(t, body, "Copy link", "there's no link to copy until sharing is on")
 }
 
 func TestShareControlBlockedWhenTheOwnerEmailIsUnverified(t *testing.T) {
@@ -81,7 +81,6 @@ func TestShareControlBlockedWhenTheOwnerEmailIsUnverified(t *testing.T) {
 	body := Body(res.Body)
 	assert.Contains(t, body, "Verify your email.")
 	assert.NotContains(t, body, "Publish at least one version.")
-	assert.NotContains(t, body, "Copy link", "there's no link to copy until sharing is on")
 }
 
 func TestShareControlOfferedWhenBothConditionsHold(t *testing.T) {
@@ -94,10 +93,9 @@ func TestShareControlOfferedWhenBothConditionsHold(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, res.Status)
 	body := Body(res.Body)
-	assert.Contains(t, body, `hx-post="/r/`+owner.Ranking.Uuid.String()+`/share"`)
+	assert.Contains(t, body, `hx-get="/r/`+owner.Ranking.Uuid.String()+`/share"`, "the Share button opens the modal")
 	assert.NotContains(t, body, "To share this ranking:", "the blocked-reason tooltip only renders on an inert control")
 }
-
 
 func TestEnablingShareMintsASlugAndThePublicURLResolves(t *testing.T) {
 	env := testsupport.NewEnv(t)
@@ -105,7 +103,7 @@ func TestEnablingShareMintsASlugAndThePublicURLResolves(t *testing.T) {
 	publishOwnerDraft(t, env, owner)
 	verifyOwnerEmail(t, env, owner)
 
-	res := owner.Post("/r/"+owner.Ranking.Uuid.String()+"/share", nil)
+	res := owner.Post("/r/"+owner.Ranking.Uuid.String()+"/share/link", nil)
 	require.Equal(t, http.StatusOK, res.Status)
 	shareURL := extractShareURL(t, res.Body)
 	require.Contains(t, shareURL, "/s/")
@@ -127,7 +125,7 @@ func TestASharedBoardsMetaDescriptionIsPlainText(t *testing.T) {
 	owner.HTMX(http.MethodPost, "/r/"+owner.Ranking.Uuid.String()+"/description",
 		url.Values{"description": {"Ranked **by hand**"}})
 
-	res := owner.Post("/r/"+owner.Ranking.Uuid.String()+"/share", nil)
+	res := owner.Post("/r/"+owner.Ranking.Uuid.String()+"/share/link", nil)
 	require.Equal(t, http.StatusOK, res.Status)
 	shareURL := extractShareURL(t, res.Body)
 
@@ -145,7 +143,7 @@ func TestDisablingShareKillsTheOldSlugPermanentlyAndResharingMintsANewOne(t *tes
 	publishOwnerDraft(t, env, owner)
 	verifyOwnerEmail(t, env, owner)
 
-	enable := owner.Post("/r/"+owner.Ranking.Uuid.String()+"/share", nil)
+	enable := owner.Post("/r/"+owner.Ranking.Uuid.String()+"/share/link", nil)
 	require.Equal(t, http.StatusOK, enable.Status)
 	firstURL := extractShareURL(t, enable.Body)
 	firstPath := firstURL[strings.Index(firstURL, "/s/"):]
@@ -153,14 +151,15 @@ func TestDisablingShareKillsTheOldSlugPermanentlyAndResharingMintsANewOne(t *tes
 	stranger := env.NewClient()
 	require.Equal(t, http.StatusOK, stranger.Get(firstPath).Status, "the link works while it's live")
 
-	disable := owner.Delete("/r/"+owner.Ranking.Uuid.String()+"/share", nil)
+	disable := owner.Delete("/r/"+owner.Ranking.Uuid.String()+"/share/link", nil)
 	require.Equal(t, http.StatusOK, disable.Status)
-	assert.Contains(t, Body(disable.Body), `hx-post="/r/`+owner.Ranking.Uuid.String()+`/share"`, "the control offers to share again")
-	assert.NotContains(t, Body(disable.Body), "Copy link", "and stops offering the dead link")
+	disableBody := Body(disable.Body)
+	assert.NotContains(t, disableBody, "Copy link", "stops offering the dead link")
+	assert.Contains(t, disableBody, `hx-post="/r/`+owner.Ranking.Uuid.String()+`/share/link"`, "the toggle offers to re-enable")
 
 	assert.Equal(t, http.StatusNotFound, env.NewClient().Get(firstPath).Status, "the old link must be dead")
 
-	reenable := owner.Post("/r/"+owner.Ranking.Uuid.String()+"/share", nil)
+	reenable := owner.Post("/r/"+owner.Ranking.Uuid.String()+"/share/link", nil)
 	require.Equal(t, http.StatusOK, reenable.Status)
 	secondURL := extractShareURL(t, reenable.Body)
 	secondPath := secondURL[strings.Index(secondURL, "/s/"):]
@@ -174,15 +173,14 @@ func TestEnablingShareIsRejectedWhenTheRankingIsNotShareable(t *testing.T) {
 	env := testsupport.NewEnv(t)
 	owner := env.NewOwnerClient()
 
-	res := owner.Post("/r/"+owner.Ranking.Uuid.String()+"/share", nil)
+	res := owner.Post("/r/"+owner.Ranking.Uuid.String()+"/share/link", nil)
 
 	assert.Equal(t, http.StatusForbidden, res.Status, "a direct request can't bypass the publish and verification checks")
 }
 
-
 func sharePublicPath(t *testing.T, env *testsupport.Env, owner *testsupport.OwnerClient) string {
 	t.Helper()
-	res := owner.Post("/r/"+owner.Ranking.Uuid.String()+"/share", nil)
+	res := owner.Post("/r/"+owner.Ranking.Uuid.String()+"/share/link", nil)
 	require.Equal(t, http.StatusOK, res.Status)
 	shareURL := extractShareURL(t, res.Body)
 	return shareURL[strings.Index(shareURL, "/s/"):]

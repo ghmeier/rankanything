@@ -1,0 +1,32 @@
+package ui
+
+import "cmp"
+
+type ModalProps struct {
+	ID    string
+	Title string
+	Width string
+}
+
+templ Modal(props ModalProps) {
+	<dialog
+		id={ props.ID }
+		class={ "rounded-lg border border-border bg-surface p-0 shadow-lg backdrop:bg-black/50", cmp.Or(props.Width, "w-full max-w-lg") }
+		onclick="if(event.target===this)this.close()"
+	>
+		<div class="flex items-center justify-between border-b border-border px-4 py-3">
+			<h2 class="text-lg font-semibold text-text">{ props.Title }</h2>
+			<button
+				type="button"
+				onclick="this.closest('dialog').close()"
+				class="text-text-muted hover:text-text"
+				aria-label="Close"
+			>
+				@CloseIcon()
+			</button>
+		</div>
+		<div class="p-4">
+			{ children... }
+		</div>
+	</dialog>
+}
