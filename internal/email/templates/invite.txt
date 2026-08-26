@@ -1,0 +1,5 @@
+{{.InviterName}} invited you to {{.RoleName}} "{{.RankingName}}" on Rank Anything.
+
+Accept invitation: {{.Link}}
+
+This invitation expires in 7 days.

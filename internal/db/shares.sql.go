@@ -20,6 +20,63 @@ func (q *Queries) ClearRankingPublicSlug(ctx context.Context, rankingID int64) e
 	return err
 }
 
+const createEmailShare = `-- name: CreateEmailShare :one
+INSERT INTO ranking_shares (ranking_id, email, role)
+VALUES ($1, $2, $3)
+RETURNING id, created_at, role, is_public, public_slug, user_id, email, ranking_id
+`
+
+type CreateEmailShareParams struct {
+	RankingID int64
+	Email     *string
+	Role      RankingShareRole
+}
+
+func (q *Queries) CreateEmailShare(ctx context.Context, arg CreateEmailShareParams) (RankingShare, error) {
+	row := q.db.QueryRow(ctx, createEmailShare, arg.RankingID, arg.Email, arg.Role)
+	var i RankingShare
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.Role,
+		&i.IsPublic,
+		&i.PublicSlug,
+		&i.UserID,
+		&i.Email,
+		&i.RankingID,
+	)
+	return i, err
+}
+
+const deleteRankingShare = `-- name: DeleteRankingShare :exec
+DELETE FROM ranking_shares WHERE id = $1
+`
+
+func (q *Queries) DeleteRankingShare(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, deleteRankingShare, id)
+	return err
+}
+
+const getRankingShareByID = `-- name: GetRankingShareByID :one
+SELECT id, created_at, role, is_public, public_slug, user_id, email, ranking_id FROM ranking_shares WHERE id = $1
+`
+
+func (q *Queries) GetRankingShareByID(ctx context.Context, id int64) (RankingShare, error) {
+	row := q.db.QueryRow(ctx, getRankingShareByID, id)
+	var i RankingShare
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.Role,
+		&i.IsPublic,
+		&i.PublicSlug,
+		&i.UserID,
+		&i.Email,
+		&i.RankingID,
+	)
+	return i, err
+}
+
 const getRankingShareByPublicSlug = `-- name: GetRankingShareByPublicSlug :one
 SELECT id, created_at, role, is_public, public_slug, user_id, email, ranking_id FROM ranking_shares WHERE public_slug = $1
 `
@@ -38,6 +95,41 @@ func (q *Queries) GetRankingShareByPublicSlug(ctx context.Context, publicSlug *s
 		&i.RankingID,
 	)
 	return i, err
+}
+
+const listEmailSharesForRanking = `-- name: ListEmailSharesForRanking :many
+SELECT id, created_at, role, is_public, public_slug, user_id, email, ranking_id FROM ranking_shares
+WHERE ranking_id = $1 AND (email IS NOT NULL OR user_id IS NOT NULL)
+ORDER BY created_at
+`
+
+func (q *Queries) ListEmailSharesForRanking(ctx context.Context, rankingID int64) ([]RankingShare, error) {
+	rows, err := q.db.Query(ctx, listEmailSharesForRanking, rankingID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RankingShare
+	for rows.Next() {
+		var i RankingShare
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.Role,
+			&i.IsPublic,
+			&i.PublicSlug,
+			&i.UserID,
+			&i.Email,
+			&i.RankingID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listRankingSharesForRanking = `-- name: ListRankingSharesForRanking :many
@@ -71,6 +163,20 @@ func (q *Queries) ListRankingSharesForRanking(ctx context.Context, rankingID int
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateRankingShareUserID = `-- name: UpdateRankingShareUserID :exec
+UPDATE ranking_shares SET user_id = $2 WHERE id = $1
+`
+
+type UpdateRankingShareUserIDParams struct {
+	ID     int64
+	UserID *int64
+}
+
+func (q *Queries) UpdateRankingShareUserID(ctx context.Context, arg UpdateRankingShareUserIDParams) error {
+	_, err := q.db.Exec(ctx, updateRankingShareUserID, arg.ID, arg.UserID)
+	return err
 }
 
 const upsertRankingLinkShare = `-- name: UpsertRankingLinkShare :one

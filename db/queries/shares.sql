@@ -17,3 +17,22 @@ SELECT * FROM ranking_shares WHERE ranking_id = $1 ORDER BY created_at;
 UPDATE ranking_shares
 SET is_public = false, public_slug = NULL
 WHERE ranking_id = $1 AND user_id IS NULL AND email IS NULL;
+
+-- name: CreateEmailShare :one
+INSERT INTO ranking_shares (ranking_id, email, role)
+VALUES ($1, $2, $3)
+RETURNING *;
+
+-- name: GetRankingShareByID :one
+SELECT * FROM ranking_shares WHERE id = $1;
+
+-- name: DeleteRankingShare :exec
+DELETE FROM ranking_shares WHERE id = $1;
+
+-- name: ListEmailSharesForRanking :many
+SELECT * FROM ranking_shares
+WHERE ranking_id = $1 AND (email IS NOT NULL OR user_id IS NOT NULL)
+ORDER BY created_at;
+
+-- name: UpdateRankingShareUserID :exec
+UPDATE ranking_shares SET user_id = $2 WHERE id = $1;

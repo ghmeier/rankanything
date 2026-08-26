@@ -21,6 +21,7 @@ var (
 const (
 	verifyPath = "/verify"
 	resetPath  = "/reset-password"
+	invitePath = "/invite"
 )
 
 type verificationData struct {
@@ -30,6 +31,13 @@ type verificationData struct {
 type resetData struct {
 	Email string
 	Link  string
+}
+
+type inviteData struct {
+	InviterName string
+	RankingName string
+	RoleName    string
+	Link        string
 }
 
 func Link(baseURL, path, plaintextToken string) string {
@@ -44,6 +52,20 @@ func VerificationMessage(to, baseURL, plaintextToken string) (Message, error) {
 func PasswordResetMessage(to, baseURL, plaintextToken string) (Message, error) {
 	data := resetData{Email: to, Link: Link(baseURL, resetPath, plaintextToken)}
 	return render("reset", "Reset your Rank Anything password", to, data)
+}
+
+func InviteMessage(to, inviterName, rankingName, role, baseURL, plaintextToken string) (Message, error) {
+	roleName := "view"
+	if role == "EDITOR" {
+		roleName = "edit"
+	}
+	data := inviteData{
+		InviterName: inviterName,
+		RankingName: rankingName,
+		RoleName:    roleName,
+		Link:        Link(baseURL, invitePath, plaintextToken),
+	}
+	return render("invite", inviterName+" shared a ranking with you", to, data)
 }
 
 func render(name, subject, to string, data any) (Message, error) {

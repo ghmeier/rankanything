@@ -7,16 +7,28 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ghmeier/rankanything/internal/db"
+	"github.com/ghmeier/rankanything/internal/email"
+	"github.com/ghmeier/rankanything/internal/token"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-var ErrShareNotPublic = errors.New("Share not found.")
+var (
+	ErrShareNotPublic       = errors.New("Share not found.")
+	ErrShareNotFound        = errors.New("Share not found.")
+	ErrInviteExpired        = errors.New("This invitation has expired.")
+	ErrInviteAlreadyRedeemed = errors.New("This invitation has already been used.")
+)
+
+const InviteTTL = 7 * 24 * time.Hour
 
 type ShareService struct {
-	Queries *db.Queries
-
-	BaseURL string
+	Queries     *db.Queries
+	EmailSender email.Sender
+	BaseURL     string
 }
 
 type LinkShare struct {
@@ -138,4 +150,107 @@ func newPublicSlug() (string, error) {
 		return "", fmt.Errorf("generate public slug: %w", err)
 	}
 	return strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b)), nil
+}
+
+type InviteRequest struct {
+	RankingID     int64
+	Email         string
+	Role          db.RankingShareRole
+	InviterUserID int64
+	InviterName   string
+	RankingName   string
+}
+
+func (s *ShareService) InviteByEmail(ctx context.Context, req InviteRequest) (db.RankingShare, error) {
+	share, err := s.Queries.CreateEmailShare(ctx, db.CreateEmailShareParams{
+		RankingID: req.RankingID,
+		Email:     &req.Email,
+		Role:      req.Role,
+	})
+	if err != nil {
+		return db.RankingShare{}, fmt.Errorf("create email share: %w", err)
+	}
+
+	plaintext, hash, expiresAt, err := token.Generate(InviteTTL)
+	if err != nil {
+		return db.RankingShare{}, err
+	}
+
+	_, err = s.Queries.CreateRankingInvite(ctx, db.CreateRankingInviteParams{
+		Token:          hash,
+		UserID:         req.InviterUserID,
+		InvitedEmail:   &req.Email,
+		RankingShareID: share.ID,
+		ExpiresAt:      pgtype.Timestamptz{Time: expiresAt, Valid: true},
+	})
+	if err != nil {
+		return db.RankingShare{}, fmt.Errorf("create ranking invite: %w", err)
+	}
+
+	msg, err := email.InviteMessage(req.Email, req.InviterName, req.RankingName, string(req.Role), s.BaseURL, plaintext)
+	if err != nil {
+		return db.RankingShare{}, fmt.Errorf("build invite email: %w", err)
+	}
+	if err := s.EmailSender.Send(ctx, msg); err != nil {
+		return db.RankingShare{}, fmt.Errorf("send invite email: %w", err)
+	}
+
+	return share, nil
+}
+
+func (s *ShareService) ListEmailShares(ctx context.Context, rankingID int64) ([]db.RankingShare, error) {
+	return s.Queries.ListEmailSharesForRanking(ctx, rankingID)
+}
+
+func (s *ShareService) RemoveShare(ctx context.Context, shareID, rankingID int64) error {
+	share, err := s.Queries.GetRankingShareByID(ctx, shareID)
+	if err != nil {
+		return ErrShareNotFound
+	}
+	if share.RankingID != rankingID {
+		return ErrShareNotFound
+	}
+	return s.Queries.DeleteRankingShare(ctx, shareID)
+}
+
+func (s *ShareService) AcceptInvite(ctx context.Context, plaintextToken string, userID int64) (uuid.UUID, error) {
+	hash := token.Hash(plaintextToken)
+
+	invite, err := s.Queries.GetRankingInviteByTokenHash(ctx, hash)
+	if err != nil {
+		return uuid.UUID{}, ErrShareNotFound
+	}
+
+	if invite.InvitedUserID != nil {
+		return uuid.UUID{}, ErrInviteAlreadyRedeemed
+	}
+	if invite.ExpiresAt.Valid && invite.ExpiresAt.Time.Before(time.Now()) {
+		return uuid.UUID{}, ErrInviteExpired
+	}
+
+	if err := s.Queries.MarkRankingInviteRedeemed(ctx, db.MarkRankingInviteRedeemedParams{
+		ID:            invite.ID,
+		InvitedUserID: &userID,
+	}); err != nil {
+		return uuid.UUID{}, fmt.Errorf("redeem invite: %w", err)
+	}
+
+	if err := s.Queries.UpdateRankingShareUserID(ctx, db.UpdateRankingShareUserIDParams{
+		ID:     invite.RankingShareID,
+		UserID: &userID,
+	}); err != nil {
+		return uuid.UUID{}, fmt.Errorf("update share user: %w", err)
+	}
+
+	share, err := s.Queries.GetRankingShareByID(ctx, invite.RankingShareID)
+	if err != nil {
+		return uuid.UUID{}, fmt.Errorf("get share: %w", err)
+	}
+
+	ranking, err := s.Queries.GetRankingByID(ctx, share.RankingID)
+	if err != nil {
+		return uuid.UUID{}, fmt.Errorf("get ranking: %w", err)
+	}
+
+	return ranking.Uuid, nil
 }
