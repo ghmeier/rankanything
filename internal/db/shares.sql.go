@@ -97,6 +97,31 @@ func (q *Queries) GetRankingShareByPublicSlug(ctx context.Context, publicSlug *s
 	return i, err
 }
 
+const getRankingShareByUserAndRanking = `-- name: GetRankingShareByUserAndRanking :one
+SELECT id, created_at, role, is_public, public_slug, user_id, email, ranking_id FROM ranking_shares WHERE user_id = $1 AND ranking_id = $2
+`
+
+type GetRankingShareByUserAndRankingParams struct {
+	UserID    *int64
+	RankingID int64
+}
+
+func (q *Queries) GetRankingShareByUserAndRanking(ctx context.Context, arg GetRankingShareByUserAndRankingParams) (RankingShare, error) {
+	row := q.db.QueryRow(ctx, getRankingShareByUserAndRanking, arg.UserID, arg.RankingID)
+	var i RankingShare
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.Role,
+		&i.IsPublic,
+		&i.PublicSlug,
+		&i.UserID,
+		&i.Email,
+		&i.RankingID,
+	)
+	return i, err
+}
+
 const listEmailSharesForRanking = `-- name: ListEmailSharesForRanking :many
 SELECT id, created_at, role, is_public, public_slug, user_id, email, ranking_id FROM ranking_shares
 WHERE ranking_id = $1 AND (email IS NOT NULL OR user_id IS NOT NULL)

@@ -35,12 +35,19 @@ templ ShareControl(props ShareControlProps) {
 	</div>
 }
 
+type ShareEntry struct {
+	ID    int64
+	Email string
+	Role  string
+}
+
 type ShareModalProps struct {
 	RankingUUID string
 	Shareable   bool
 	Reasons     []string
 	IsPublic    bool
 	PublicURL   string
+	Shares      []ShareEntry
 }
 
 templ ShareModalContent(props ShareModalProps) {
@@ -48,7 +55,7 @@ templ ShareModalContent(props ShareModalProps) {
 		<div id="share-modal-body" class="space-y-6">
 			@sharePublicLink(props)
 			@shareInviteSection(props)
-			@shareAccessList()
+			@shareAccessList(props)
 		</div>
 	}
 }
@@ -57,7 +64,7 @@ templ ShareModalBody(props ShareModalProps) {
 	<div id="share-modal-body" class="space-y-6" hx-swap-oob="true">
 		@sharePublicLink(props)
 		@shareInviteSection(props)
-		@shareAccessList()
+		@shareAccessList(props)
 	</div>
 }
 
@@ -130,32 +137,62 @@ templ sharePublicLink(props ShareModalProps) {
 templ shareInviteSection(props ShareModalProps) {
 	<div class="space-y-2 border-t border-border pt-4">
 		<p class="text-sm font-medium text-text">Invite people</p>
-		<form class="flex items-end gap-2">
+		<form
+			class="flex items-end gap-2"
+			hx-post={ fmt.Sprintf("/r/%s/share/invites", props.RankingUUID) }
+			hx-target="#share-modal-body"
+			hx-swap="outerHTML"
+		>
 			<div class="flex-1">
 				<input
 					name="email"
 					type="email"
+					required
 					placeholder="Email address"
-					disabled
-					class="w-full rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none disabled:opacity-50"
+					class="w-full rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none"
 				/>
 			</div>
-			<select disabled class="rounded-md border border-border bg-surface px-2 py-1.5 text-sm disabled:opacity-50">
+			<select name="role" class="rounded-md border border-border bg-surface px-2 py-1.5 text-sm">
 				<option value="READER">Viewer</option>
 				<option value="EDITOR">Editor</option>
 			</select>
-			@Button(ButtonProps{Variant: ButtonSecondary, Type: "submit", Disabled: true}) {
+			@Button(ButtonProps{Variant: ButtonSecondary, Type: "submit"}) {
 				Invite
 			}
 		</form>
-		<p class="text-xs text-text-subtle">Coming soon</p>
 	</div>
 }
 
-templ shareAccessList() {
+templ shareAccessList(props ShareModalProps) {
 	<div class="border-t border-border pt-4">
 		<p class="text-sm font-medium text-text">People with access</p>
-		<p class="mt-2 text-sm text-text-muted">No one else has access.</p>
+		if len(props.Shares) == 0 {
+			<p class="mt-2 text-sm text-text-muted">No one else has access.</p>
+		} else {
+			<div class="mt-2 space-y-1">
+				for _, share := range props.Shares {
+					@shareEntryRow(props.RankingUUID, share)
+				}
+			</div>
+		}
+	</div>
+}
+
+templ shareEntryRow(rankingUUID string, share ShareEntry) {
+	<div class="flex items-center justify-between gap-2 text-sm">
+		<span class="text-text">{ share.Email }</span>
+		<div class="flex items-center gap-2">
+			<span class="rounded-full bg-surface-muted px-2 py-0.5 text-xs text-text-muted">{ share.Role }</span>
+			<button
+				type="button"
+				hx-delete={ fmt.Sprintf("/r/%s/share/invites/%d", rankingUUID, share.ID) }
+				hx-target="#share-modal-body"
+				hx-swap="outerHTML"
+				class={ ButtonClassSize(ButtonTertiary, ButtonSizeSmall) }
+			>
+				Remove
+			</button>
+		</div>
 	</div>
 }
 

@@ -23,11 +23,19 @@ func boardScope(r *http.Request) (uuid.UUID, db.RankingVersion) {
 
 func (a *App) requireDraftVersion(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		version := r.Context().Value(constants.RankingVersionKey).(db.RankingVersion)
+		ctx := r.Context()
+		version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
 		if version.PublishedAt.Valid {
 			a.forbidden(w, r, "This version is published and can no longer be edited.")
 			return
 		}
+
+		role := ctx.Value(constants.RankingAccessRoleKey).(db.RankingShareRole)
+		if role == db.RankingShareRoleREADER {
+			a.forbidden(w, r, "You don't have permission to edit this ranking.")
+			return
+		}
+
 		next.ServeHTTP(w, r)
 	})
 }

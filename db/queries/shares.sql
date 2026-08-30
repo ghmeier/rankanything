@@ -36,3 +36,6 @@ ORDER BY created_at;
 
 -- name: UpdateRankingShareUserID :exec
 UPDATE ranking_shares SET user_id = $2 WHERE id = $1;
+
+-- name: GetRankingShareByUserAndRanking :one
+SELECT * FROM ranking_shares WHERE user_id = $1 AND ranking_id = $2;

@@ -101,9 +101,25 @@ func (a *App) RequireRankingAccess(next http.Handler) http.Handler {
 			return
 		}
 
-		if userID := a.Sessions.UserID(ctx); userID == 0 || ranking.UserID != userID {
+		userID := a.Sessions.UserID(ctx)
+		if userID == 0 {
 			a.notFound(w, r)
 			return
+		}
+
+		var role db.RankingShareRole
+		if ranking.UserID == userID {
+			role = db.RankingShareRoleOWNER
+		} else {
+			share, err := a.Queries.GetRankingShareByUserAndRanking(ctx, db.GetRankingShareByUserAndRankingParams{
+				UserID:    &userID,
+				RankingID: ranking.ID,
+			})
+			if err != nil {
+				a.notFound(w, r)
+				return
+			}
+			role = share.Role
 		}
 
 		version, err := a.RankingSvc.ResolveVersion(ctx, ranking, r.PathValue("short"))
@@ -114,6 +130,7 @@ func (a *App) RequireRankingAccess(next http.Handler) http.Handler {
 
 		ctx = context.WithValue(ctx, constants.RankingUUIDKey, rankingUUID)
 		ctx = context.WithValue(ctx, constants.RankingVersionKey, version)
+		ctx = context.WithValue(ctx, constants.RankingAccessRoleKey, role)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

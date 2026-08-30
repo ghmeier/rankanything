@@ -3,6 +3,7 @@ package constants
 type contextKey string
 
 const (
-	RankingUUIDKey    contextKey = "ranking_uuid"
-	RankingVersionKey contextKey = "ranking_version"
+	RankingUUIDKey       contextKey = "ranking_uuid"
+	RankingVersionKey    contextKey = "ranking_version"
+	RankingAccessRoleKey contextKey = "ranking_access_role"
 )

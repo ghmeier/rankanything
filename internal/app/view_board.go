@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/a-h/templ"
+	"github.com/ghmeier/rankanything/internal/constants"
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/services"
 	"github.com/ghmeier/rankanything/internal/ui"
@@ -155,9 +156,9 @@ func boardVersionActionsProps(rankingUUID string, version db.RankingVersion, ver
 	return props
 }
 
-func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoard, versions []db.RankingVersion, validation services.PublishValidation) ui.BoardPageProps {
+func boardPageProps(base BaseView, rankingUUID string, board services.RankingBoard, versions []db.RankingVersion, validation services.PublishValidation, role db.RankingShareRole) ui.BoardPageProps {
 	tierItems := boardTierItems(board)
-	editable := !board.Version.PublishedAt.Valid
+	editable := role != db.RankingShareRoleREADER && !board.Version.PublishedAt.Valid
 
 	props := ui.BoardPageProps{
 		CSRFToken:     base.CSRFToken,
@@ -194,14 +195,22 @@ func shareControlProps(rankingUUID string, validation services.ShareValidation) 
 	}
 }
 
-func shareModalProps(rankingUUID string, validation services.ShareValidation, link services.LinkShare) ui.ShareModalProps {
-	return ui.ShareModalProps{
+func shareModalProps(rankingUUID string, validation services.ShareValidation, link services.LinkShare, shares []db.RankingShare) ui.ShareModalProps {
+	props := ui.ShareModalProps{
 		RankingUUID: rankingUUID,
 		Shareable:   validation.Shareable,
 		Reasons:     validation.Reasons,
 		IsPublic:    link.IsPublic,
 		PublicURL:   link.URL,
 	}
+	for _, share := range shares {
+		email := ""
+		if share.Email != nil {
+			email = *share.Email
+		}
+		props.Shares = append(props.Shares, ui.ShareEntry{ID: share.ID, Email: email, Role: string(share.Role)})
+	}
+	return props
 }
 
 func (a *App) renderRankingPage(w http.ResponseWriter, r *http.Request, board services.RankingBoard) {
@@ -227,8 +236,9 @@ func (a *App) renderRankingPage(w http.ResponseWriter, r *http.Request, board se
 		return
 	}
 
+	role := ctx.Value(constants.RankingAccessRoleKey).(db.RankingShareRole)
 	rankingUUID := board.Ranking.Uuid.String()
-	props := boardPageProps(a.base(r), rankingUUID, board, versions, validation)
+	props := boardPageProps(a.base(r), rankingUUID, board, versions, validation, role)
 	props.ShareControl = ui.ShareControl(shareControlProps(rankingUUID, shareValidation))
 	a.render(w, r, http.StatusOK, ui.BoardPage(props))
 }

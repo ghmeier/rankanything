@@ -39,4 +39,6 @@ func (a *App) registerRankingRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /r/{uuid}/share", a.RequireRankingAccess(http.HandlerFunc(a.handleGetShareModal)))
 	mux.Handle("POST /r/{uuid}/share/link", a.RequireRankingAccess(http.HandlerFunc(a.handleEnableShare)))
 	mux.Handle("DELETE /r/{uuid}/share/link", a.RequireRankingAccess(http.HandlerFunc(a.handleDisableShare)))
+	mux.Handle("POST /r/{uuid}/share/invites", a.RequireRankingAccess(http.HandlerFunc(a.handleInviteByEmail)))
+	mux.Handle("DELETE /r/{uuid}/share/invites/{shareID}", a.RequireRankingAccess(http.HandlerFunc(a.handleRevokeShare)))
 }

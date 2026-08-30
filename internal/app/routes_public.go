@@ -7,6 +7,7 @@ func (a *App) registerPublicRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /robots.txt", a.handleRobotsTxt)
 	mux.HandleFunc("GET /sitemap.xml", a.handleSitemapXML)
 	mux.HandleFunc("GET /s/{public_slug}", a.handlePublicRanking)
+	mux.Handle("GET /invite/{token}", a.RequireUser(http.HandlerFunc(a.handleAcceptInvite)))
 
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusSeeOther)
