@@ -18,70 +18,104 @@ type ItemCardProps struct {
 
 templ ItemCard(props ItemCardProps) {
 	<article
-		class={ itemCardClass(props.Editable) }
+		class={ itemCardClass(props.Editable, props.ImageURL != "" && props.Title == "") }
 		id={ fmt.Sprintf("ranking-item-%d", props.ItemID) }
 		data-item-id={ fmt.Sprintf("%d", props.ItemID) }
 		draggable={ strconv.FormatBool(props.Editable) }
 	>
-		if props.ImageURL != "" {
+		if props.ImageURL != "" && props.Title == "" {
 			<img
 				src={ props.ImageURL }
-				alt={ cmp.Or(props.Title, "Item image") }
+				alt="Item image"
 				loading="lazy"
-				class="h-10 w-10 rounded object-cover"
+				class="h-24 w-full rounded object-cover"
 			/>
-		}
-		if props.Title != "" {
-			<div class="min-w-0 flex-1">
-				if props.LinkURL != "" {
-					// Prevents anchor's default drag from preempting card drag.
-					<a
-						href={ templ.URL(props.LinkURL) }
-						target="_blank"
-						rel="noopener noreferrer"
-						draggable="false"
-						title={ props.LinkURL }
-						class="flex min-w-0 items-center gap-1 text-text hover:underline"
+			if props.Editable {
+				<div class="absolute top-1 right-1 flex gap-1 rounded bg-surface/80 p-0.5">
+					<button
+						hx-get={ fmt.Sprintf("/r/%s/v/%s/items/%d/edit", props.RankingUUID, props.VersionShortUUID, props.ItemID) }
+						hx-target={ fmt.Sprintf("#ranking-item-%d", props.ItemID) }
+						hx-swap="outerHTML"
+						aria-label="Edit item"
+						class="text-text-muted opacity-0 transition group-hover:opacity-100 hover:text-text"
 					>
-						<span class="truncate font-medium">{ props.Title }</span>
-						<span class="shrink-0 text-xs text-text-muted">
-							@ExternalLinkIcon()
-						</span>
-					</a>
-				} else {
-					<p class="truncate font-medium text-text">{ props.Title }</p>
-				}
-			</div>
-		}
-		if props.Editable {
-			<button
-				hx-get={ fmt.Sprintf("/r/%s/v/%s/items/%d/edit", props.RankingUUID, props.VersionShortUUID, props.ItemID) }
-				hx-target={ fmt.Sprintf("#ranking-item-%d", props.ItemID) }
-				hx-swap="outerHTML"
-				aria-label={ "Edit " + cmp.Or(props.Title, "item") }
-				class="text-text-muted opacity-0 transition group-hover:opacity-100 hover:text-text"
-			>
-				@EditIcon()
-			</button>
-			<button
-				hx-delete={ fmt.Sprintf("/r/%s/v/%s/items/%d", props.RankingUUID, props.VersionShortUUID, props.ItemID) }
-				hx-target={ fmt.Sprintf("#ranking-item-%d", props.ItemID) }
-				hx-swap="outerHTML"
-				aria-label={ "Remove " + cmp.Or(props.Title, "item") }
-				class="text-text-muted opacity-0 transition group-hover:opacity-100 hover:text-danger"
-			>
-				&times;
-			</button>
+						@EditIcon()
+					</button>
+					<button
+						hx-delete={ fmt.Sprintf("/r/%s/v/%s/items/%d", props.RankingUUID, props.VersionShortUUID, props.ItemID) }
+						hx-target={ fmt.Sprintf("#ranking-item-%d", props.ItemID) }
+						hx-swap="outerHTML"
+						aria-label="Remove item"
+						class="text-text-muted opacity-0 transition group-hover:opacity-100 hover:text-danger"
+					>
+						&times;
+					</button>
+				</div>
+			}
+		} else {
+			if props.ImageURL != "" {
+				<img
+					src={ props.ImageURL }
+					alt={ cmp.Or(props.Title, "Item image") }
+					loading="lazy"
+					class="h-10 w-10 rounded object-cover"
+				/>
+			}
+			if props.Title != "" {
+				<div class="min-w-0 flex-1">
+					if props.LinkURL != "" {
+						// Prevents anchor's default drag from preempting card drag.
+						<a
+							href={ templ.URL(props.LinkURL) }
+							target="_blank"
+							rel="noopener noreferrer"
+							draggable="false"
+							title={ props.LinkURL }
+							class="flex min-w-0 items-center gap-1 text-text hover:underline"
+						>
+							<span class="truncate font-medium">{ props.Title }</span>
+							<span class="shrink-0 text-xs text-text-muted">
+								@ExternalLinkIcon()
+							</span>
+						</a>
+					} else {
+						<p class="truncate font-medium text-text">{ props.Title }</p>
+					}
+				</div>
+			}
+			if props.Editable {
+				<button
+					hx-get={ fmt.Sprintf("/r/%s/v/%s/items/%d/edit", props.RankingUUID, props.VersionShortUUID, props.ItemID) }
+					hx-target={ fmt.Sprintf("#ranking-item-%d", props.ItemID) }
+					hx-swap="outerHTML"
+					aria-label={ "Edit " + cmp.Or(props.Title, "item") }
+					class="text-text-muted opacity-0 transition group-hover:opacity-100 hover:text-text"
+				>
+					@EditIcon()
+				</button>
+				<button
+					hx-delete={ fmt.Sprintf("/r/%s/v/%s/items/%d", props.RankingUUID, props.VersionShortUUID, props.ItemID) }
+					hx-target={ fmt.Sprintf("#ranking-item-%d", props.ItemID) }
+					hx-swap="outerHTML"
+					aria-label={ "Remove " + cmp.Or(props.Title, "item") }
+					class="text-text-muted opacity-0 transition group-hover:opacity-100 hover:text-danger"
+				>
+					&times;
+				</button>
+			}
 		}
 	</article>
 }
 
-func itemCardClass(editable bool) string {
+func itemCardClass(editable, imageOnly bool) string {
 	className := "item-card group flex h-fit w-40 items-center gap-2 rounded-md border border-border bg-surface p-2 text-sm shadow-sm"
 	if editable {
 		className += " cursor-grab"
 	} else {
 		className += " cursor-default"
+	}
+	if imageOnly {
+		className += " relative"
 	}
 	return className
 }
