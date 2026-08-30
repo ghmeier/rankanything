@@ -139,6 +139,59 @@ func (a *App) handleAddItem(w http.ResponseWriter, r *http.Request) {
 	a.renderWithVersionActions(w, r, http.StatusOK, rankingUUID, version, card)
 }
 
+var allowedImageTypes = map[string]string{
+	"image/jpeg": "jpg",
+	"image/png":  "png",
+	"image/gif":  "gif",
+	"image/webp": "webp",
+}
+
+func (a *App) handleUploadItem(w http.ResponseWriter, r *http.Request) {
+	rankingUUID, version := boardScope(r)
+
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		http.Error(w, "Request too large.", http.StatusUnprocessableEntity)
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "No file provided.", http.StatusUnprocessableEntity)
+		return
+	}
+	defer file.Close()
+
+	contentType := header.Header.Get("Content-Type")
+	ext, ok := allowedImageTypes[contentType]
+	if !ok {
+		http.Error(w, "File must be JPEG, PNG, GIF, or WebP.", http.StatusUnprocessableEntity)
+		return
+	}
+	if header.Size > 5<<20 {
+		http.Error(w, "File must be under 5 MB.", http.StatusUnprocessableEntity)
+		return
+	}
+
+	key := fmt.Sprintf("rankings/%s/items/%s.%s", rankingUUID, uuid.New(), ext)
+	url, err := a.Storage.Upload(r.Context(), key, file, contentType)
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+
+	item, err := a.RankingSvc.AddItem(r.Context(), services.AddItemRequest{
+		VersionID:      version.ID,
+		ImageUploadURL: url,
+	})
+	if err != nil {
+		a.rankError(w, r, err)
+		return
+	}
+
+	card := ui.ItemCard(itemCardProps(rankingUUID.String(), version.ShortUuid, item, true))
+	a.renderWithVersionActions(w, r, http.StatusOK, rankingUUID, version, card)
+}
+
 func (a *App) handleViewItem(w http.ResponseWriter, r *http.Request) {
 	rankingUUID, version := boardScope(r)
 

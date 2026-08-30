@@ -10,8 +10,8 @@ import (
 )
 
 const createRankingItem = `-- name: CreateRankingItem :one
-INSERT INTO ranking_items (ranking_version_id, title, image_source_url, source_url)
-VALUES ($1, $2, $3, $4)
+INSERT INTO ranking_items (ranking_version_id, title, image_source_url, image_upload_url, source_url)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING id, created_at, updated_at, ranking_version_id, title, image_source_url, image_upload_url, source_url
 `
 
@@ -19,6 +19,7 @@ type CreateRankingItemParams struct {
 	RankingVersionID int64
 	Title            *string
 	ImageSourceUrl   *string
+	ImageUploadUrl   *string
 	SourceUrl        *string
 }
 
@@ -27,6 +28,7 @@ func (q *Queries) CreateRankingItem(ctx context.Context, arg CreateRankingItemPa
 		arg.RankingVersionID,
 		arg.Title,
 		arg.ImageSourceUrl,
+		arg.ImageUploadUrl,
 		arg.SourceUrl,
 	)
 	var i RankingItem

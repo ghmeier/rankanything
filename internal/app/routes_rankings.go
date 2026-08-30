@@ -20,6 +20,7 @@ func (a *App) registerRankingRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /r/{uuid}/description/edit", a.RequireRankingAccess(http.HandlerFunc(a.handleEditDescription)))
 	mux.Handle("POST /r/{uuid}/description", a.RequireRankingAccess(http.HandlerFunc(a.handleUpdateDescription)))
 	mux.Handle("POST /r/{uuid}/v/{short}/items", mutable(a.handleAddItem))
+	mux.Handle("POST /r/{uuid}/v/{short}/items/upload", mutable(a.handleUploadItem))
 	mux.Handle("GET /r/{uuid}/v/{short}/items/{itemID}", mutable(a.handleViewItem))
 	mux.Handle("GET /r/{uuid}/v/{short}/items/{itemID}/edit", mutable(a.handleEditItem))
 	mux.Handle("PUT /r/{uuid}/v/{short}/items/{itemID}", mutable(a.handleUpdateItem))

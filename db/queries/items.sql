@@ -1,6 +1,6 @@
 -- name: CreateRankingItem :one
-INSERT INTO ranking_items (ranking_version_id, title, image_source_url, source_url)
-VALUES ($1, $2, $3, $4)
+INSERT INTO ranking_items (ranking_version_id, title, image_source_url, image_upload_url, source_url)
+VALUES ($1, $2, $3, $4, $5)
 RETURNING *;
 
 -- name: ListRankingItemsForVersion :many

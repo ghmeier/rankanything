@@ -83,7 +83,33 @@
     return after;
   }
 
+  const csrfToken = JSON.parse(
+    document.body.getAttribute("hx-headers") || "{}",
+  )["X-CSRF-Token"];
+  let dragCounter = 0;
+
+  board.addEventListener("dragenter", (e) => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    dragCounter++;
+    const tray = document.getElementById("tray-items");
+    if (tray) tray.classList.add("ring-2", "ring-primary");
+  });
+
+  board.addEventListener("dragleave", (e) => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    dragCounter--;
+    if (dragCounter <= 0) {
+      dragCounter = 0;
+      const tray = document.getElementById("tray-items");
+      if (tray) tray.classList.remove("ring-2", "ring-primary");
+    }
+  });
+
   board.addEventListener("dragover", (e) => {
+    if (e.dataTransfer.types.includes("Files")) {
+      e.preventDefault();
+      return;
+    }
     if (!dragging) return;
 
     if (dragKind === "item") {
@@ -107,6 +133,43 @@
   });
 
   board.addEventListener("drop", (e) => {
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      e.preventDefault();
+      dragCounter = 0;
+      const tray = document.getElementById("tray-items");
+      if (tray) tray.classList.remove("ring-2", "ring-primary");
+
+      const allowedTypes = new Set([
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+      ]);
+      for (const file of e.dataTransfer.files) {
+        if (!allowedTypes.has(file.type) || file.size > 5 * 1024 * 1024)
+          continue;
+        const form = new FormData();
+        form.append("file", file);
+        fetch(`/r/${rankingUUID}/v/${versionUUID}/items/upload`, {
+          method: "POST",
+          body: form,
+          headers: { "X-CSRF-Token": csrfToken },
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error(res.status);
+            return res.text();
+          })
+          .then((html) => {
+            if (tray) {
+              tray.insertAdjacentHTML("beforeend", html);
+              htmx.process(tray.lastElementChild);
+            }
+          })
+          .catch(() => window.location.reload());
+      }
+      return;
+    }
+
     if (!dragging) return;
     e.preventDefault();
 

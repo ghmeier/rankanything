@@ -602,7 +602,7 @@ func ItemTray(props ItemTrayProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "\" hx-target=\"#tray-items\" hx-swap=\"beforeend\" hx-on::after-request=\"this.reset()\"><input name=\"label\" required placeholder=\"Add an item\" aria-label=\"Item label\" class=\"rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:bg-surface-hover\"> <input name=\"image_url\" placeholder=\"Image URL (optional)\" aria-label=\"Item image URL\" class=\"w-40 rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:bg-surface-hover\"> <input name=\"source_url\" placeholder=\"Link (optional)\" aria-label=\"Item link\" class=\"w-40 rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:bg-surface-hover\"> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "\" hx-target=\"#tray-items\" hx-swap=\"beforeend\" hx-on::after-request=\"this.reset()\"><input name=\"label\" required placeholder=\"Add an item\" aria-label=\"Item label\" class=\"rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:bg-surface-hover\"> <input name=\"source_url\" placeholder=\"Link (optional)\" aria-label=\"Item link\" class=\"w-40 rounded-md border border-border bg-surface px-3 py-1.5 text-sm outline-none focus:bg-surface-hover\"> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

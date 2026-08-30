@@ -130,7 +130,8 @@ type AddItemRequest struct {
 	VersionID      int64
 	Title          string
 	ImageSourceURL string
-	SourceURL string
+	ImageUploadURL string
+	SourceURL      string
 }
 
 func (s *RankingsService) AddItem(ctx context.Context, req AddItemRequest) (db.RankingItem, error) {
@@ -156,10 +157,16 @@ func (s *RankingsService) AddItem(ctx context.Context, req AddItemRequest) (db.R
 		title = &req.Title
 	}
 
+	var uploadURL *string
+	if req.ImageUploadURL != "" {
+		uploadURL = &req.ImageUploadURL
+	}
+
 	return s.Queries.CreateRankingItem(ctx, db.CreateRankingItemParams{
 		RankingVersionID: req.VersionID,
 		Title:            title,
 		ImageSourceUrl:   imageURL,
+		ImageUploadUrl:   uploadURL,
 		SourceUrl:        sourceURL,
 	})
 }
@@ -679,6 +686,7 @@ func (s *RankingsService) CreateVersionFromPublished(ctx context.Context, req Cr
 			RankingVersionID: version.ID,
 			Title:            it.Title,
 			ImageSourceUrl:   it.ImageSourceUrl,
+			ImageUploadUrl:   it.ImageUploadUrl,
 			SourceUrl:        it.SourceUrl,
 		})
 		if err != nil {
