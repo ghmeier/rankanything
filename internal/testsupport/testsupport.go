@@ -34,6 +34,7 @@ import (
 	"github.com/ghmeier/rankanything/internal/db"
 	"github.com/ghmeier/rankanything/internal/email"
 	"github.com/ghmeier/rankanything/internal/services"
+	"github.com/ghmeier/rankanything/internal/storage"
 )
 
 var migrationDone sync.Once
@@ -136,13 +137,14 @@ func NewEnv(t *testing.T) *Env {
 		UserSvc:      &services.UserService{Queries: queries.WithTx(tx), Sessions: s},
 		RankingSvc:   &services.RankingsService{Queries: queries.WithTx(tx), Pool: tx},
 		EmailSvc:     emailSink,
-		ShareSvc:     &services.ShareService{Queries: queries.WithTx(tx), BaseURL: "https://test.rankanything.app"},
+		ShareSvc:     &services.ShareService{Queries: queries.WithTx(tx), Pool: tx, EmailSender: emailSink, BaseURL: "https://test.rankanything.app"},
 		VerificationSvc: &services.VerificationService{
 			Queries:  queries.WithTx(tx),
 			Sender:   emailSink,
 			Sessions: s,
 			BaseURL:  "https://test.rankanything.app",
 		},
+		Storage: storage.NewMemoryStorage(),
 	}
 
 	srv := httptest.NewServer(application.Routes())

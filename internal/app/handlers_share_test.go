@@ -8,10 +8,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ghmeier/rankanything/internal/db"
+	"github.com/ghmeier/rankanything/internal/testsupport"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ghmeier/rankanything/internal/testsupport"
 )
 
 func publishOwnerDraft(t *testing.T, env *testsupport.Env, owner *testsupport.OwnerClient) {
@@ -298,4 +299,190 @@ func TestPublishingANewVersionChangesWhatTheLivePublicLinkShows(t *testing.T) {
 	after := env.NewClient().Get(path)
 	require.Equal(t, http.StatusOK, after.Status)
 	assert.Contains(t, Body(after.Body), "Added after republish", "the same link now reflects the newly published version")
+}
+
+func makeShareable(t *testing.T, env *testsupport.Env, owner *testsupport.OwnerClient) {
+	t.Helper()
+	publishOwnerDraft(t, env, owner)
+	verifyOwnerEmail(t, env, owner)
+}
+
+func extractInviteToken(t *testing.T, env *testsupport.Env) string {
+	t.Helper()
+	msgs := env.EmailSink.Sent()
+	require.NotEmpty(t, msgs, "expected an invite email")
+	last := msgs[len(msgs)-1]
+	u, err := url.Parse(extractInviteLink(t, last.Text))
+	require.NoError(t, err)
+	tok := u.Query().Get("token")
+	require.NotEmpty(t, tok, "no token query param in invite link")
+	return tok
+}
+
+func extractInviteLink(t *testing.T, text string) string {
+	t.Helper()
+	const marker = "Accept invitation: "
+	idx := strings.Index(text, marker)
+	require.NotEqual(t, -1, idx, "no invite link in email text")
+	start := idx + len(marker)
+	end := strings.Index(text[start:], "\n")
+	if end == -1 {
+		return strings.TrimSpace(text[start:])
+	}
+	return strings.TrimSpace(text[start : start+end])
+}
+
+func inviteUser(t *testing.T, env *testsupport.Env, owner *testsupport.OwnerClient, email string, role db.RankingShareRole) {
+	t.Helper()
+	res := owner.Post("/r/"+owner.Ranking.Uuid.String()+"/share/invites", url.Values{
+		"email": {email},
+		"role":  {string(role)},
+	})
+	require.Equal(t, http.StatusOK, res.Status)
+}
+
+func TestInviteByEmailSendsAnEmailAndListsTheShare(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	makeShareable(t, env, owner)
+
+	invited := "friend+" + uuid.NewString() + "@example.com"
+	inviteUser(t, env, owner, invited, db.RankingShareRoleREADER)
+
+	msgs := env.EmailSink.Sent()
+	var found bool
+	for _, m := range msgs {
+		if m.To == invited && strings.Contains(m.Subject, "shared a ranking") {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "an invite email should have been sent to the invited address")
+
+	modal := owner.HTMX(http.MethodGet, "/r/"+owner.Ranking.Uuid.String()+"/share", nil)
+	require.Equal(t, http.StatusOK, modal.Status)
+	assert.Contains(t, modal.Body, invited, "the share modal should list the invited email")
+}
+
+func TestAcceptInviteGrantsAccessToRanking(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	makeShareable(t, env, owner)
+
+	invitedEmail := "invited+" + uuid.NewString() + "@example.com"
+	inviteUser(t, env, owner, invitedEmail, db.RankingShareRoleEDITOR)
+	tok := extractInviteToken(t, env)
+
+	invitee := registerClient(t, env)
+	res := invitee.Get("/invite/" + tok)
+	require.Equal(t, http.StatusSeeOther, res.Status)
+	assert.Contains(t, res.Location(), "/r/"+owner.Ranking.Uuid.String())
+
+	board := invitee.Get("/r/" + owner.Ranking.Uuid.String())
+	assert.Equal(t, http.StatusOK, board.Status, "the invited user can now view the ranking")
+}
+
+func TestAcceptInviteTwiceReturnsAlreadyRedeemed(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	makeShareable(t, env, owner)
+
+	invitedEmail := "double+" + uuid.NewString() + "@example.com"
+	inviteUser(t, env, owner, invitedEmail, db.RankingShareRoleREADER)
+	tok := extractInviteToken(t, env)
+
+	first := registerClient(t, env)
+	res := first.Get("/invite/" + tok)
+	require.Equal(t, http.StatusSeeOther, res.Status)
+
+	second := registerClient(t, env)
+	res = second.Get("/invite/" + tok)
+	require.Equal(t, http.StatusSeeOther, res.Status)
+	assert.Equal(t, "/me", res.Location(), "a redeemed invite redirects to /me")
+}
+
+func TestRevokeShareRemovesAccess(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	makeShareable(t, env, owner)
+
+	invitedEmail := "revoke+" + uuid.NewString() + "@example.com"
+	inviteUser(t, env, owner, invitedEmail, db.RankingShareRoleREADER)
+	tok := extractInviteToken(t, env)
+
+	invitee := registerClient(t, env)
+	invitee.Get("/invite/" + tok)
+
+	shares, err := env.Queries.ListEmailSharesForRanking(context.Background(), owner.Ranking.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, shares)
+
+	res := owner.Delete("/r/"+owner.Ranking.Uuid.String()+"/share/invites/"+strconv.FormatInt(shares[0].ID, 10), nil)
+	require.Equal(t, http.StatusOK, res.Status)
+
+	board := invitee.Get("/r/" + owner.Ranking.Uuid.String())
+	assert.Equal(t, http.StatusNotFound, board.Status, "access revoked after share deletion")
+}
+
+func TestEditorCannotManageShares(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	makeShareable(t, env, owner)
+
+	editorEmail := "editor+" + uuid.NewString() + "@example.com"
+	inviteUser(t, env, owner, editorEmail, db.RankingShareRoleEDITOR)
+	tok := extractInviteToken(t, env)
+
+	editor := registerClient(t, env)
+	editor.Get("/invite/" + tok)
+
+	slug := owner.Ranking.Uuid.String()
+
+	shareModal := editor.HTMX(http.MethodGet, "/r/"+slug+"/share", nil)
+	assert.Equal(t, http.StatusForbidden, shareModal.Status, "editor cannot open the share modal")
+
+	enableLink := editor.Post("/r/"+slug+"/share/link", nil)
+	assert.Equal(t, http.StatusForbidden, enableLink.Status, "editor cannot enable sharing")
+
+	invite := editor.Post("/r/"+slug+"/share/invites", url.Values{"email": {"another@example.com"}, "role": {"READER"}})
+	assert.Equal(t, http.StatusForbidden, invite.Status, "editor cannot invite users")
+}
+
+func TestReaderCannotEditBoard(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	makeShareable(t, env, owner)
+
+	readerEmail := "reader+" + uuid.NewString() + "@example.com"
+	inviteUser(t, env, owner, readerEmail, db.RankingShareRoleREADER)
+	tok := extractInviteToken(t, env)
+
+	reader := registerClient(t, env)
+	reader.Get("/invite/" + tok)
+
+	slug := owner.Ranking.Uuid.String()
+	short := owner.Draft.ShortUuid
+
+	addItem := reader.HTMX(http.MethodPost, "/r/"+slug+"/v/"+short+"/items", url.Values{"label": {"Sneaky"}})
+	assert.Equal(t, http.StatusForbidden, addItem.Status, "reader cannot add items")
+
+	addTier := reader.HTMX(http.MethodPost, "/r/"+slug+"/v/"+short+"/tiers", url.Values{"label": {"Sneaky"}, "color": {"#ff0000"}})
+	assert.Equal(t, http.StatusForbidden, addTier.Status, "reader cannot add tiers")
+}
+
+func TestReaderCanViewRanking(t *testing.T) {
+	env := testsupport.NewEnv(t)
+	owner := env.NewOwnerClient()
+	makeShareable(t, env, owner)
+
+	readerEmail := "viewer+" + uuid.NewString() + "@example.com"
+	inviteUser(t, env, owner, readerEmail, db.RankingShareRoleREADER)
+	tok := extractInviteToken(t, env)
+
+	reader := registerClient(t, env)
+	reader.Get("/invite/" + tok)
+
+	res := reader.Get("/r/" + owner.Ranking.Uuid.String())
+	require.Equal(t, http.StatusOK, res.Status)
+	assert.Contains(t, Body(res.Body), owner.Ranking.Name)
 }

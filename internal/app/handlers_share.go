@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -21,25 +23,11 @@ func (a *App) handleGetShareModal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validation, err := a.ShareSvc.ValidateShareable(ctx, ranking)
+	props, err := a.buildShareModalProps(ctx, rankingUUID, ranking)
 	if err != nil {
 		a.serverError(w, r, err)
 		return
 	}
-
-	link, err := a.ShareSvc.GetLinkShare(ctx, ranking.ID)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-
-	shares, err := a.ShareSvc.ListEmailShares(ctx, ranking.ID)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-
-	props := shareModalProps(rankingUUID.String(), validation, link, shares)
 	a.render(w, r, http.StatusOK, ui.ShareModalContent(props))
 }
 
@@ -63,20 +51,12 @@ func (a *App) handleEnableShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	link, err := a.ShareSvc.EnableLinkShare(ctx, ranking.ID)
-	if err != nil {
+	if _, err := a.ShareSvc.EnableLinkShare(ctx, ranking.ID); err != nil {
 		a.serverError(w, r, err)
 		return
 	}
 
-	shares, err := a.ShareSvc.ListEmailShares(ctx, ranking.ID)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-
-	props := shareModalProps(rankingUUID.String(), validation, link, shares)
-	a.render(w, r, http.StatusOK, ui.ShareModalBody(props))
+	a.renderShareModalBody(w, r, rankingUUID, ranking)
 }
 
 func (a *App) handleDisableShare(w http.ResponseWriter, r *http.Request) {
@@ -94,20 +74,7 @@ func (a *App) handleDisableShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validation, err := a.ShareSvc.ValidateShareable(ctx, ranking)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-
-	shares, err := a.ShareSvc.ListEmailShares(ctx, ranking.ID)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-
-	props := shareModalProps(rankingUUID.String(), validation, services.LinkShare{}, shares)
-	a.render(w, r, http.StatusOK, ui.ShareModalBody(props))
+	a.renderShareModalBody(w, r, rankingUUID, ranking)
 }
 
 func (a *App) handleInviteByEmail(w http.ResponseWriter, r *http.Request) {
@@ -145,24 +112,7 @@ func (a *App) handleInviteByEmail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validation, err := a.ShareSvc.ValidateShareable(ctx, ranking)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-	link, err := a.ShareSvc.GetLinkShare(ctx, ranking.ID)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-	shares, err := a.ShareSvc.ListEmailShares(ctx, ranking.ID)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-
-	props := shareModalProps(rankingUUID.String(), validation, link, shares)
-	a.render(w, r, http.StatusOK, ui.ShareModalBody(props))
+	a.renderShareModalBody(w, r, rankingUUID, ranking)
 }
 
 func (a *App) handleRevokeShare(w http.ResponseWriter, r *http.Request) {
@@ -185,24 +135,7 @@ func (a *App) handleRevokeShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validation, err := a.ShareSvc.ValidateShareable(ctx, ranking)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-	link, err := a.ShareSvc.GetLinkShare(ctx, ranking.ID)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-	shares, err := a.ShareSvc.ListEmailShares(ctx, ranking.ID)
-	if err != nil {
-		a.serverError(w, r, err)
-		return
-	}
-
-	props := shareModalProps(rankingUUID.String(), validation, link, shares)
-	a.render(w, r, http.StatusOK, ui.ShareModalBody(props))
+	a.renderShareModalBody(w, r, rankingUUID, ranking)
 }
 
 func (a *App) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
@@ -212,11 +145,42 @@ func (a *App) handleAcceptInvite(w http.ResponseWriter, r *http.Request) {
 
 	rankingUUID, err := a.ShareSvc.AcceptInvite(ctx, token, userID)
 	if err != nil {
-		a.Sessions.Flash(ctx, err.Error())
+		msg := "Something went wrong."
+		if errors.Is(err, services.ErrShareNotFound) ||
+			errors.Is(err, services.ErrInviteExpired) ||
+			errors.Is(err, services.ErrInviteAlreadyRedeemed) {
+			msg = err.Error()
+		}
+		a.Sessions.Flash(ctx, msg)
 		redirect(w, r, "/me")
 		return
 	}
 
 	a.Sessions.Flash(ctx, "Invitation accepted")
 	redirect(w, r, "/r/"+rankingUUID.String())
+}
+
+func (a *App) buildShareModalProps(ctx context.Context, rankingUUID uuid.UUID, ranking db.Ranking) (ui.ShareModalProps, error) {
+	validation, err := a.ShareSvc.ValidateShareable(ctx, ranking)
+	if err != nil {
+		return ui.ShareModalProps{}, err
+	}
+	link, err := a.ShareSvc.GetLinkShare(ctx, ranking.ID)
+	if err != nil {
+		return ui.ShareModalProps{}, err
+	}
+	shares, err := a.ShareSvc.ListEmailShares(ctx, ranking.ID)
+	if err != nil {
+		return ui.ShareModalProps{}, err
+	}
+	return shareModalProps(rankingUUID.String(), validation, link, shares), nil
+}
+
+func (a *App) renderShareModalBody(w http.ResponseWriter, r *http.Request, rankingUUID uuid.UUID, ranking db.Ranking) {
+	props, err := a.buildShareModalProps(r.Context(), rankingUUID, ranking)
+	if err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+	a.render(w, r, http.StatusOK, ui.ShareModalBody(props))
 }

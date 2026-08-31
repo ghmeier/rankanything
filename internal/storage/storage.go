@@ -143,3 +143,25 @@ func (s *LocalStorage) Delete(_ context.Context, key string) error {
 func (s *LocalStorage) ServeHandler() http.Handler {
 	return http.StripPrefix(s.servePrefix, http.FileServer(http.Dir(s.dir)))
 }
+
+type MemoryStorage struct {
+	Files map[string][]byte
+}
+
+func NewMemoryStorage() *MemoryStorage {
+	return &MemoryStorage{Files: make(map[string][]byte)}
+}
+
+func (m *MemoryStorage) Upload(_ context.Context, key string, r io.Reader, _ string) (string, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return "", err
+	}
+	m.Files[key] = data
+	return "/uploads/" + key, nil
+}
+
+func (m *MemoryStorage) Delete(_ context.Context, key string) error {
+	delete(m.Files, key)
+	return nil
+}

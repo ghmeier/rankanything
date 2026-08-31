@@ -27,6 +27,7 @@ const InviteTTL = 7 * 24 * time.Hour
 
 type ShareService struct {
 	Queries     *db.Queries
+	Pool        txBeginner
 	EmailSender email.Sender
 	BaseURL     string
 }
@@ -162,7 +163,15 @@ type InviteRequest struct {
 }
 
 func (s *ShareService) InviteByEmail(ctx context.Context, req InviteRequest) (db.RankingShare, error) {
-	share, err := s.Queries.CreateEmailShare(ctx, db.CreateEmailShareParams{
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return db.RankingShare{}, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	txq := s.Queries.WithTx(tx)
+
+	share, err := txq.CreateEmailShare(ctx, db.CreateEmailShareParams{
 		RankingID: req.RankingID,
 		Email:     &req.Email,
 		Role:      req.Role,
@@ -176,7 +185,7 @@ func (s *ShareService) InviteByEmail(ctx context.Context, req InviteRequest) (db
 		return db.RankingShare{}, err
 	}
 
-	_, err = s.Queries.CreateRankingInvite(ctx, db.CreateRankingInviteParams{
+	_, err = txq.CreateRankingInvite(ctx, db.CreateRankingInviteParams{
 		Token:          hash,
 		UserID:         req.InviterUserID,
 		InvitedEmail:   &req.Email,
@@ -185,6 +194,10 @@ func (s *ShareService) InviteByEmail(ctx context.Context, req InviteRequest) (db
 	})
 	if err != nil {
 		return db.RankingShare{}, fmt.Errorf("create ranking invite: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return db.RankingShare{}, fmt.Errorf("commit invite: %w", err)
 	}
 
 	msg, err := email.InviteMessage(req.Email, req.InviterName, req.RankingName, string(req.Role), s.BaseURL, plaintext)
@@ -228,18 +241,30 @@ func (s *ShareService) AcceptInvite(ctx context.Context, plaintextToken string, 
 		return uuid.UUID{}, ErrInviteExpired
 	}
 
-	if err := s.Queries.MarkRankingInviteRedeemed(ctx, db.MarkRankingInviteRedeemedParams{
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return uuid.UUID{}, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	txq := s.Queries.WithTx(tx)
+
+	if err := txq.MarkRankingInviteRedeemed(ctx, db.MarkRankingInviteRedeemedParams{
 		ID:            invite.ID,
 		InvitedUserID: &userID,
 	}); err != nil {
 		return uuid.UUID{}, fmt.Errorf("redeem invite: %w", err)
 	}
 
-	if err := s.Queries.UpdateRankingShareUserID(ctx, db.UpdateRankingShareUserIDParams{
+	if err := txq.UpdateRankingShareUserID(ctx, db.UpdateRankingShareUserIDParams{
 		ID:     invite.RankingShareID,
 		UserID: &userID,
 	}); err != nil {
 		return uuid.UUID{}, fmt.Errorf("update share user: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return uuid.UUID{}, fmt.Errorf("commit accept invite: %w", err)
 	}
 
 	share, err := s.Queries.GetRankingShareByID(ctx, invite.RankingShareID)

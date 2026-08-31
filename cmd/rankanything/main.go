@@ -102,7 +102,7 @@ func run(logger *slog.Logger) error {
 		UserSvc:      &services.UserService{Queries: q, Sessions: s},
 		RankingSvc:   &services.RankingsService{Queries: q, Pool: p},
 		EmailSvc:     emailSvc,
-		ShareSvc:     &services.ShareService{Queries: q, EmailSender: emailSvc, BaseURL: cfg.BaseURL},
+		ShareSvc:     &services.ShareService{Queries: q, Pool: p, EmailSender: emailSvc, BaseURL: cfg.BaseURL},
 		VerificationSvc: &services.VerificationService{
 			Queries:  q,
 			Sender:   emailSvc,

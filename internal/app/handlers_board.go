@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -21,21 +22,35 @@ func boardScope(r *http.Request) (uuid.UUID, db.RankingVersion) {
 		ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
 }
 
-func (a *App) requireDraftVersion(next http.Handler) http.Handler {
+func (a *App) requireOwner(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		version := ctx.Value(constants.RankingVersionKey).(db.RankingVersion)
-		if version.PublishedAt.Valid {
-			a.forbidden(w, r, "This version is published and can no longer be edited.")
+		role := r.Context().Value(constants.RankingAccessRoleKey).(db.RankingShareRole)
+		if role != db.RankingShareRoleOWNER {
+			a.forbidden(w, r, "Only the owner can do this.")
 			return
 		}
+		next.ServeHTTP(w, r)
+	})
+}
 
-		role := ctx.Value(constants.RankingAccessRoleKey).(db.RankingShareRole)
+func (a *App) requireEditor(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		role := r.Context().Value(constants.RankingAccessRoleKey).(db.RankingShareRole)
 		if role == db.RankingShareRoleREADER {
 			a.forbidden(w, r, "You don't have permission to edit this ranking.")
 			return
 		}
+		next.ServeHTTP(w, r)
+	})
+}
 
+func (a *App) requireDraftVersion(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		version := r.Context().Value(constants.RankingVersionKey).(db.RankingVersion)
+		if version.PublishedAt.Valid {
+			a.forbidden(w, r, "This version is published and can no longer be edited.")
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }
@@ -169,14 +184,21 @@ func (a *App) handleUploadItem(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	contentType := header.Header.Get("Content-Type")
+	if header.Size > 5<<20 {
+		http.Error(w, "File must be under 5 MB.", http.StatusUnprocessableEntity)
+		return
+	}
+
+	sniffBuf := make([]byte, 512)
+	n, _ := io.ReadFull(file, sniffBuf)
+	contentType := http.DetectContentType(sniffBuf[:n])
 	ext, ok := allowedImageTypes[contentType]
 	if !ok {
 		http.Error(w, "File must be JPEG, PNG, GIF, or WebP.", http.StatusUnprocessableEntity)
 		return
 	}
-	if header.Size > 5<<20 {
-		http.Error(w, "File must be under 5 MB.", http.StatusUnprocessableEntity)
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		a.serverError(w, r, err)
 		return
 	}
 
